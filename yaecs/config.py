@@ -1372,8 +1372,8 @@ class Configuration:
         else:
             dicts_to_merge = []
             if isinstance(config_path_or_dictionary, str):
-                with (open(self._find_path(config_path_or_dictionary),
-                           encoding='utf-8') as yaml_file):
+                with open(self._find_path(config_path_or_dictionary),
+                          encoding='utf-8') as yaml_file:
                     for dictionary_to_add in yaml.load_all(
                             yaml_file, Loader=self._get_yaml_loader()):
                         dicts_to_merge.append(dictionary_to_add)
