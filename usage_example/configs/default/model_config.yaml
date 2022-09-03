@@ -1,0 +1,7 @@
+--- !model # Model config
+
+type: "polynomial"  # can be "polynomial", "linear"
+
+param1: null
+param2: null
+param3: null

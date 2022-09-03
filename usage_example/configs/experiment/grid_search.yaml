@@ -1,0 +1,8 @@
+name: grid_search
+
+param1_variation: [model.param1: 0.5,    model.param1: 1      ]
+param2_variation: [model.param2: -0.125, model.param2: 0.5    ]
+param3_variation: [model.param3: 0.0625, model.param3: 0.16666]
+grid: ["param1_variation", "param2_variation", "param3_variation"]
+
+model.type: "polynomial"

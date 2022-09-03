@@ -1,0 +1,17 @@
+--- # Default config
+
+name: null
+use_gpu: false
+metrics:
+    is_exponential: "exponential_l2"
+    is_square_root: "square_root_l2"
+
+type_variation: null
+param1_variation: null
+param2_variation: null
+param3_variation: null
+grid: null
+number_of_repeats: 1
+
+data_path_to_config: "./configs/default/data_config.yaml"
+model_path_to_config: "./configs/default/model_config.yaml"

@@ -1,0 +1,8 @@
+name: random_search
+
+type_variation:
+    linear: {model.type: "linear"}
+    polynomial: {model.type: "polynomial"}
+number_of_repeats: 10
+
+model.param*: "random"

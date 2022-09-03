@@ -1,0 +1,13 @@
+--- !data # Data config
+
+name: "My Gaussian Dataset"
+
+generation: !generation
+    mean: 0
+    variance: 0.1
+
+train: !train  # adding this for reference, but no training set is actually used in this sample code
+    size: 1
+
+test: !test
+    size: 10000

@@ -1,0 +1,15 @@
+[style]
+
+based_on_style = pep8
+
+align_closing_bracket_with_visual_indent=True
+allow_multiline_dictionary_keys=True
+allow_multiline_lambdas=True
+arithmetic_precedence_indication=True
+column_limit=79
+disable_ending_comma_heuristic=True
+space_between_ending_comma_and_closing_bracket=False
+split_before_arithmetic_operator=True
+split_before_dot=True
+split_before_named_assigns=False
+split_complex_comprehension=True
