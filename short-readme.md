@@ -1,7 +1,7 @@
 # YAECS (Yet Another Experiment Config System)
 
 [![Offial repo](https://img.shields.io/badge/official%20repo-YAECS-%23ff9626?logo=gitlab)](https://gitlab.com/reactivereality/public/yaecs)
-![GitHub last commit (branch)](https://img.shields.io/github/last-commit/valentingol/yaecs/master)
+![GitHub last commit (branch)](https://img.shields.io/github/last-commit/valentingol/yaecs/main)
 [![License](https://img.shields.io/badge/license-LGPLV3%2B-%23c4c2c2)](https://www.gnu.org/licenses/)
 
 ---
