@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_utils import load_config, template
+from unittests.config.utils import load_config, template
 
 from yaecs import Configuration
 from yaecs.config_utils import compare_string_pattern
@@ -593,6 +593,17 @@ def test_pattern_matching():
 
 
 def test_warnings(capsys, tmp_file_name):
+    # config = ConfigForTests(config_path_or_dictionary={
+    #     "param": None, "lparam": [], "dparam": {"param2": 1}})
+    # config.merge_from_command_line("--param=1 --lparam=[1] "
+    #                                "--dparam={param2:2,param3:3}")
+    # captured = capsys.readouterr()
+    # assert captured.out.count("is None. It cannot be replaced from the") == 1
+    # assert captured.out.count("is an empty list. "
+    #                           "It cannot be replaced from the") == 1
+    # assert captured.out.count(" key. This key will be set") == 1
+    # assert config.dparam == {"param2": 2, "param3": None}
+
     config = make_config({"param": 1}, do_not_merge_command_line=True,
                          overwriting_regime="unsafe")
     config.save(str(tmp_file_name))

@@ -167,11 +167,11 @@ class Configuration:
                                in self._methods else item.split(".")[0])
             sub_config = getattr(self, sub_config_name)
             if not isinstance(sub_config, Configuration):
+                did_you_mean_message = self._did_you_mean(
+                    sub_config_name, filter_type=self.__class__)
                 raise TypeError(
                     f"As the parameter '{sub_config_name}' is not a sub-config"
-                    ", it cannot be accessed.\n" + str(
-                        self._did_you_mean(sub_config_name,
-                                           filter_type=self.__class__)))
+                    f", it cannot be accessed.\n{did_you_mean_message}")
             return sub_config[item.split(".", 1)[1]]
         return getattr(self, "___" + item if item in self._methods else item)
 
@@ -389,17 +389,17 @@ class Configuration:
                                               None), to_display,
                     )
 
-        def _get_to_ret(value_in_self, value_in_other):
+        def _get_to_ret(value_self, value_other):
             """Get values to retain in comparison."""
             to_ret = {}
-            for key in value_in_self:
-                if key not in value_in_other:
+            for key in value_self:
+                if key not in value_other:
                     to_ret[key] = None
-                elif value_in_self[key] != value_in_other[key]:
-                    to_ret[key] = value_in_other[key]
+                elif value_self[key] != value_other[key]:
+                    to_ret[key] = value_other[key]
             for key in value_in_other:
-                if key not in value_in_self:
-                    to_ret[key] = value_in_other[key]
+                if key not in value_self:
+                    to_ret[key] = value_other[key]
             return to_ret
 
         differences = []
@@ -413,8 +413,9 @@ class Configuration:
                     if not isinstance(value_in_self, Configuration):
                         if (isinstance(value_in_self, dict)
                                 and isinstance(value_in_other, dict)):
-                            to_ret = _get_to_ret(value_in_self, value_in_other)
-                            differences.append((displayed_name, to_ret))
+                            differences.append((displayed_name,
+                                                _get_to_ret(value_in_self,
+                                                            value_in_other)))
                         else:
                             differences.append(
                                 (displayed_name, value_in_other))
@@ -460,13 +461,13 @@ class Configuration:
         variations = []
         variations_names = []
 
-        def _add_new_names(new_names_to_add, dimension, var_index):
-            for var_name in (self._configuration_variations_names):
-                if var_name[0] == dimension:
-                    new_names_to_add.append(names_to_add[var_index] + "*"
-                                            + var_name[0] + "_"
-                                            + var_name[1][index])
-            return new_names_to_add
+        def _add_new_names(new_names, dim, var_ind):
+            for var_name in self._configuration_variations_names:
+                if var_name[0] == dim:
+                    new_names.append(names_to_add[var_ind] + "*"
+                                     + var_name[0] + "_"
+                                     + var_name[1][index])
+            return new_names
 
         # Adding grids
         for grid in self._grids:
@@ -836,7 +837,7 @@ class Configuration:
         of the sys.argv string
         """
         print("WARNING: merge_from_command_line is now deprecated and "
-              "will automatically start after using any constructor."
+              "will automatically start after using any constructor.\n"
               "You can remove the 'config.merge_from_command_line()' "
               "line from your code now :) it's redundant.")
         to_merge = self._get_command_line_dict(string_to_merge)
@@ -940,6 +941,7 @@ class Configuration:
         the root config.
         :param variation_to_register: list of configs
         :return: the same list of configs once the configs have been
+        added to the internal variation tracker
         :raises ValueError: if ';arg0=' if found multiple times in the
         state
         :raises RuntimeError: register_as_config_variations is called
@@ -1067,7 +1069,8 @@ class Configuration:
         which will deactivate pre-processing.
         :param save_hierarchy: whether to save config hierarchy as a
         '*_hierarchy.yaml' file
-        :raises RuntimeError: to configuration found to save
+        :raises RuntimeError: no file name is provided and there is no
+        previous save to overwrite
         """
         # pylint: disable=protected-access
         if filename is None:
@@ -1276,8 +1279,8 @@ class Configuration:
                     a[3:] if a.startswith("___") else a:
                     self._format_metadata() if a == "config_metadata" else
                     (b if
-                     (".".join(class_instance._nesting_hierarchy + [a]) not in
-                      (self.get_main_config()._pre_postprocessing_values)) else
+                     ".".join(class_instance._nesting_hierarchy + [a]) not in
+                      (self.get_main_config()._pre_postprocessing_values) else
                      (self.get_main_config()._pre_postprocessing_values[
                          ".".join(class_instance._nesting_hierarchy + [a])]))
                     for (a, b) in class_instance.__dict__.items()
@@ -1469,17 +1472,17 @@ class Configuration:
                 raise AttributeError(
                     f"ERROR : parameter '{key}' cannot be merged : "
                     f"it is not in the default '{self.get_name().upper()}' "
-                    f"config.\n {self._did_you_mean(key)}") from exception
+                    f"config.\n{self._did_you_mean(key)}") from exception
 
             if isinstance(sub_config, Configuration):
                 sub_config._init_from_config({new_key: value})
             else:
+                did_you_mean_message = self._did_you_mean(
+                    key.split('.')[0], filter_type=self.__class__,
+                    suffix=key.split('.', 1)[1])
                 raise TypeError(
                     f"Failed to set parameter '{key}' : '{key.split('.')[0]}'"
-                    " is not a sub-config.\n" + str(
-                        self._did_you_mean(
-                            key.split('.')[0], filter_type=self.__class__,
-                            suffix=key.split('.', 1)[1])))
+                    f" is not a sub-config.\n{did_you_mean_message}")
         else:
             try:
                 old_value = getattr(

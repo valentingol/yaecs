@@ -32,7 +32,7 @@ def get_template_class(
 ) -> Type[Configuration]:
     """
     Creates a template Configuration subclass to use in a small project
-    where little customization is needed.
+    where little customisation is needed.
     :param default_config_path: path to the default config to use for
     the template
     :param pre_processing_dict: pre-processing dict to use for

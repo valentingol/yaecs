@@ -39,9 +39,9 @@ class Metrics:
 def create_data(data_config):
     mu = data_config.generation.mean  # pylint: disable=invalid-name
     sigma = data_config.generation.variance
-    train = stats.truncnorm((-1 - mu) / sigma, (1-mu) / sigma, loc=mu,
+    train = stats.truncnorm((-1-mu) / sigma, (1-mu) / sigma, loc=mu,
                             scale=sigma).rvs(data_config.train.size)
-    test = stats.truncnorm((-1 - mu) / sigma, (1-mu) / sigma, loc=mu,
+    test = stats.truncnorm((-1-mu) / sigma, (1-mu) / sigma, loc=mu,
                            scale=sigma).rvs(data_config.test.size)
     return train, test
 

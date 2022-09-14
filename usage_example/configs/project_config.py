@@ -48,18 +48,11 @@ class ProjectSpecificConfiguration(Configuration):
         return "./configs/default/main_config.yaml"
 
     def parameters_pre_processing(self):
-        return {
-            "model.type":
-            check_model_type,
-            "model.param*":
-            check_params,
-            "*_variation":
-            self.register_as_config_variations,
-            "grid":
-            self.register_as_grid,
-            "*path_to_config":
-            self.register_as_additional_config_file,
-            "*paths_to_configs":
-            lambda x:
-            [self.register_as_additional_config_file(path) for path in x]
-        }
+        return {"model.type": check_model_type,
+                "model.param*": check_params,
+                "*_variation": self.register_as_config_variations,
+                "grid": self.register_as_grid,
+                "*path_to_config": self.register_as_additional_config_file,
+                "*paths_to_configs": lambda x: [
+                    self.register_as_additional_config_file(path)
+                    for path in x]}

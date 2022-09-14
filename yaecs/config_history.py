@@ -260,9 +260,9 @@ class ConfigHistory:
                     for k in range(len(self.matrix[i]))) + 1
                 for j in range(len(self.similarity_matrix[i]))
             ] for i in range(len(self.similarity_matrix))]
-            for i, simlarities in enumerate(relevant_similarities):
-                minimum = min(simlarities)
-                for j, sim in enumerate(simlarities):
+            for i, similarities in enumerate(relevant_similarities):
+                minimum = min(similarities)
+                for j, sim in enumerate(similarities):
                     if sim - minimum < tolerance + 1:
                         if not ((i, j) in self.config_graph.edges() or
                                 (i, j) in self.config_graph.edges()):
@@ -280,7 +280,7 @@ class ConfigHistory:
         for i in to_remove:
             self.config_graph.remove_node(i)
 
-        # Determine coloring scheme
+        # Determine colouring scheme
         unavailable = []
         if scheme == "date":
             indexes_values = list(
@@ -293,7 +293,7 @@ class ConfigHistory:
             indexes_values = list(
                 zip(list(range(len(self.configs))),
                     self.metrics[scheme[7:]][0]))
-            for i, indexes_value in enumerate(indexes_values):
+            for indexes_value in indexes_values:
                 if indexes_value[1] is None:
                     unavailable.append((indexes_value[0], None))
             indexes_values = [
@@ -310,7 +310,7 @@ class ConfigHistory:
                 color_scheme = class_scheme
         elif scheme.startswith("param:"):
             values = []
-            for i, config in enumerate(self.configs):
+            for config in self.configs:
                 found = False
                 params = config.get_parameter_names()
                 for param in params:
@@ -323,7 +323,7 @@ class ConfigHistory:
                 if not found:
                     raise Exception(f"Unknown param : {scheme[6:]}.")
             indexes_values = list(zip(list(range(len(self.configs))), values))
-            for i, indexes_value in enumerate(indexes_values):
+            for indexes_value in indexes_values:
                 if indexes_value[1] is None:
                     unavailable.append((indexes_value[0], None))
             indexes_values = [
@@ -345,15 +345,15 @@ class ConfigHistory:
             value_set.sort()
             color_set = [5]
             if fill == "top":
-                for i in range(len(value_set) - 1):
+                for _ in range(len(value_set) - 1):
                     color_set = [max([0, min(color_set) - 1])] + color_set
             elif fill == "bottom":
-                for i in range(len(value_set) - 1):
+                for _ in range(len(value_set) - 1):
                     color_set += [max([0, min(color_set) - 1])]
             elif fill == "full":
                 factor = 6. / float(len(value_set))
                 acc = 6 - factor
-                for i in range(len(value_set) - 1):
+                for _ in range(len(value_set) - 1):
                     color_set = [max([0, int(acc // 1)])] + color_set
                     acc -= factor
             else:

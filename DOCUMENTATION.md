@@ -9,7 +9,7 @@ object is meant to make some operations more practical, including :
 - flexibility to adapt to the size of a project (simple configs for small
 projects, multi-file and/or nested configs for large projects)
 - making it easy to change the config between two experiments, to implement
-hyper-parameter searches, or to visualize the differences between past
+hyper-parameter searches, or to visualise the differences between past
 experiments
 - increasing the overall readability of the config files and introducing
 safeguards against bad practices for projects with several contributors/use
@@ -279,7 +279,7 @@ You can just as easily introduce any new parameter in the default config
 without having to update every single config in your config directory, without
 having to edit your colleagues' config files, and without having to
 systematically handle non-existing parameters in your code. All you need to do
-is ensure that your new code with the default parameters has the same behavior
+is ensure that your new code with the default parameters has the same behaviour
 as the old code.
 
 It also makes it very easy to check what an earlier experiment would have
@@ -557,7 +557,7 @@ readable, using the example with “\*” is probably a bad idea. Indeed, this
 makes things less readable as it becomes unclear what exactly is
 being set. Moreover, the above experiment config would look in the whole config
 for all parameters in all sub-config following the “\*.train” pattern, which
-could result in unexpected matches. To clarify this behavior, and since pattern
+could result in unexpected matches. To clarify this behaviour, and since pattern
 matching like this can actually come in very handy in certain situations,
 a warning will be displayed each time a pattern param is merged, specifying the
 full path of all the params that were matched by this pattern. This way, you
@@ -642,7 +642,7 @@ Finally, we call `config.create_variations()`, which will create copies of the
 parent list and merge the variations into those copies to return the list of
 children configs. We now only need to save the parent config because finding
 the children from the parent is fully determined by the content of the parent.
-Additionally, it is easy to visualize the entirety of the set of experiments
+Additionally, it is easy to visualise the entirety of the set of experiments
 just by having a look at the `variations` parameter.
 
 #### Advanced usage
