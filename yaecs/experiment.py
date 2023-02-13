@@ -114,8 +114,8 @@ class Experiment:
         """
         variations = self.config.create_variations()
         self.number_of_runs = len(variations)
+        description = None
         for run_number, variation in enumerate(variations):
-            description = None
             self.current_run = 0
             if variation is not self.config:
                 filter_fn = (None if self.tracker.get_filtered_params is self.tracker.default_filter
