@@ -114,7 +114,7 @@ class Experiment:
         """
         variations = self.config.create_variations()
         self.number_of_runs = len(variations)
-        description = None
+        description = run_description
         for run_number, variation in enumerate(variations):
             self.current_run = 0
             if variation is not self.config:
@@ -130,14 +130,14 @@ class Experiment:
                               description_formatter=format_fn)
                 self.current_run = run_number
                 description = (input("[TRACKER] Please describe the purpose of these runs : ")
-                               if run_description is None else run_description)
+                               if description is None else description)
                 description = description if description else "unstated purpose"
                 if description.count("%h") == 1:
                     description = f"{description.split('%h')[0]} (variation {variation.get_variation_name()})%h" \
                                   f"{description.split('%h')[1]}"
                 else:
                     description = f"Variation {variation.get_variation_name()}%h{description}"
-            self.run_single(run_description if description is None else description, **kwargs)
+            self.run_single(description, **kwargs)
 
     def run_single(self, run_description: Optional[str] = None, **kwargs) -> Any:
         """

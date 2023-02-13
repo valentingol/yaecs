@@ -16,4 +16,4 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-__version__ = "3.0.4"
+__version__ = "3.0.5"
