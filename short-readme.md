@@ -11,8 +11,8 @@ for safe, clear and repeatable experiments.
 
 **DISCLAIMER:** This repository is the public version of a repository that is
 the property of [Reactive Reality](https://www.reactivereality.com/). This
-repository IS NOT OFFICIAL and can not to be maintained in the future. Some
-minor changed* are applied from the
+repository IS NOT OFFICIAL and might not be maintained in the future. Some
+minor changes* are applied from the
 [official repository (GitLab)](https://gitlab.com/reactivereality/public/yaecs)
 (under lesser GNU license).
 

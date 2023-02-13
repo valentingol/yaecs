@@ -20,7 +20,10 @@ import pathlib
 
 from setuptools import setup
 
-VERSION = '1.0.2'
+_dct = {}
+with open('yaecs/version.py') as f:
+    exec(f.read(), _dct)
+VERSION = _dct['__version__']
 
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent
@@ -29,9 +32,10 @@ HERE = pathlib.Path(__file__).parent
 SHORT_README = (HERE / "short-readme.md").read_text()
 
 setup(name='yaecs', version=VERSION,
-      description='Reactive Reality Machine Learning Config System',
+      description='A Config System designed for experimental purposes',
       long_description=SHORT_README,
       long_description_content_type="text/markdown",
       url='https://gitlab.com/reactivereality/public/yaecs',
-      author='Reactive Reality AG', packages=['yaecs'],
-      package_dir={'yaecs': 'yaecs'}, install_requires=["pyyaml"])
+      author='Reactive Reality AG', packages=['yaecs', 'yaecs.config'],
+      package_dir={'yaecs': 'yaecs', 'yaecs.config': 'yaecs/config'},
+      install_requires=["pyyaml==6.0", "mock==4.0.3"])
