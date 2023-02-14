@@ -15,7 +15,7 @@ Copyright (C) 2022  Reactive Reality
     You should have received a copy of the GNU Lesser General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
+import logging
 import os.path as osp
 from pathlib import Path
 from typing import Any
@@ -24,7 +24,7 @@ import pytest
 from unittests.config.utils import load_config, template
 
 from yaecs import Configuration
-from yaecs.config_utils import compare_string_pattern
+from yaecs.yaecs_utils import compare_string_pattern
 from yaecs.user_utils import make_config
 
 
@@ -83,13 +83,14 @@ def test_load_experiment(capsys, yaml_default, yaml_experiment,
     check_integrity(config, p_2=3.0, p_3=1.0, p_4=1.0)
 
 
-def test_get(capsys):
-    config = make_config({
-        "save": "test",
-        "param": 1
-    }, do_not_merge_command_line=True)
-    captured = capsys.readouterr()
-    assert captured.out.count("WARNING") == 1
+def test_get(caplog):
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config = make_config({
+            "save": "test",
+            "param": 1
+        }, do_not_merge_command_line=True)
+    assert caplog.text.count("WARNING") == 2
     assert config["param"] == 1
     assert config["save"] == "test"
     assert config["___save"] == "test"
@@ -225,74 +226,96 @@ def test_merge_pattern(capsys, yaml_default, yaml_experiment):
     ]
 
 
-def test_merge_from_command_line(capsys, yaml_default, yaml_experiment):
+def test_merge_from_command_line(caplog, yaml_default, yaml_experiment):
 
     def mcl(cfg, string):
         # pylint: disable=protected-access
-        to_merge = cfg._get_command_line_dict(string_to_merge=string)
+        to_merge = cfg._gather_command_line_dict(string_to_merge=string)
         if to_merge:
-            print(f"Merging from command line : {to_merge}")
+            logging.getLogger("yaecs.config").info(f"Merging from command line : {to_merge}")
             cfg._merge(to_merge)
 
-    config = load_config(yaml_experiment, default_config=yaml_default)
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
-    mcl(config, "--lr=0.5 --param1=1 --subconfig1.param2=0.6")
-    captured = capsys.readouterr()
-    assert captured.out.count("WARNING") == 1
-    assert (("WARNING: parameter 'lr', encountered while merging params from "
-             "the command line, does not match a param in the config")
-            in captured.out)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config = load_config(yaml_experiment, default_config=yaml_default)
+    assert caplog.text.count("WARNING") == 0
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        mcl(config, "--lr=0.5 --param1=1 --subconfig1.param2=0.6")
+    assert caplog.text.count("WARNING") == 2
+    assert (("WARNING : parameters ['lr'], encountered while merging params from "
+             "the command line, do not match any param in the config")
+            in caplog.text)
+    caplog.clear()
     check_integrity(config, 1, 0.6)
-    mcl(config, "--subconfig2.subconfig3.param4='test test'")
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
+
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        mcl(config, "--subconfig2.subconfig3.param4='test test'")
+    assert caplog.text.count("WARNING") == 0
+    caplog.clear()
     check_integrity(config, 1, 0.6, p_4="test test")
-    config_2 = load_config(yaml_experiment, default_config=yaml_default)
-    mcl(config_2, config.get_command_line_argument(do_return_string=True))
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config_2 = load_config(yaml_experiment, default_config=yaml_default)
+        mcl(config_2, config.get_command_line_argument(do_return_string=True))
+    assert caplog.text.count("WARNING") == 0
+    caplog.clear()
     check_integrity(config_2, 1, 0.6, p_4="test test")
-    mcl(
-        config_2, "--param1 2 --*param2=none --*param3=none !str "
-        "--*param4= '[ 1!int  ,0.5 !float, {string:\\'"
-        "[as !str}!dict]' !list")
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        mcl(config_2, "--param1 2 --*param2=none --*param3=none !str "
+                      "--*param4= '[ 1!int  ,0.5 !float, {string:\\'"
+                      "[as !str}!dict]' !list")
+    assert caplog.text.count("WARNING") == 0
+    caplog.clear()
     check_integrity(config_2, 2, None, "none",
                     p_4=[1, 0.5, {
                         "string": "'[as"
                     }])
-    mcl(config, config_2.get_command_line_argument(do_return_string=True))
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        mcl(config, config_2.get_command_line_argument(do_return_string=True))
+    assert caplog.text.count("WARNING") == 0
+    caplog.clear()
     check_integrity(config, 2, None, "none", p_4=[1, 0.5, {"string": "'[as"}])
-    mcl(config, "--subconfig1.param2")
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        mcl(config, "--subconfig1.param2")
+    assert caplog.text.count("WARNING") == 0
     assert config.subconfig1.param2 is True
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
-    mcl(config, "--subconfig1.param2=False")
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        mcl(config, "--subconfig1.param2=False")
+    assert caplog.text.count("WARNING") == 0
     assert config.subconfig1.param2 is False
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
-    mcl(config, "--subconfig1.param2=1")
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        mcl(config, "--subconfig1.param2=1")
+    assert caplog.text.count("WARNING") == 0
     assert config.subconfig1.param2 is True
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
     with pytest.raises(Exception, match="could not convert string to float: "
                        "'False'"):
         mcl(config, "--param1=False")
 
 
-def test_method_name(capsys):
-    config = make_config({"save": "test"}, do_not_merge_command_line=True)
-    captured = capsys.readouterr()
-    assert captured.out.count("WARNING") == 1
+def test_method_name(caplog):
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config = make_config({"save": "test"}, do_not_merge_command_line=True)
+    assert caplog.text.count("WARNING") == 2
     assert config.details() == ("\nMAIN CONFIG :\nConfiguration hierarchy :\n>"
                                 " {'save': 'test'}\n\n - save : test\n")
-    config.merge({"save": 0.1})
-    captured = capsys.readouterr()
-    assert "WARNING" not in captured.out
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config.merge({"save": 0.1})
+    assert caplog.text.count("WARNING") == 0
     assert config.details() == ("\nMAIN CONFIG :\nConfiguration hierarchy :\n>"
                                 " {'save': 'test'}\n> {'save': 0.1}\n\n"
                                 " - save : 0.1\n")
@@ -447,7 +470,13 @@ def test_post_processing(capsys, yaml_default, yaml_experiment, tmp_file_name,
         def __init__(self, **kwargs):
             self.stored = kwargs
 
-    postprocessing = {"*_to_store": lambda x: Storage(**x)}
+        def __eq__(self, other):
+            return self.stored == other.stored
+
+        def __repr__(self):
+            return f"<Storage: {self.stored}>"
+
+    postprocessing = {"*to_store": lambda x: Storage(**x)}
     config = make_config({
         "a": 10,
         "b.to_store": {
@@ -468,7 +497,7 @@ def test_post_processing(capsys, yaml_default, yaml_experiment, tmp_file_name,
             "j": 2
         }
     }, post_processing_dict=postprocessing)
-    dico = config._get_command_line_dict(  # pylint: disable=protected-access
+    dico = config._gather_command_line_dict(  # pylint: disable=protected-access
         config.get_command_line_argument(do_return_string=True))
     assert config == make_config(dico, post_processing_dict=postprocessing)
     assert make_config(dico).b.to_store == {"i": 1, "j": 2}
@@ -490,20 +519,26 @@ def test_save_reload(capsys, tmp_file_name, yaml_default, yaml_experiment):
     assert config == config2 == config3
 
 
-def test_save_reload_method_param(capsys, tmp_file_name):
-    config = make_config({"save": 1}, do_not_merge_command_line=True)
-    captured = capsys.readouterr()
-    assert captured.out.count("WARNING") == 1
-    config.save(str(tmp_file_name))
-    config2 = make_config({"save": 1}, do_not_merge_command_line=True)
-    config2.merge(str(tmp_file_name))
-    captured = capsys.readouterr()
-    assert captured.out.count("WARNING") == 1
-    config2.save(str(tmp_file_name))
-    config3 = make_config({"save": 1}, do_not_merge_command_line=True)
-    config3.merge(str(tmp_file_name))
-    captured = capsys.readouterr()
-    assert captured.out.count("WARNING") == 1
+def test_save_reload_method_param(caplog, tmp_file_name):
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config = make_config({"save": 1}, do_not_merge_command_line=True)
+    assert caplog.text.count("WARNING") == 2
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config.save(str(tmp_file_name))
+        config2 = make_config({"save": 1}, do_not_merge_command_line=True)
+        config2.merge(str(tmp_file_name))
+    assert caplog.text.count("WARNING") == 2
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config2.save(str(tmp_file_name))
+        config3 = make_config({"save": 1}, do_not_merge_command_line=True)
+        config3.merge(str(tmp_file_name))
+    assert caplog.text.count("WARNING") == 2
     config3.save(str(tmp_file_name))
     assert config == config2 == config3
 
@@ -570,7 +605,7 @@ def test_craziest_config(yaml_craziest_config, tmp_file_name):
                           additional_configs_suffix="_path",
                           post_processing_dict=post_processing)
     assert config == config2
-    dico = config._get_command_line_dict(  # pylint: disable=protected-access
+    dico = config._gather_command_line_dict(  # pylint: disable=protected-access
         config.get_command_line_argument(do_return_string=True))
     assert config == make_config(dico, post_processing_dict=post_processing)
 
@@ -592,7 +627,7 @@ def test_pattern_matching():
     assert not compare_string_pattern("abcdefgh0123", "*3*3*3")
 
 
-def test_warnings(capsys, tmp_file_name):
+def test_warnings(caplog, tmp_file_name):
     # config = ConfigForTests(config_path_or_dictionary={
     #     "param": None, "lparam": [], "dparam": {"param2": 1}})
     # config.merge_from_command_line("--param=1 --lparam=[1] "
@@ -604,96 +639,102 @@ def test_warnings(capsys, tmp_file_name):
     # assert captured.out.count(" key. This key will be set") == 1
     # assert config.dparam == {"param2": 2, "param3": None}
 
-    config = make_config({"param": 1}, do_not_merge_command_line=True,
-                         overwriting_regime="unsafe")
-    config.save(str(tmp_file_name))
-    config.merge(str(tmp_file_name))
-    captured = capsys.readouterr()
-    assert captured.out.count("YOU ARE LOADING AN UNSAFE CONFIG") == 1
-    config = make_config({"param": 1}, do_not_merge_command_line=True)
-    config.merge({"*d": 1})
-    captured = capsys.readouterr()
-    assert captured.out.count("will be ignored : it does not match any") == 1
-
-
-def test_errors(capsys, yaml_default_unlinked, yaml_default_sub_variations,
-                yaml_default_set_twice, yaml_default):
-    with pytest.raises(
-            Exception, match="'overwriting_regime' needs to be "
-            "either 'auto-save', 'locked' or 'unsafe'."):
-        _ = make_config({"param": 1}, do_not_merge_command_line=True,
-                        overwriting_regime="a")
-    with pytest.raises(
-            Exception, match=".*is not a sub-config, it "
-            "cannot be accessed.*"):
-        _ = make_config({"param": 1},
-                        do_not_merge_command_line=True)["param.param"]
-    with pytest.raises(
-            Exception, match="Overwriting params in locked "
-            "configs is not allowed."):
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
         config = make_config({"param": 1}, do_not_merge_command_line=True,
-                             overwriting_regime="locked")
-        config.param = 2
-    with pytest.raises(
-            Exception, match="build_from_configs needs to be "
-            "called with at least one config."):
-        _ = template().build_from_configs(do_not_merge_command_line=True)
-    with pytest.raises(
-            Exception, match="build_from_configs needs to be "
-            "called with at least one config."):
-        _ = template().build_from_configs([], do_not_merge_command_line=True)
-    with pytest.raises(Exception, match=".*\nplease use build_from_configs.*"):
-        _ = template().build_from_configs(
-            [template(default_config=yaml_default).get_default_config_path()],
-            [{
-                "param1": 1
-            }], do_not_merge_command_line=True)
-    with pytest.raises(Exception, match="No filename was provided.*"):
-        make_config({"param": 1}).save()
-    with pytest.raises(Exception, match="Grid element.*"):
-        _ = make_config({
-            "param": 1,
-            "var": [],
-            "grid": ["var"]
-        }, config_class=template()).create_variations()
-    with pytest.raises(Exception, match="Grid element.*"):
-        _ = make_config({
-            "param": 1,
-            "grid": ["var"]
-        }, config_class=template()).create_variations()
-    with pytest.raises(Exception, match="Variations parsing failed.*"):
-        make_config({"param": 1, "var": 1}, config_class=template())
-    with pytest.raises(Exception, match="Variations parsing failed.*"):
-        make_config({"param": 1, "var": [1]}, config_class=template())
-    with pytest.raises(Exception, match="Variations parsing failed.*"):
-        make_config({"param": 1, "var": {"a": 1}}, config_class=template())
-    with pytest.raises(Exception, match="Grid parsing failed.*"):
-        make_config({"param": 1, "grid": {}}, config_class=template())
-    with pytest.raises(Exception, match="ERROR : path not found .*"):
-        template()(config_path_or_dictionary="not_found")
-    with pytest.raises(Exception, match="'config_metadata' is a "
-                       "special parameter.*"):
-        make_config({"config_metadata": 1})
-    with pytest.raises(
-            Exception, match="'overwriting_regime' is a "
-            "special parameter.*"):
-        metadata = ("Saving time : <date> (<in_seconds>) ; Regime : "
-                    "something_incorrect")
-        make_config({"config_metadata": metadata})
-    with pytest.raises(Exception, match="Failed to set parameter.*"):
-        config = make_config({"param": 1})
-        config.merge({"param.param": 1})
-    with pytest.raises(Exception, match="Failed to set parameter.*"):
-        _ = make_config({"param": 1, "param.param": 1})
-    with pytest.raises(
-            Exception, match=".*character is not authorized "
-            "in the default config.*"):
-        _ = make_config({"param*": 1})
-    with pytest.raises(Exception, match=".*Unlinked sub-configs are not "
-                       "allowed.*"):
-        _ = make_config(yaml_default_unlinked)
-    captured = capsys.readouterr()
-    assert captured.out.count("ERROR while pre-processing param") == 4
+                             overwriting_regime="unsafe")
+        config.save(str(tmp_file_name))
+        config.merge(str(tmp_file_name))
+    assert caplog.text.count("YOU ARE LOADING AN UNSAFE CONFIG") == 1
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config = make_config({"param": 1}, do_not_merge_command_line=True)
+        config.merge({"*d": 1})
+    assert caplog.text.count("will be ignored : it does not match any") == 1
+
+
+def test_errors(caplog, yaml_default_unlinked, yaml_default_sub_variations,
+                yaml_default_set_twice, yaml_default):
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        with pytest.raises(
+                Exception, match="'overwriting_regime' needs to be "
+                                 "either 'auto-save', 'locked' or 'unsafe'."):
+            _ = make_config({"param": 1}, do_not_merge_command_line=True,
+                            overwriting_regime="a")
+        with pytest.raises(
+                Exception, match=".*is not a sub-config, it "
+                                 "cannot be accessed.*"):
+            _ = make_config({"param": 1},
+                            do_not_merge_command_line=True)["param.param"]
+        with pytest.raises(
+                Exception, match="Overwriting params in locked "
+                                 "configs is not allowed."):
+            config = make_config({"param": 1}, do_not_merge_command_line=True,
+                                 overwriting_regime="locked")
+            config.param = 2
+        with pytest.raises(
+                Exception, match="build_from_configs needs to be "
+                                 "called with at least one config."):
+            _ = template().build_from_configs(do_not_merge_command_line=True)
+        with pytest.raises(
+                Exception, match="build_from_configs needs to be "
+                                 "called with at least one config."):
+            _ = template().build_from_configs([], do_not_merge_command_line=True)
+        with pytest.raises(Exception, match=".*\nplease use build_from_configs.*"):
+            _ = template().build_from_configs(
+                [template(default_config=yaml_default).get_default_config_path()],
+                [{
+                    "param1": 1
+                }], do_not_merge_command_line=True)
+        with pytest.raises(Exception, match="No filename was provided.*"):
+            make_config({"param": 1}).save()
+        with pytest.raises(Exception, match="Grid element.*"):
+            _ = make_config({
+                "param": 1,
+                "var": [],
+                "grid": ["var"]
+            }, config_class=template()).create_variations()
+        with pytest.raises(Exception, match="Grid element.*"):
+            _ = make_config({
+                "param": 1,
+                "grid": ["var"]
+            }, config_class=template()).create_variations()
+        with pytest.raises(Exception, match="Variations parsing failed.*"):
+            make_config({"param": 1, "var": 1}, config_class=template())
+        with pytest.raises(Exception, match="Variations parsing failed.*"):
+            make_config({"param": 1, "var": [1]}, config_class=template())
+        with pytest.raises(Exception, match="Variations parsing failed.*"):
+            make_config({"param": 1, "var": {"a": 1}}, config_class=template())
+        with pytest.raises(Exception, match="Grid parsing failed.*"):
+            make_config({"param": 1, "grid": {}}, config_class=template())
+        with pytest.raises(Exception, match="ERROR : path not found .*"):
+            template()(config_path_or_dictionary="not_found")
+        with pytest.raises(Exception, match="'config_metadata' is a "
+                                            "special parameter.*"):
+            make_config({"config_metadata": 1})
+        with pytest.raises(
+                Exception, match="'overwriting_regime' is a "
+                                 "special parameter.*"):
+            metadata = ("Saving time : <date> (<in_seconds>) ; Regime : "
+                        "something_incorrect")
+            make_config({"config_metadata": metadata})
+        with pytest.raises(Exception, match="Failed to set parameter.*"):
+            config = make_config({"param": 1})
+            config.merge({"param.param": 1})
+        with pytest.raises(Exception, match="Failed to set parameter.*"):
+            _ = make_config({"param": 1, "param.param": 1})
+        with pytest.raises(
+                Exception, match=".*character is not authorised "
+                                 "in the default config.*"):
+            _ = make_config({"param*": 1})
+        with pytest.raises(Exception, match=".*Unlinked sub-configs are not "
+                                            "allowed.*"):
+            _ = make_config(yaml_default_unlinked)
+    assert caplog.text.count("ERROR while pre-processing param") == 4
     with pytest.raises(
             Exception, match=".*Please declare all your variations "
             "in the main config.*"):

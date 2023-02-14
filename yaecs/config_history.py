@@ -17,20 +17,21 @@ Copyright (C) 2022  Reactive Reality
 """
 
 import glob
-import importlib
 import io
+import logging
 import os
 import sys
 import time
-from functools import partial
 from pathlib import Path
 
 try:
     import pygraphviz as pgv
 except ImportError:
-    pass
+    pgv = None
 
-from .config import Configuration
+from .config.config import Configuration
+
+YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class ConfigHistory:
@@ -40,14 +41,14 @@ class ConfigHistory:
                  difference_processor=None, ignore_for_graphing=None,
                  add_relevant_edges=False, tolerance=0, group_by=None,
                  metrics=None, display_span=False, config_class=Configuration):
-        if not importlib.util.find_spec("pygraphviz"):
+        if pgv is None:
             raise ImportError("ConfigHistory requires pygraphviz - "
                               "currently not installed!")
         self.difference_processor = self.make_processor(difference_processor)
         self.ignore_for_graphing = self.make_processor(ignore_for_graphing)
         self.group_by = group_by
 
-        print("Loading configs...")
+        YAECS_LOGGER.info("Loading configs...")
         if not isinstance(folder_path, dict):
             yaml_files = glob.glob(os.path.join(folder_path, "**/*.yaml"),
                                    recursive=True)
@@ -102,16 +103,17 @@ class ConfigHistory:
                 sys.stdout = io.StringIO()
                 self.configs.append(config_class.load_config(path))
                 sys.stdout = sys.__stdout__
-            except Exception as exception:
+            except Exception:
                 sys.stdout = sys.__stdout__
-                print(f"Error while loading config {path} : ", exception)
+                YAECS_LOGGER.error(f"Error while loading config {path}.")
+                raise
         for i, config in enumerate(self.configs):
             if config.get("_former_saving_time", None) is not None:
                 modification_time = config._former_saving_time
                 self.modification_times[i] = modification_time
 
-        print(f"Successfully loaded {len(self.configs)} configs from folder(s)"
-              f" {folder_path}. Analysing differences...")
+        YAECS_LOGGER.info(f"Successfully loaded {len(self.configs)} configs from folder(s) {folder_path}. "
+                          f"Analysing differences...")
 
         self.matrix = self.compute_difference_matrix()
         self.span = self.compute_span()
@@ -130,9 +132,10 @@ class ConfigHistory:
             label=self.format_span() if display_span else "")
         self.compute_graph(add_relevant_edges=add_relevant_edges,
                            tolerance=tolerance)
-        print("Config graph done !")
+        YAECS_LOGGER.info("Config graph done !")
 
     def compute_span(self):
+        """ Computes span of parameter in experiments. """
         span = {}
         for i, row in enumerate(self.matrix):
             for j, elem in enumerate(row):
@@ -145,6 +148,7 @@ class ConfigHistory:
         return span
 
     def compute_metrics(self, metrics):
+        """ Compute all defined metrics to prepare for printing """
         if metrics is None:
             return {}
         if (isinstance(metrics, (list, tuple)) and all(
@@ -154,15 +158,15 @@ class ConfigHistory:
         elif isinstance(metrics, (list, tuple)) and len(metrics) in [2, 3]:
             metrics = [metrics]
         else:
-            raise Exception(f"Unrecognized format for metric {metrics}.")
+            raise Exception(f"Unrecognised format for metric {metrics}.")
         to_return = {}
         folder_paths = [Path(i).parents[0] for i in self.paths]
         for metric in metrics:
             try:
                 metric_value = metric[1](folder_paths)
-            except Exception as exception:
-                print("There was an error parsing metrics : ", exception)
-                raise exception
+            except Exception:
+                YAECS_LOGGER.error("There was an error parsing metrics.")
+                raise
             if len(metric) == 2:
                 to_return[metric[0]] = (metric_value, "")
             else:
@@ -170,6 +174,7 @@ class ConfigHistory:
         return to_return
 
     def compute_graph(self, add_relevant_edges=False, tolerance=0):
+        """ Computes the graph itself before filling it in. """
 
         def add_directed_edge(first, second):
             if (self.modification_times[first] >
@@ -268,9 +273,11 @@ class ConfigHistory:
                                 (i, j) in self.config_graph.edges()):
                             add_directed_edge(i, j)
 
+    # pylint: disable=too-many-locals,too-many-branches
     def compute_colors(self, scheme="date", fill="top", legend=True,
                        base_color="white", class_scheme="/set312/",
                        number_scheme="/blues9/"):
+        """ Gets the colour scheme and interpolates it properly. """
         to_remove = []
 
         # Remove previous legend
@@ -339,7 +346,7 @@ class ConfigHistory:
             else:
                 color_scheme = class_scheme
         else:
-            raise Exception(f"Unrecognized coloring scheme : {scheme}.")
+            raise Exception(f"Unrecognised coloring scheme : {scheme}.")
         value_set = list({x[1] for x in indexes_values})
         if color_scheme == number_scheme:
             value_set.sort()
@@ -357,7 +364,7 @@ class ConfigHistory:
                     color_set = [max([0, int(acc // 1)])] + color_set
                     acc -= factor
             else:
-                raise Exception(f"Unrecognized fill value : {fill}. "
+                raise Exception(f"Unrecognised fill value : {fill}. "
                                 "Please use 'top', 'bottom' or 'full'.")
         else:
             color_set = [x % 13 for x in range(len(value_set))]
@@ -428,12 +435,14 @@ class ConfigHistory:
 
     def draw_graph(self, path="graph.png", scheme="date", fill="top",
                    legend=True):
+        """ Function called to draw the computed graph. """
         self.compute_colors(scheme=scheme, fill=fill, legend=legend)
         self.config_graph.layout(prog="dot")
         self.config_graph.draw(path)
-        print("Config graph saved !")
+        YAECS_LOGGER.info("Config graph saved !")
 
     def format_metrics(self, index):
+        """ Format computed metrics for printing. """
         string = ""
         for i, metric in self.metrics.items():
             if metric[0][index] is None:
@@ -445,12 +454,14 @@ class ConfigHistory:
         return string
 
     def format_span(self):
+        """ Format the span of a param over experiments for printing. """
         string = "\nExploration span\n\n"
         for i, val in self.span.items():
             string += f"{i} : {val}" + r"\l"
         return string
 
     def compute_difference_matrix(self):
+        """ Compute difference matrix to prepare for printing. """
         matrix = []
         similars = []
         for i, config_i in enumerate(self.configs):
@@ -475,8 +486,7 @@ class ConfigHistory:
                     self.modification_times[j] if j in i else 0
                     for j in range(len(self.modification_times))
                 ]
-                key_func = partial(lambda x, dates: dates[x], dates=dates)
-                sort = sorted(i, key=key_func, reverse=True)
+                sort = sorted(i, key=lambda x: dates[x], reverse=True)  # pylint: disable=cell-var-from-loop
                 for j in sort:
                     if j != dates.index(max(dates)):
                         self.names[dates.index(max(dates))] = (
@@ -503,6 +513,7 @@ class ConfigHistory:
 
     @staticmethod
     def get_experiment_name_from_file(file, folder, name=None):
+        """ Extracts the experiment name from the name of a file saved in an experiment folder. """
         file_parent_minus_folder = os.path.relpath(
             Path(file).parents[0], os.path.commonpath([folder,
                                                        file])).strip("/_")
@@ -512,6 +523,7 @@ class ConfigHistory:
 
     @staticmethod
     def format_list(list_to_format):
+        """ Formats list for printing """
         string = " "
         for i in list_to_format:
             string += str(i[0]) + " : " + str(i[1]) + r"\l "
@@ -519,6 +531,7 @@ class ConfigHistory:
 
     @staticmethod
     def make_processor(argument):
+        """ Returns a processor created from input. """
 
         def apply_list(list_to_apply, inp, *args):
             for func in list_to_apply:
