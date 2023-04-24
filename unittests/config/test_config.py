@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from unittests.config.utils import load_config, template
+from utils import load_config, template
 
 from yaecs import Configuration
 from yaecs.yaecs_utils import compare_string_pattern
