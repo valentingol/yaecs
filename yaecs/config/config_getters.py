@@ -165,20 +165,21 @@ class ConfigGettersMixin:
         """
         return self._nesting_hierarchy
 
-    def get_parameter_names(self, deep: bool = True) -> List[str]:
+    def get_parameter_names(self, deep: bool = True, no_sub_config: bool = False) -> List[str]:
         """
         Returns the list of the names all parameters in this config. If deep is true, also returns the names of the
         parameters in the sub-configs using the dot convention.
         :param deep: whether to also return the names of the parameters in the sub-configs
+        :param no_sub_config: if True, exclude names of sub-configs and only return real parameters
         :return: the list of the names of all parameters
         """
-        complete_list = self._get_user_defined_attributes()
+        complete_list = self._get_user_defined_attributes(no_sub_config=no_sub_config)
         if deep:
             order = len(self.get_nesting_hierarchy())
             for subconfig in self.get_all_linked_sub_configs():
                 complete_list += [
                     ".".join(subconfig.get_nesting_hierarchy()[order:] + [param])
-                    for param in subconfig.get_parameter_names(deep=False)
+                    for param in subconfig.get_parameter_names(deep=False, no_sub_config=no_sub_config)
                 ]
         return complete_list
 
@@ -255,10 +256,11 @@ class ConfigGettersMixin:
             raise RuntimeError("Processing function was called outside a processing phase.")
         return name
 
-    def _get_user_defined_attributes(self) -> List[str]:
+    def _get_user_defined_attributes(self, no_sub_config: bool = False) -> List[str]:
         """ Frequently used to get a list of the names of all the parameters that were in the user's config. """
         return [
             i[3:] if i.startswith("___") else i
             for i in self.__dict__
-            if i not in self._protected_attributes + ["config_metadata"]
+            if (i not in self._protected_attributes + ["config_metadata"]
+                and not (no_sub_config and isinstance(self[i], ConfigGettersMixin)))
         ]
