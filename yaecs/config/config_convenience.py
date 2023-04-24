@@ -91,7 +91,7 @@ class ConfigConvenienceMixin:
                 name_path = parameter_name.split(".")
                 to_display = name_path.pop(-1)
                 while (len([
-                        param for param in object_to_check.get_parameter_names(deep=True)
+                        param for param in object_to_check.get_parameter_names(deep=True, no_sub_config=True)
                         if compare_string_pattern(param, "*." + to_display)
                 ]) != 1 and name_path):
                     to_display = name_path.pop(-1) + "." + to_display
@@ -115,7 +115,7 @@ class ConfigConvenienceMixin:
             return to_ret
 
         differences = []
-        self_parameter_names = self.get_parameter_names(True)
+        self_parameter_names = self.get_parameter_names(deep=True, no_sub_config=True)
         for name in self_parameter_names:
             value_in_self, value_in_other, displayed_name = _investigate_parameter(name, self)
             if value_in_other != value_in_self:
@@ -127,7 +127,7 @@ class ConfigConvenienceMixin:
                             differences.append((displayed_name, _get_to_ret(value_in_self, value_in_other)))
                         else:
                             differences.append((displayed_name, value_in_other))
-        for name in other.get_parameter_names(deep=True):
+        for name in other.get_parameter_names(deep=True, no_sub_config=True):
             _, value_in_other, displayed_name = _investigate_parameter(name, other)
             if name not in self_parameter_names and value_in_other is not None:
                 if reduce:

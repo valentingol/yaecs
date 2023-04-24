@@ -21,6 +21,7 @@ import sys
 from contextlib import ExitStack
 import os
 from functools import partial
+import traceback
 from typing import Optional, Callable, Dict, List, Any, Tuple, Union
 
 from mock import patch
@@ -253,7 +254,7 @@ class Tracker:
         # Get params to filter
         if self.log_modified_params_only:
             default = config.__class__.build_from_configs(config.config_metadata["config_hierarchy"][0],
-                                                          do_not_post_process=True, verbose=False)
+                                                          do_not_post_process=True, do_not_merge_command_line=True, verbose=False)
             diff = default.compare(config, reduce=True)
         else:
             diff = list(config.get_dict(deep=True).items())
@@ -357,7 +358,8 @@ class Tracker:
 
         if "clearml" in self.types:
             self.loggers["clearml"] = clearml.Task.init(project_name=self.config["project_name"],
-                                                        task_name=f"{experiment_name}/{run_name}")
+                                                        task_name=f"{experiment_name}/{run_name}",
+                                                        continue_last_task=bool(os.getenv("PICKUP")))
             self.loggers["clearml"].set_comment(description)
             self.loggers["clearml"].connect(self.experiment.config.get_dict(deep=True))
 
@@ -503,8 +505,14 @@ class BasicTrackerContext:
             print_catcher.addHandler(handler)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # Unsetting print catcher
         print_catcher = logging.getLogger("yaecs.print_catcher")
+
+        # Logging error
+        if exc_type is not None:
+            message_lines = traceback.format_exc().split("\n")
+            print_catcher.error("\n".join([message_lines[0]] + message_lines[3:]))
+
+        # Unsetting print catcher
         ([h for h in print_catcher.handlers if isinstance(h, logging.FileHandler)][0]).setFormatter(
             logging.Formatter(fmt="%(message)s"))
         print_catcher.info("")
