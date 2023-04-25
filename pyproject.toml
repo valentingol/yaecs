@@ -7,7 +7,7 @@ name = "yaecs"
 authors = [
     {name="Reactive Reality AG"},
 ]
-description = """Personal machine learning template."""
+description = """A Config System designed for experimental purposes"""
 requires-python = ">=3.8"
 keywords = ["template", "machine", "learning"]
 classifiers = [

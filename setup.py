@@ -16,26 +16,6 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import pathlib
-
 from setuptools import setup
 
-_dct = {}
-with open('yaecs/version.py') as f:
-    exec(f.read(), _dct)
-VERSION = _dct['__version__']
-
-# The directory containing this file
-HERE = pathlib.Path(__file__).parent
-
-# The text of the README file
-SHORT_README = (HERE / "short-readme.md").read_text()
-
-setup(name='yaecs', version=VERSION,
-      description='A Config System designed for experimental purposes',
-      long_description=SHORT_README,
-      long_description_content_type="text/markdown",
-      url='https://gitlab.com/reactivereality/public/yaecs',
-      author='Reactive Reality AG', packages=['yaecs', 'yaecs.config'],
-      package_dir={'yaecs': 'yaecs', 'yaecs.config': 'yaecs/config'},
-      install_requires=["pyyaml==6.0", "mock==4.0.3"])
+setup()
