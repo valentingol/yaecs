@@ -31,11 +31,18 @@ if not _ROOT_LOGGER.hasHandlers():
     _LOGGER.addHandler(_HANDLER)
     _LOGGER.propagate = False
 
-from .version import __version__  # pylint: disable=wrong-import-position # noqa: E402
-from .config.config import Configuration  # pylint: disable=wrong-import-position # noqa: E402
-from .config_history import ConfigHistory  # pylint: disable=wrong-import-position # noqa: E402
-from .user_utils import get_template_class, make_config, tqdm_file  # pylint: disable=wrong-import-position # noqa: E402
+from .config.config import (
+    Configuration,  # pylint: disable=wrong-import-position # noqa: E402
+)
+from .config_history import (
+    ConfigHistory,  # pylint: disable=wrong-import-position # noqa: E402
+)
 from .experiment import Experiment  # pylint: disable=wrong-import-position # noqa: E402
+from .user_utils import (  # pylint: disable=wrong-import-position # noqa: E402
+    get_template_class,
+    make_config,
+    tqdm_file,
+)
 
-__all__ = ['__version__', 'ConfigHistory', 'Configuration', 'Experiment', 'get_template_class', 'make_config',
+__all__ = ['ConfigHistory', 'Configuration', 'Experiment', 'get_template_class', 'make_config',
            'tqdm_file']
