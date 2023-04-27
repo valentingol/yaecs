@@ -31,12 +31,8 @@ if not _ROOT_LOGGER.hasHandlers():
     _LOGGER.addHandler(_HANDLER)
     _LOGGER.propagate = False
 
-from .config.config import (
-    Configuration,  # pylint: disable=wrong-import-position # noqa: E402
-)
-from .config_history import (
-    ConfigHistory,  # pylint: disable=wrong-import-position # noqa: E402
-)
+from .config.config import Configuration  # pylint: disable=wrong-import-position # noqa: E402
+from .config_history import ConfigHistory  # pylint: disable=wrong-import-position # noqa: E402
 from .experiment import Experiment  # pylint: disable=wrong-import-position # noqa: E402
 from .user_utils import (  # pylint: disable=wrong-import-position # noqa: E402
     get_template_class,
@@ -44,5 +40,12 @@ from .user_utils import (  # pylint: disable=wrong-import-position # noqa: E402
     tqdm_file,
 )
 
-__all__ = ['ConfigHistory', 'Configuration', 'Experiment', 'get_template_class', 'make_config',
-           'tqdm_file']
+try:
+    from ._version import version as __version__
+    from ._version import version_tuple
+except ImportError:
+    __version__ = "unknown version"
+    version_tuple = (0, 0, "unknown_version")
+
+__all__ = ['__version__', 'version_tuple', 'ConfigHistory', 'Configuration', 'Experiment', 'get_template_class',
+           'make_config', 'tqdm_file']

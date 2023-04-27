@@ -15,8 +15,9 @@ Copyright (C) 2022  Reactive Reality
     You should have received a copy of the GNU Lesser General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from functools import partial
 import logging
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Callable, Dict, TYPE_CHECKING
 
 from ..yaecs_utils import TypeHint
 if TYPE_CHECKING:
@@ -31,6 +32,36 @@ class ConfigSettersMixin:
     _main_config: 'Configuration'
     _pre_postprocessing_values: Dict[str, Any]
     _type_hints: Dict[str, TypeHint]
+
+    def add_processing_function(self, param_name: str, function_to_add: Callable, processing_type: str) -> None:
+        """
+        If given parameter does not already have a post-processing function with the same name, adds given function as
+        a post-processing function to parameters with the given name.
+        :param param_name: parameter(s) to which to add a postprocessing function
+        :param function_to_add: postprocessing function to add, using the generic name "function" if it has no name
+        :param processing_type: choose between 'pre' to add a pre-processing function or 'post' to add a post-processing
+        function
+        """
+        function_name = function_to_add.__name__ if hasattr(function_to_add, "__name__") else "function"
+        method = f"parameters_{processing_type}_processing"
+        current_processing = object.__getattribute__(self._main_config, method)()
+        param_matches = self.match_params(param_name)
+        if not any((all(i in self._main_config.match_params(k) for i in param_matches) and v.__name__ == function_name)
+                   for k, v in current_processing.items()):
+            if param_name in current_processing:
+                def _composition(x, processing_dict, name, func):
+                    return processing_dict[name](func(x))
+                _composition = partial(_composition,
+                                       processing_dict=current_processing, name=param_name, func=function_to_add)
+                _composition.__name__ = "function_name"
+                del current_processing[param_name]
+                new_processing = {param_name: _composition, **current_processing}
+            else:
+                new_processing = {param_name: function_to_add, **current_processing}
+            object.__setattr__(self._main_config.__class__, method, lambda x: new_processing)
+        else:
+            YAECS_LOGGER.warning(f"WARNING : Parameter '{param_name}' already has a post-processing function with the "
+                                 f"name '{function_name}'. Processing function will not be added again.")
 
     def add_type_hint(self, name: str, type_hint: TypeHint) -> None:
         """

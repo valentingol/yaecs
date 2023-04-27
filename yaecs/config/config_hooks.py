@@ -32,11 +32,11 @@ class ConfigHooksMixin:
     pre-defined role in the config """
 
     __getattribute__: Callable[[str], Any]
+    get_processed_param_name: Callable[[bool], str]
     get_variation_name: Callable[[], str]
     init_from_config: Callable[[ConfigDeclarator], None]
     _configuration_variations: List[Tuple[str, List[ConfigDeclarator]]]
     _configuration_variations_names: List[Tuple[str, List[str]]]
-    _get_processed_param_name: Callable[[], str]
     _grids: List[List[str]]
     _nesting_hierarchy: List[str]
 
@@ -49,10 +49,8 @@ class ConfigHooksMixin:
         given name. Instead of using this directly, users should consider decorating their hooking function with the
         yaecs_utils.hook decorator.
         :param hook_name: name of the hook to add.
-        :return: None
         """
-        name = self._get_processed_param_name()
-        parameter = ".".join(self._nesting_hierarchy + [name])
+        parameter = self.get_processed_param_name(full_path=True)
         if hook_name not in self.get_hook():
             self._hooks[hook_name] = []
         if parameter not in self._hooks[hook_name]:
@@ -111,7 +109,7 @@ class ConfigHooksMixin:
         :raises RuntimeError: variation name invalid in sub-config
         :raises TypeError: type of variation is not list or dict of configs
         """
-        name = self._get_processed_param_name()
+        name = self.get_processed_param_name(full_path=False)
 
         def _is_single_var(single):
             return isinstance(single, (str, dict))

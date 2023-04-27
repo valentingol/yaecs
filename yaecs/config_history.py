@@ -158,7 +158,7 @@ class ConfigHistory:
         elif isinstance(metrics, (list, tuple)) and len(metrics) in [2, 3]:
             metrics = [metrics]
         else:
-            raise Exception(f"Unrecognised format for metric {metrics}.")
+            raise TypeError(f"Unrecognised format for metric {metrics}.")
         to_return = {}
         folder_paths = [Path(i).parents[0] for i in self.paths]
         for metric in metrics:
@@ -296,7 +296,7 @@ class ConfigHistory:
             color_scheme = number_scheme
         elif scheme.startswith("metric:"):
             if scheme[7:] not in self.metrics:
-                raise Exception(f"Unknown metric : {scheme[7:]}.")
+                raise ValueError(f"Unknown metric : {scheme[7:]}.")
             indexes_values = list(
                 zip(list(range(len(self.configs))),
                     self.metrics[scheme[7:]][0]))
@@ -326,9 +326,9 @@ class ConfigHistory:
                             values.append(config[param])
                             found = True
                         else:
-                            raise Exception(f"Ambiguous param : {scheme[6:]}.")
+                            raise RuntimeError(f"Ambiguous param : {scheme[6:]}.")
                 if not found:
-                    raise Exception(f"Unknown param : {scheme[6:]}.")
+                    raise ValueError(f"Unknown param : {scheme[6:]}.")
             indexes_values = list(zip(list(range(len(self.configs))), values))
             for indexes_value in indexes_values:
                 if indexes_value[1] is None:
@@ -346,7 +346,7 @@ class ConfigHistory:
             else:
                 color_scheme = class_scheme
         else:
-            raise Exception(f"Unrecognised coloring scheme : {scheme}.")
+            raise ValueError(f"Unrecognised coloring scheme : {scheme}.")
         value_set = list({x[1] for x in indexes_values})
         if color_scheme == number_scheme:
             value_set.sort()
@@ -364,8 +364,7 @@ class ConfigHistory:
                     color_set = [max([0, int(acc // 1)])] + color_set
                     acc -= factor
             else:
-                raise Exception(f"Unrecognised fill value : {fill}. "
-                                "Please use 'top', 'bottom' or 'full'.")
+                raise ValueError(f"Unrecognised fill value : {fill}. Please use 'top', 'bottom' or 'full'.")
         else:
             color_set = [x % 13 for x in range(len(value_set))]
         one_is_colored = False

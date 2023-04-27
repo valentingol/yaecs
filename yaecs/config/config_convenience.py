@@ -161,7 +161,7 @@ class ConfigConvenienceMixin:
         """
         constraints = {"show_only": show_only, "expand_only": expand_only, "no_show": no_show, "no_expand": no_expand}
         constraints = dict_apply(constraints, self.match_params)
-        string_to_return = ("\n" + "\t" * len(self._nesting_hierarchy) + self.get_name().upper() + " CONFIG :\n")
+        string_to_return = "\n" + "\t" * len(self._nesting_hierarchy) + self.get_name().upper() + " CONFIG :\n"
         if not self._nesting_hierarchy:
             string_to_return += "Configuration hierarchy :\n"
             for hierarchy_level in self.config_metadata["config_hierarchy"]:
@@ -222,7 +222,7 @@ class ConfigConvenienceMixin:
         patterns = (patterns[0] if len(patterns) == 1 and isinstance(patterns[0], list) else patterns)
         if patterns is None or (len(patterns) == 1 and patterns[0] is None):
             return None
-        new_names = [n for n in patterns if "*" not in n and n in self]
+        new_names = [n for n in patterns if "*" not in n and n in self.get_parameter_names(True)]
         for name in [n for n in patterns if "*" in n]:
             new_names = new_names + [p for p in self.get_parameter_names(True) if compare_string_pattern(p, name)]
         return new_names

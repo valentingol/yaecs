@@ -116,15 +116,16 @@ class Experiment:
         variations = self.config.create_variations()
         self.number_of_runs = len(variations)
         description = run_description
+        returns = []
         for run_number, variation in enumerate(variations):
             self.current_run = 0
             if variation is not self.config:
                 filter_fn = (None if self.tracker.get_filtered_params is self.tracker.default_filter
                              else self.tracker.get_filtered_params)
                 format_fn = None if self.format_description is self.default_formatter else self.format_description
-                self.__init__(config=variation, main_function=self.main_function,
-                              experiment_name=self.tracker.experiment_name, run_name=self.tracker.run_name,
-                              params_filter_fn=filter_fn,
+                self.__init__(config=variation,  # pylint: disable=unnecessary-dunder-call
+                              main_function=self.main_function, experiment_name=self.tracker.experiment_name,
+                              run_name=self.tracker.run_name, params_filter_fn=filter_fn,
                               log_modified_params_only=self.tracker.log_modified_params_only,
                               only_params_to_log=self.tracker.only_params if filter_fn is None else None,
                               params_not_to_log=self.tracker.except_params if filter_fn is None else None,
@@ -138,7 +139,8 @@ class Experiment:
                                   f"{description.split('%h')[1]}"
                 else:
                     description = f"Variation {variation.get_variation_name()}%h{description}"
-            self.run_single(description, **kwargs)
+            returns.append(self.run_single(description, **kwargs))
+        return returns
 
     def run_single(self, run_description: Optional[str] = None, **kwargs) -> Any:
         """
@@ -254,7 +256,8 @@ class Tracker:
         # Get params to filter
         if self.log_modified_params_only:
             default = config.__class__.build_from_configs(config.config_metadata["config_hierarchy"][0],
-                                                          do_not_post_process=True, do_not_merge_command_line=True, verbose=False)
+                                                          do_not_post_process=True, do_not_merge_command_line=True,
+                                                          verbose=False)
             diff = default.compare(config, reduce=True)
         else:
             diff = list(config.get_dict(deep=True).items())

@@ -547,7 +547,7 @@ python main.py --do_test
 
 #### 3) Parameter processing is awesome
 
-Here we present what we believe to be one of YAECS' main improvement over its competitors : parameters processing.  The idea is quite simple : most of the time, it is really useful to be able to perform some kind of processing on your parameters before using them, and it only makes sense that these operations should be performed by the config system.
+Here we present what we believe to be one of YAECS' main improvement over its competitors : parameters processing.  The idea is quite simple : most of the time, it is really useful to be able to perform some kind of processing on your parameters before using them, and it only makes sense that these operations should be performed by the config system. Here is why. The config should be prepared such that the code can access it in a simple, reliable and well-organized well. But at the same time, the config should be prepared by a human in a clear interface using the YAML language. In many cases, those two conditions do not fully align, and therefore it makes sense that the config system should be tasked with translating the config as seen by the human operator into the config as used by the code.
 
 Here are a few example use cases :
 
@@ -595,13 +595,111 @@ class MyProjectConfig(Configuration):
         }
 ```
 
+As you can see, processing is a flexible feature that can enable very complex behaviours depending on your needs. Use the provided library of pre-built processing functions TODO, or build your own ! 
+
 #### 4) Our proposed workflow to use YAECS efficiently
 
-WIP
+As an experimenter, your goal should be to easily start any experiment you want and enrich your code with new innovative features without losing reproducibility for older experiments. In this section, we propose a workflow that satisfies these conditions and address some common issues and concerns.
+
+**STEP 1 : Preparing your project.** At the start of your project, you want to populate a basic default config with parameters you think you might need. After one or two projects, you will probably have a template or strongly established habits to help you do that. Those parameters include for example learning rates, numbers of epochs, batch sizes, data processing parameters, a path where to save your experiment results etc.. Sometimes, you might use existing research code as a basis for your work. In this case, if said codebase does not have a config, you can simply browse the code and extract all values from it to the config.
+
+**STEP 2 : Starting an experiment.** To start your first experiment, you might have an idea of something you'd like to try. Often, this might be for example reproducing the results of a paper. To do this, prepare an experiment config file that reproduces the values you want to use, then use this file as your experiment config (for example by using build_from_argv and calling your code with the `--config` flag TODO).
+
+**STEP 3 : Improvising from there.** Very often, an idea sparking an experiment doesn't work right from the start. You might need to tweak the learning rate, or train slightly longer. We find that, instead of creating a new YAML file for each small change or changing your experiment configs, it is easier and better practice to make those changes from the CLI TODO. So long as your experiment does not deviate from the experiment config file, it makes sense to iteratively tweak things from the CLI. This encourages experiment config files to actually take the role of configuring not experiments but *series* of experiments. Therefore : 
+- the default config contains the information relative to the project
+- the experiment config contains the information relative to the series of experiment
+- the CLI contains the information relative to a specific iteration
+
+**STEP 4 : Adding features and parameters.** It is naive to think you can build your code once and then find the best solution simply by interacting with the config. You will always need to make changes to the code, to solve bugs, add features and refactor. It is however possible, by being rigorous, to ensure perfect *forward reproducibility*. Forward reproducibility means that at any point during development, you can still load old saved configs from past experiments and they will be perfectly reproduced. To achieve this, you should apply the following rules :
+- never rename a parameter or change its default value : always change values from experiment configs ;
+- when adding a new feature controled by a new parameter, always make sure that the default value disactivates the new feature. For example, if you want to add a new data augmentation function, the new parameter "use_new_augmentation" should be False by default ;
+- if you change your post-processing functions TODO, make sure that they still have the same behaviour for values used previously for your parameters.
+
+For a while, following these rules might be simple. For long projects however, maintaining full forward reproducibility might be challenging. In our advanced tips for larger projects TODO, we provide more advice to scale up to massive projects.
+
 
 #### 5) Splitting a config across multiple files
 
-WIP
+To wrap up with our intermediate features, we would like to present how to split a config across multiple files. This is useful to organise large configs containing hundreds of parameters, which can make your config file really long. Usually, we recommend splitting across a config across 4 files :
+- a base file that contains the most general parameters (debug mode, is the experiment a training, a test or an inference, path to the experiment results, cpu/gpu etc.) ;
+- a file for data-related parameters (data paths, sample descriptions, processing parameters etc.) ;
+- a file for model-related parameters (architecture, layers, normalisation etc.) ;
+- a file for run-related parameters (training params such as epochs, optimiser or batch sizes ; validation params ; inference parms).
+
+Generally speaking, to build a config you only give your Configuration object one path. Therefore, how can you let your config system know where to look for other files for other parameters ? The answer lie in a feature we've already seen : parameters processing :). Let us assume the 4 following configs :
+
+```
+project_root
+├── configs
+│   ├── default
+│   │   ├── base.yaml
+│   │   ├── data.yaml
+│   │   ├── model.yaml
+│   │   └── run.yaml
+│   └── overfit.yaml
+├── main.py
+├── config.py
+└── ...
+```
+
+```yaml
+---  # Base file (configs/default/base.yaml)
+
+experiment_path: "logs/overfit"
+...
+data_config_file: data.yaml
+model_config_file: model.yaml
+run_config_file: run.yaml
+```
+
+```yaml
+--- !data  # Data config file (configs/default/data.yaml)
+
+data_path: ./data
+...
+processing_pipeline: [Rescale, Noise, Crop, ToTensor]
+```
+
+```yaml
+--- !model  # Model file (configs/default/model.yaml)
+
+architecture: "mobilenet"
+...
+normalisation: BatchNorm
+```
+
+```yaml
+---  # Run file (configs/default/run.yaml)
+
+train: !train
+    batch_size: 8
+    epochs: 100
+    ...
+val.batch_size: 32
+test.batch_size: 32
+infer.batch_size: 1
+```
+
+You might have noticed that the base file - ie. the file we will give to the config system - contains paths to the other files. All we need to do is tell the config system that those are not just any parameter : they are actually paths that the config system should use to find the rest of the config. To do this, you can simply assign them the `register_as_additional_config_file` pre-processing function, for example like this :
+```python
+from yaecs import Configuration
+
+class MyProjectConfig(Configuration):
+    @staticmethod
+    def get_default_config_path():
+        return "configs/default/base.yaml"
+
+    def parameters_pre_processing(self):
+        return {
+            "*_config_file": self.register_as_additional_config_file,
+        }
+
+    def parameters_post_processing(self):
+        return {}
+```
+And there you go ! Now all parameters that end with `_config_file` will be recognized as you trying to add the corresponding paths to the config.
+
+This ends the Intermediate section of our tutorial. By now, you already know most of what you need to work efficiently with YAECS. To become a real pro, there is only one section left !
 
 ### Advanced tips for larger projects
 
@@ -613,6 +711,7 @@ In this third "advanced" part we will :
 2) give examples to easily configure complex elements such as dataset versions or machine-specific configs
 3) present config variations, which is useful to run sweeps over values of a parameter for example
 4) showcase our WIP new feature : tracking integration
+
 Let us get started for this last section.
 
 #### 1) A dive into processing and type-checking

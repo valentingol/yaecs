@@ -24,6 +24,7 @@ import os
 import re
 from bisect import bisect
 from collections.abc import Mapping
+from types import ModuleType
 from typing import Any, Callable, Dict, List, Union
 
 YAECS_LOGGER = logging.getLogger(__name__)
@@ -392,7 +393,7 @@ def is_type_valid(value: Any, config_class: type) -> bool:
     return isinstance(value, (int, float, str)) or value is None
 
 
-def lazy_import(name):
+def lazy_import(name: str) -> ModuleType:
     """
     Imports a module in such a way that it is only loaded in memory when it is actually used.
     Implementation from https://docs.python.org/3/library/importlib.html#implementing-lazy-imports.
@@ -410,7 +411,7 @@ def lazy_import(name):
     return module
 
 
-def new_print(*args, sep=" ", end="", file=None, **keywords):
+def new_print(*args, sep: str = " ", end: str = "", file: io.TextIOWrapper = None, **keywords) -> None:
     """
     Replaces the builtin print function during an experiment run such that printed messages are also logged. Please note
     that the default file (None) logs to logging's root logger which will always go to the next line after each message.

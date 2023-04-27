@@ -193,6 +193,17 @@ class ConfigGettersMixin:
         """
         return self._pre_postprocessing_values
 
+    def get_processed_param_name(self, full_path: bool = True) -> str:
+        """
+        When used in a processing function, returns the full path to that param in the config, or its path in self if
+        full_path is False.
+        :param full_path: if True, returns the path to the param in the main config, otherwise the path to the param in
+        self.
+        """
+        if full_path:
+            return self._get_full_path(self._get_param_name_from_state())
+        return self._get_param_name_from_state()
+
     def get_save_file(self) -> Optional[str]:
         """
         If the config was saved previously, returns the path to this save. Otherwise, returns None.
@@ -243,7 +254,7 @@ class ConfigGettersMixin:
         """ Get the full name of given param in the main config """
         return ".".join(self._nesting_hierarchy + [param_name])
 
-    def _get_processed_param_name(self) -> str:
+    def _get_param_name_from_state(self) -> str:
         """ If there is a param processing in the state stack, returns the name of the param. """
         name = None
         for state in self._state[::-1]:

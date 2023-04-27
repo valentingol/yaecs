@@ -21,6 +21,7 @@ py-modules = ["yaecs"]
 license-files = ['LICEN[CS]E*', 'COPYING*', 'NOTICE*', 'AUTHORS*']
 
 [tool.setuptools_scm]
+write_to = "yaecs/_version.py"
 
 [project.urls]
 Source = "https://gitlab.com/reactivereality/public/yaecs"
