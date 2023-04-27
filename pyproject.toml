@@ -17,7 +17,7 @@ dynamic = ["readme", "version"]
 dependencies = ["pyyaml==6.0", "mock==4.0.3"]
 
 [tool.setuptools]
-py-modules = ["yaecs", "yaecs.config"]
+py-modules = ["yaecs"]
 license-files = ['LICEN[CS]E*', 'COPYING*', 'NOTICE*', 'AUTHORS*']
 
 [tool.setuptools_scm]
