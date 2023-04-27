@@ -8,15 +8,16 @@ authors = [
     {name="Reactive Reality AG"},
 ]
 description = """A Config System designed for experimental purposes"""
-requires-python = ">=3.8"
+requires-python = ">=3.6"
 keywords = ["template", "machine", "learning"]
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dynamic = ["readme", "version"]
 dependencies = ["pyyaml==6.0", "mock==4.0.3"]
+
 [tool.setuptools]
-py-modules = ["template"]
+py-modules = ["yaecs", "yaecs.config"]
 license-files = ['LICEN[CS]E*', 'COPYING*', 'NOTICE*', 'AUTHORS*']
 
 [tool.setuptools_scm]
