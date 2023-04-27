@@ -29,6 +29,7 @@ from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
 from .config_setters import ConfigSettersMixin
 from .config_convenience import ConfigConvenienceMixin
+from .config_processing_functions import ConfigProcessingFunctionsMixin
 from ..yaecs_utils import (adapt_to_type, are_same_sub_configs, compare_string_pattern, ConfigDeclarator, format_str,
                            is_type_valid, parse_type, recursive_set_attribute, TypeHint, update_state, YAML_EXPRESSIONS)
 if TYPE_CHECKING:
@@ -37,7 +38,8 @@ if TYPE_CHECKING:
 YAECS_LOGGER = logging.getLogger(__name__)
 
 
-class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixin, ConfigConvenienceMixin):
+class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixin, ConfigConvenienceMixin,
+                         ConfigProcessingFunctionsMixin):
     """ Base class for YAECS configurations. Defines its basic behaviour, such as creation and merging operations,
     including processing- and type checking-related logic, but not its constructors (see Configuration class for those,
     and its docstring for more details about the composition of the Configuration superclass). """
@@ -135,7 +137,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """
         def _check_type(value: Any, type_to_check: TypeHint, original_type: TypeHint) -> Any:
             def _wrong_type() -> None:
-                name = self._get_processed_param_name()
+                name = self.get_processed_param_name(full_path=False)
                 is_full = original_type == type_to_check
                 checked_type = type(type_to_check) if isinstance(type_to_check, (list, dict, set)) else type_to_check
                 raise ValueError(f"{'Parameter' if is_full else 'Part of parameter'} '{name}' (value : {value})\n"
@@ -379,7 +381,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             sub_config_name = sub_configs_name[0]
             if len(sub_configs_name) > 1:
                 to_append = ".".join(sub_configs_name[1:])
-                for i in range(len(node.value)):
+                for i in range(len(node.value)):  # pylint: disable=consider-using-enumerate
                     node.value[i][0].value = to_append + "." + node.value[i][0].value
             self._nesting_hierarchy.append(sub_config_name)
             if yaml_loader.constructed_objects:
