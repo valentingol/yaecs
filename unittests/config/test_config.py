@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 from utils import load_config, template
 
-from yaecs import Configuration
+from yaecs import assign_yaml_tag, assign_order, Configuration, Priority
 from yaecs.yaecs_utils import compare_string_pattern
 from yaecs.user_utils import make_config
 
@@ -627,6 +627,54 @@ def test_pattern_matching():
     assert not compare_string_pattern("abcdefgh0123", "*3*3*3")
 
 
+def test_typecheck(yaml_type_check):
+    load_config(default_config=yaml_type_check)
+
+
+def test_yaml_tag_assignment(yaml_tag_assignment_check):
+    template_class = template(default_config=yaml_tag_assignment_check)
+
+    @assign_yaml_tag("add_1", "post", "float")
+    def add_1(self, param):
+        return param + 1
+
+    template_class.add_1 = add_1
+    config = template_class.load_config(do_not_merge_command_line=True)
+    check_integrity(config, p_1=1.1, p_2=3.0, p_3=20.0, p_4=1.1)
+
+
+def test_yaml_order(yaml_default):
+    @assign_order(Priority.SITUATIONAL)
+    def add_1(value):
+        return value + 1
+
+    @assign_order(Priority.OFTEN_FIRST)
+    def double_value_first(value):
+        return value * 2
+
+    @assign_order(Priority.OFTEN_LAST)
+    def double_value_last(value):
+        return value * 2
+    postprocessing = {"param1": add_1, "param1 ": double_value_first}
+    config = load_config(default_config=yaml_default, postprocessing=postprocessing)
+    check_integrity(config, p_1=1.2, p_2=3.0, p_3=20.0)
+    postprocessing = {"param1": add_1, "param1 ": double_value_last}
+    config = load_config(default_config=yaml_default, postprocessing=postprocessing)
+    check_integrity(config, p_1=2.2, p_2=3.0, p_3=20.0)
+
+
+def test_compose(yaml_default):
+    def add_1(value):
+        return value + 1
+
+    def double_value(value):
+        return value * 2
+
+    postprocessing = {"param1": (add_1, double_value)}
+    config = load_config(default_config=yaml_default, postprocessing=postprocessing)
+    check_integrity(config, p_1=2.2, p_2=3.0, p_3=20.0)
+
+
 def test_warnings(caplog, tmp_file_name):
     # config = ConfigForTests(config_path_or_dictionary={
     #     "param": None, "lparam": [], "dparam": {"param2": 1}})
@@ -656,7 +704,7 @@ def test_warnings(caplog, tmp_file_name):
 
 
 def test_errors(caplog, yaml_default_unlinked, yaml_default_sub_variations,
-                yaml_default_set_twice, yaml_default):
+                yaml_default_set_twice, yaml_default, yaml_type_check):
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         logging.getLogger("yaecs").propagate = True
@@ -763,3 +811,21 @@ def test_errors(caplog, yaml_default_unlinked, yaml_default_sub_variations,
             "param": 1,
             "set_twice_path": yaml_default_set_twice
         }, config_class=template())
+    replacements = {
+        "param_int": 1.2,
+        "param_float": "q",
+        "param_str": None,
+        "param_none": [],
+        "param_bool": {},
+        "param_list": True,
+        "param_dict": 5,
+        "param_listint": [0, 2, "3"],
+        "param_listintstr": ["q", 1],
+        "param_dictlistoptionalint": {"a": [None], "b": [1, None, 2.5]}
+    }
+    for k, v in replacements.items():
+        for prefix in ["", "subconfig."]:
+            with pytest.raises(Exception, match=".*has incorrect type '.*"):
+                print(f"Testing for {prefix + k}")
+                c = load_config(default_config=yaml_type_check)
+                c.merge({prefix + k: v})

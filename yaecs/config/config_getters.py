@@ -17,7 +17,7 @@ Copyright (C) 2022  Reactive Reality
 """
 
 import logging
-from typing import Any, Callable, Dict, List, Union, TYPE_CHECKING, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
 
 from ..yaecs_utils import get_param_as_parsable_string, escape_symbols, TypeHint
 if TYPE_CHECKING:
@@ -44,6 +44,9 @@ class ConfigGettersMixin:
     _type_hints: Dict[str, TypeHint]
     _variation_name: str
     _was_last_saved_as: Optional[str]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def get(self, parameter_name: str, default_value: Any) -> Any:
         """
@@ -266,6 +269,12 @@ class ConfigGettersMixin:
         if name is None:
             raise RuntimeError("Processing function was called outside a processing phase.")
         return name
+
+    def _get_tagged_methods_info(self) -> List[Tuple[Union[str, Callable]]]:
+        """ Returns a list of info on the methods which were assigned a YAML tag. """
+        all_methods = [getattr(self, name) for name in self._methods]
+        return [getattr(method, "assigned_yaml_tag") + (method,)
+                for method in all_methods if hasattr(method, "assigned_yaml_tag")]
 
     def _get_user_defined_attributes(self, no_sub_config: bool = False) -> List[str]:
         """ Frequently used to get a list of the names of all the parameters that were in the user's config. """

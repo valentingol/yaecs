@@ -20,7 +20,7 @@ import logging
 import os
 from typing import Any, Callable, List, Optional, Tuple, Union
 
-from ..yaecs_utils import ConfigDeclarator, hook, Hooks, VariationDeclarator
+from ..yaecs_utils import assign_order, assign_yaml_tag, ConfigDeclarator, hook, Hooks, Priority, VariationDeclarator
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -40,8 +40,9 @@ class ConfigHooksMixin:
     _grids: List[List[str]]
     _nesting_hierarchy: List[str]
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self._hooks = {}
+        super().__init__(*args, **kwargs)
 
     def add_currently_processed_param_as_hook(self, hook_name: str) -> None:
         """
@@ -83,6 +84,8 @@ class ConfigHooksMixin:
         return self._hooks[hook_name] if hook_name in self._hooks else []
 
     @hook("additional_config_file")
+    @assign_order(Priority.OFTEN_LAST)  # processing this param after this function makes it unclear which file was used
+    @assign_yaml_tag("additional_config_file", "pre", "Optional[Union[str,List[str]]]")
     def register_as_additional_config_file(self, path: Union[str, List[str]]) -> Union[str, List[str]]:
         """
         Pre-processing function used to register the corresponding parameter as a path to another config file. The new
@@ -98,6 +101,8 @@ class ConfigHooksMixin:
         return path
 
     @hook("config_variations")
+    @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
+    @assign_yaml_tag("config_variations", "pre", "Optional[Union[List[Union[str,dict]],Dict[Union[str,dict]]]]")
     def register_as_config_variations(
             self, variation_to_register: Optional[VariationDeclarator]) -> Optional[VariationDeclarator]:
         """
@@ -143,7 +148,9 @@ class ConfigHooksMixin:
         return variation_to_register
 
     @hook("experiment_path")
-    def register_as_experiment_path(self, path: str) -> str:
+    @assign_order(Priority.OFTEN_FIRST)  # other params might depend on this being done (eg. for folder_in_experiment)
+    @assign_yaml_tag("experiment_path", "post", "Optional[str]")
+    def register_as_experiment_path(self, path: Optional[str]) -> Optional[str]:
         """
         Pre-processing function used to register the corresponding parameter as the folder used for the current
         experiment. This will automatically create the relevant folder structure and append an experiment index at the
@@ -176,6 +183,8 @@ class ConfigHooksMixin:
         return path
 
     @hook("grid")
+    @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
+    @assign_yaml_tag("grid", "pre", "Optional[List[str]]")
     def register_as_grid(self, list_to_register: Optional[List[str]]) -> Optional[List[str]]:
         """
         Pre-processing function used to register the corresponding parameter as a grid for the current config. Grids are
@@ -193,6 +202,8 @@ class ConfigHooksMixin:
         return list_to_register
 
     @hook("tracker_config")
+    @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
+    @assign_yaml_tag("tracker_config", "pre", "dict")
     def register_as_tracker_config(self, tracker_config: dict) -> dict:  # pylint: disable=no-self-use
         """
         Pre-processing function used to register the corresponding parameter as the tracker config. The tracker config

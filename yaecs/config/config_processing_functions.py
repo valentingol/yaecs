@@ -3,7 +3,10 @@
 from functools import partial
 import logging
 import os
-from typing import Any, Callable, List, TYPE_CHECKING
+from typing import Any, Callable, List, Optional, TYPE_CHECKING
+
+from ..yaecs_utils import assign_order, assign_yaml_tag, Priority
+
 if TYPE_CHECKING:
     from numbers import Number
     from .config import Configuration
@@ -16,6 +19,9 @@ class ConfigProcessingFunctionsMixin:
 
     get_main_config: Callable[[], 'Configuration']
     get_processed_param_name: Callable[[bool], str]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     # ----- PRE-PROCESSING -----
 
@@ -46,11 +52,14 @@ class ConfigProcessingFunctionsMixin:
         return_fn.__name__ = "check_param_in_list"
         return return_fn
 
+    @assign_order(Priority.ALWAYS_LAST)  # there would most likely not be any other processing for this param
+    @assign_yaml_tag("copy", "pre", "str")
     def copy_param(self, path_to_copy: str) -> str:
         """
         This pre-processing function declares a param as being an exact copy of another param. Its default value must
-        be name of the param it copies. It will be protected against modifications (only the param being copied can be
-        modified).
+        be name of the param it copies. It will be protected against modifications by further config merges (only the
+        param being copied can be modified), but can still pe post-processed further after its copy by post-processing
+        functions with an order above OFTEN_LAST (10).
         :param path_to_copy: path of param from which to copy the value
         :return: path_to_copy
         """
@@ -71,7 +80,16 @@ class ConfigProcessingFunctionsMixin:
         param_name = self.get_processed_param_name(full_path=True)
         copy_fn = partial(_copy, main=main)
         copy_fn.__name__ = "_copy"
-        main.add_processing_function(param_name, copy_fn, "post")
+        copy_fn.order = Priority.OFTEN_LAST
+
+        current_processing = object.__getattribute__(main, "_post_processing_functions")
+        if not any((param_name in main.match_params(k) and v.__name__ == "_copy")
+                   for k, v in current_processing.items()):
+            main.add_processing_function_all(param_name, copy_fn, "post")
+        else:
+            YAECS_LOGGER.warning(f"WARNING : Parameter '{param_name}' was already declared as a copy of param "
+                                 f"'{path_to_copy}'. Processing function will not be added again.")
+
         return self.protected_param(path_to_copy)
 
     def number_in_range(self, minimum: 'Number' = -float('inf'), maximum: 'Number' = float('inf')) -> Callable:
@@ -94,6 +112,8 @@ class ConfigProcessingFunctionsMixin:
         return partial(_check,
                        minimum_=minimum, maximum_=maximum, param_name=self.get_processed_param_name(full_path=True))
 
+    @assign_order(Priority.ALWAYS_LAST)  # there can never be any subsequent processing for this param
+    @assign_yaml_tag("protected", "pre", "Any")
     def protected_param(self, param: Any) -> Any:
         """
         This pre-processing function declares a param as being protected against modifications. This means that only the
@@ -111,7 +131,21 @@ class ConfigProcessingFunctionsMixin:
 
     # ----- POST-PROCESSING -----
 
-    def folder_in_experiment(self, condition_list: List[tuple] = None) -> Callable:
+    @assign_order(Priority.OFTEN_LAST)  # should happen after register_as_experiment_path
+    @assign_yaml_tag("sub_folder", "post", "Optional[str]")
+    def folder_in_experiment(self, folder: Optional[str]) -> Optional[str]:
+        """
+        Returns a post-processing function that extends a path assuming it is located in the experiment path, then the
+        corresponding folder is created. Requires an experiment_folder to have been declared.
+        :param folder: path of the subfolder within the experiment folder
+        :return: checking function
+        """
+        experiment_path = self.get_main_config().get_experiment_path()
+        path = os.path.join(experiment_path, folder).rstrip(os.path.sep)
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def folder_in_experiment_if(self, condition_list: List[tuple] = None) -> Callable:
         """
         Returns a post-processing function that extends a path assuming it is located in the experiment path. Then, if
         the conditions listed in condition_list ar all met, the corresponding folder is created.
