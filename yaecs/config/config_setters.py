@@ -15,6 +15,7 @@ Copyright (C) 2022  Reactive Reality
     You should have received a copy of the GNU Lesser General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from functools import partial
 import logging
 from typing import Any, Callable, Dict, TYPE_CHECKING, Union
 

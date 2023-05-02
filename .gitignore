@@ -152,5 +152,5 @@ cython_debug/
 .idea/
 .vscode/
 
-# SCM version
+# Setuptools SCM
 yaecs/_version.py

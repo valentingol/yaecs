@@ -32,9 +32,11 @@ from .config_hooks import ConfigHooksMixin
 from .config_setters import ConfigSettersMixin
 from .config_convenience import ConfigConvenienceMixin
 from .config_processing_functions import ConfigProcessingFunctionsMixin
+
 from ..yaecs_utils import (adapt_to_type, are_same_sub_configs, compare_string_pattern, compose, ConfigDeclarator,
                            format_str, is_type_valid, parse_type, recursive_set_attribute, TypeHint, update_state,
                            YAML_EXPRESSIONS)
+
 if TYPE_CHECKING:
     from .config import Configuration
 
