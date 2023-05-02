@@ -16,13 +16,15 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+from collections.abc import Iterable
 import copy
 from functools import partial
 import logging
+from numbers import Real
 import os
 from pathlib import Path
 import sys
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TYPE_CHECKING, Union
 import yaml
 
 from .config_getters import ConfigGettersMixin
@@ -30,8 +32,11 @@ from .config_hooks import ConfigHooksMixin
 from .config_setters import ConfigSettersMixin
 from .config_convenience import ConfigConvenienceMixin
 from .config_processing_functions import ConfigProcessingFunctionsMixin
-from ..yaecs_utils import (adapt_to_type, are_same_sub_configs, compare_string_pattern, ConfigDeclarator, format_str,
-                           is_type_valid, parse_type, recursive_set_attribute, TypeHint, update_state, YAML_EXPRESSIONS)
+
+from ..yaecs_utils import (adapt_to_type, are_same_sub_configs, compare_string_pattern, compose, ConfigDeclarator,
+                           format_str, is_type_valid, parse_type, recursive_set_attribute, TypeHint, update_state,
+                           YAML_EXPRESSIONS)
+
 if TYPE_CHECKING:
     from .config import Configuration
 
@@ -44,10 +49,13 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
     including processing- and type checking-related logic, but not its constructors (see Configuration class for those,
     and its docstring for more details about the composition of the Configuration superclass). """
 
+    add_processing_function: Callable[[str, Callable, str], None]
+    add_processing_function_all: Callable[[str, Callable, str], None]
     config_metadata: dict
     parameters_pre_processing: Callable[[], Dict[str, Callable]]
     parameters_post_processing: Callable[[], Dict[str, Callable]]
     _get_instance: Callable
+    _get_tagged_methods_info: Callable[[], List[Tuple[Union[str, Callable]]]]
     _main_config: 'Configuration'
     _methods: List[str]
     _nesting_hierarchy: List[str]
@@ -68,11 +76,16 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """
 
         # PROTECTED ATTRIBUTES
+        self._assigned_as_yaml_tags = {processor[0]: (processor[3], processor[1], processor[2])
+                                       for processor in self._get_tagged_methods_info()}
         self._former_saving_time = None
         self._from_argv = from_argv
         self._modified_buffer = []
         self._post_process_master_switch = not do_not_post_process
         self._pre_process_master_switch = not do_not_pre_process
+        for process_type in ["pre", "post"]:
+            setattr(self, f"_{process_type}_processing_functions", {})
+            self._prepare_processing_functions(process_type)
         self._pre_postprocessing_values = {}
         self._reference_folder = None
         self._sub_configs_list = []
@@ -172,24 +185,17 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     for i in value:
                         _check_type(i, types, original_type)
 
-            elif isinstance(type_to_check, (set, dict)):
+            elif isinstance(type_to_check, dict):
                 if not isinstance(value, dict):
                     _wrong_type()
-                if isinstance(type_to_check, dict):
-                    if type_to_check.keys():
-                        if type_to_check.keys() != value.keys():
-                            raise ValueError("When providing a dict of types, its keys must match those of the value.")
-                        for i in type_to_check:
-                            _check_type(value[i], type_to_check[i], original_type)
-                else:
-                    if not type_to_check:
-                        raise ValueError("Undefined behaviour for empty sets. Maybe you meant to use an empty list or "
-                                         "dict ?")
-                    if len(type_to_check) > 1:
-                        raise ValueError("When providing a set of types, its length must be 1. Maybe you meant to use a"
-                                         " tuple ?")
-                    for i in value:
-                        _check_type(value[i], list(type_to_check)[0], original_type)
+                if not type_to_check:
+                    raise ValueError("Undefined behaviour for empty dicts. Maybe you meant to use an empty list or "
+                                     "{\"type\": ...} ?")
+                if len(type_to_check) > 1:
+                    raise ValueError("When providing a dict of types, its length must be 1. Maybe you meant to use a"
+                                     " tuple ?")
+                for i in value:
+                    _check_type(value[i], type_to_check[list(type_to_check.keys())[0]], original_type)
 
             elif type_to_check != 0 and type_to_check is not None and not isinstance(value, type_to_check):
                 if not (type_to_check is float and isinstance(value, int)):
@@ -355,7 +361,13 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 if not any(state.startswith("setup") for state in self._state):
                     raise RuntimeError("Type-hinting is only allowed in the default config.")
                 name = yaml_loader.constructed_objects[list(yaml_loader.constructed_objects.keys())[-1]]
-                self._main_config.add_type_hint(self._get_full_path(name), parse_type(tag[6:]))
+                name = self._get_full_path(name)
+                type_hint = tag[6:]
+                if type_hint in self._assigned_as_yaml_tags:
+                    _, processor_type, new_type_hint = self._assigned_as_yaml_tags[type_hint]
+                    self.add_processing_function_all(name, f"_tagged_method_{type_hint}", processor_type)
+                    type_hint = new_type_hint
+                self._main_config.add_type_hint(name, parse_type(type_hint))
                 if isinstance(node, yaml.ScalarNode):
                     if node.value == "":
                         def _can_be_str(parsed_type):
@@ -719,41 +731,76 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             modified_buffer = subconfig.get_modified_buffer()
             for _ in range(len(modified_buffer)):
                 modified.append(".".join(subconfig.get_nesting_hierarchy() + [modified_buffer.pop(0)]))
-        for name in modified:
-            split = name.split(".")[len(self._nesting_hierarchy):]
-            name = ".".join(split)
-            recursive_set_attribute(self,
-                                    ".".join(split[:-1] + ["___" + split[-1]]) if split[-1] in self._methods else name,
-                                    self._process_parameter(name, self[name], "post"),
-                                    )
+        processors = [(proc if isinstance(proc, Callable)
+                       else self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]][0])
+                      for proc in self._post_processing_functions.values()]
+        orders = sorted(list({func.order for func in processors}))
+        splits = [name.split(".")[len(self._nesting_hierarchy):] for name in modified]
+        names = [(".".join(s), ".".join(s[:-1] + ["___" + s[-1]]) if s[-1] in self._methods else ".".join(s))
+                 for s in splits]
+        for order in orders:
+            for name, set_name in names:
+                recursive_set_attribute(self, set_name, self._process_parameter(name, self[name], "post", order))
         post_processed = [param for param in modified if param in self._pre_postprocessing_values]
         if post_processed and self._verbose:
             YAECS_LOGGER.info(f"Performed post-processing for modified parameters {post_processed}.")
 
+    def _prepare_processing_functions(self, processing_type: str) -> None:
+        """ Sets self._pre/post_processing_functions from the user-provided functions. """
+        processing_functions = getattr(self, f"parameters_{processing_type}_processing")()
+        for key, value in processing_functions.items():
+            if not isinstance(value, (Callable, Iterable)):
+                raise TypeError(f"Invalid {processing_type}-processing functions defined for param '{key}' : "
+                                "the function should be declared as either a function or an iterable of functions, "
+                                "optionally containing one order value.")
+            if isinstance(value, Iterable) and not (isinstance(value, str) and value.startswith("_tagged_method_")):
+                if any(not isinstance(element, (Callable, Real)) for element in value):
+                    raise TypeError(f"Invalid {processing_type}-processing functions defined for param '{key}' : "
+                                    "if function is declared as iterable, only functions and one order value can "
+                                    "be provided.")
+                order = [i for i in value if isinstance(i, Real)]
+                if len(order) > 1:
+                    raise ValueError(f"Ambiguous order for {processing_type}-processing functions defined for param "
+                                     f"'{key}' : multiple orders defined ({order}).")
+                processing_function = compose(*[i for i in value if isinstance(i, Callable)])
+                order = order[0] if order else getattr(processing_function, "order", 0)
+            elif isinstance(value, Iterable):  # case where the method is added from a YAML tag
+                self.add_processing_function(key, value, processing_type)
+                continue
+            else:
+                processing_function = value
+                order = getattr(processing_function, "order", 0)
+            processing_function.__dict__["order"] = order
+            self.add_processing_function(key, processing_function, processing_type)
+
     @update_state("processing;_name")
-    def _process_parameter(self, name: str, parameter: Any, processing_type: str) -> Any:
+    def _process_parameter(self, name: str, parameter: Any, processing_type: str, order: Optional[Real] = None) -> Any:
         """ This method checks if a processing function has been defined for given name, then returns the processed
         value when that is the case. """
         if processing_type not in ["pre", "post"]:
             raise ValueError(f"Unknown processing_type : '{processing_type}'. Valid types are 'pre' or 'post'.")
         total_name = self._get_full_path(name)
-        if self._main_config.get_master_switch(processing_type):
+        main = self.get_main_config()
+        if processing_type == "pre":
+            main.remove_value_before_postprocessing(total_name)
+        if main.get_master_switch(processing_type):
             old_value = None
             if processing_type == "pre":
-                self.check_type(self.get_type_hint(name))(parameter)
-                transformation_dict = self.parameters_pre_processing()
+                self.check_type(main.get_type_hint(total_name))(parameter)
             else:
                 old_value = copy.deepcopy(parameter)
-                transformation_dict = self.parameters_post_processing()
-            was_processed = False
-            for key, item in transformation_dict.items():
-                if compare_string_pattern(total_name, key):
-                    was_processed = True
-                    try:
-                        parameter = item(parameter)
-                    except Exception:
-                        YAECS_LOGGER.error(f"ERROR while {processing_type}-processing param '{total_name}' :")
-                        raise
+            processors = [proc for key, proc in getattr(self, f"_{processing_type}_processing_functions").items()
+                          if compare_string_pattern(total_name, key)]
+            processors = [(proc if isinstance(proc, Callable)
+                           else self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]][0]) for proc in processors]
+            processors = sorted([p for p in processors if order is None or p.order == order], key=lambda x: x.order)
+            was_processed = bool(processors)
+            for processor in processors:
+                try:
+                    parameter = processor(parameter)
+                except Exception:
+                    YAECS_LOGGER.error(f"ERROR while {processing_type}-processing param '{total_name}' :")
+                    raise
             if processing_type == "pre" and not is_type_valid(parameter, _ConfigurationBase):
                 raise RuntimeError(f"ERROR while pre-processing param '{total_name}' : "
                                    "pre-processing functions that change the type of a "
@@ -761,9 +808,10 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                                    "they cannot be saved. Please use a parameter "
                                    "post-processing instead.")
             if processing_type == "post" and was_processed:
-                self.get_main_config().save_value_before_postprocessing(self._get_full_path(name), old_value)
+                main.save_value_before_postprocessing(self._get_full_path(name), old_value)
         elif processing_type == "pre":
-            for key, item in self.parameters_pre_processing().items():
+            for key, item in self._pre_processing_functions.items():
                 if compare_string_pattern(total_name, key) and item.__name__.startswith("yaecs_config_hook__"):
-                    self.add_currently_processed_param_as_hook(item.__name__.split("__")[1])
+                    for hook_name in item.__name__.split("__")[1].split(","):
+                        self.add_currently_processed_param_as_hook(hook_name)
         return parameter

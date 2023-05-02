@@ -52,6 +52,9 @@ class ConfigConvenienceMixin:
     _verbose: bool
     _was_last_saved_as: Optional[str]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, ConfigConvenienceMixin):
             return False

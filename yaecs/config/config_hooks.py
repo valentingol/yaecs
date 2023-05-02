@@ -20,7 +20,7 @@ import logging
 import os
 from typing import Any, Callable, List, Optional, Tuple, Union
 
-from ..yaecs_utils import ConfigDeclarator, hook, Hooks, VariationDeclarator
+from ..yaecs_utils import assign_order, assign_yaml_tag, ConfigDeclarator, hook, Hooks, Priority, VariationDeclarator
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -40,8 +40,9 @@ class ConfigHooksMixin:
     _grids: List[List[str]]
     _nesting_hierarchy: List[str]
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self._hooks = {}
+        super().__init__(*args, **kwargs)
 
     def add_currently_processed_param_as_hook(self, hook_name: str) -> None:
         """
@@ -83,10 +84,16 @@ class ConfigHooksMixin:
         return self._hooks[hook_name] if hook_name in self._hooks else []
 
     @hook("additional_config_file")
+    @assign_order(Priority.OFTEN_LAST)  # processing this param after this function makes it unclear which file was used
+    @assign_yaml_tag("additional_config_file", "pre", "Optional[Union[str,List[str]]]")
     def register_as_additional_config_file(self, path: Union[str, List[str]]) -> Union[str, List[str]]:
         """
         Pre-processing function used to register the corresponding parameter as a path to another config file. The new
         config file will then also be used to build the config currently being built.
+
+        Priority : OFTEN_LAST (10)
+        YAML tag : additional_config_file
+
         :param path: config's path or list of paths
         :return: the same path as the input once the parameters from the new config have been added
         """
@@ -98,11 +105,17 @@ class ConfigHooksMixin:
         return path
 
     @hook("config_variations")
+    @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
+    @assign_yaml_tag("config_variations", "pre", "Optional[Union[List[Union[str,dict]],Dict[Union[str,dict]]]]")
     def register_as_config_variations(
             self, variation_to_register: Optional[VariationDeclarator]) -> Optional[VariationDeclarator]:
         """
         Pre-processing function used to register the corresponding parameter as a variation for the current config.
         Please note that config variations need to be declared in the root config.
+
+        Priority : INDIFFERENT (0)
+        YAML tag : config_variations
+
         :param variation_to_register: list of configs
         :return: the same list of configs once the configs have been added to the internal variation tracker
         :raises RuntimeError: register_as_config_variations is called outside _pre_process_parameter
@@ -143,13 +156,19 @@ class ConfigHooksMixin:
         return variation_to_register
 
     @hook("experiment_path")
-    def register_as_experiment_path(self, path: str) -> str:
+    @assign_order(Priority.OFTEN_FIRST)  # other params might depend on this being done (eg. for folder_in_experiment)
+    @assign_yaml_tag("experiment_path", "post", "Optional[str]")
+    def register_as_experiment_path(self, path: Optional[str]) -> Optional[str]:
         """
         Pre-processing function used to register the corresponding parameter as the folder used for the current
         experiment. This will automatically create the relevant folder structure and append an experiment index at the
         end of the folder name to avoid any overwriting. The path needs to be either None or an empty string (in which
         case the pre-processing does not happen), or an absolute path, or a path relative to the current working
         directory.
+
+        Priority : OFTEN_FIRST (-10)
+        YAML tag : experiment_path
+
         :param path: None, '', absolute path or path relative to the current working directory
         :return: the actual created path with its appended index
         """
@@ -176,11 +195,17 @@ class ConfigHooksMixin:
         return path
 
     @hook("grid")
+    @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
+    @assign_yaml_tag("grid", "pre", "Optional[List[str]]")
     def register_as_grid(self, list_to_register: Optional[List[str]]) -> Optional[List[str]]:
         """
         Pre-processing function used to register the corresponding parameter as a grid for the current config. Grids are
         made of several parameters registered as variations. Instead of adding the variations in those parameters to the
         list of variations for this config, a grid will be created and all its components will be added instead.
+
+        Priority : INDIFFERENT (0)
+        YAML tag : grid
+
         :param list_to_register: list of parameters composing the grid
         :raises TypeError: list_to_register is not recognised as a valid grid
         :return: the same list of parameters once the grid has been added to the internal grid tracker
@@ -193,12 +218,18 @@ class ConfigHooksMixin:
         return list_to_register
 
     @hook("tracker_config")
+    @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
+    @assign_yaml_tag("tracker_config", "pre", "dict")
     def register_as_tracker_config(self, tracker_config: dict) -> dict:  # pylint: disable=no-self-use
         """
         Pre-processing function used to register the corresponding parameter as the tracker config. The tracker config
         is a dict that contains at least one key : 'type'. Valid types are given by the 'ACCEPTED_TRACKERS' variable in
         experiment.py and refer to the type of tracker used. Other keys in the dict depend on the parameters required by
         corresponding tracker type.
+
+        Priority : INDIFFERENT (0)
+        YAML tag : tracker_config
+
         :param tracker_config: dict corresponding to the tracker config
         :raises: ValueError: if the tracker config is not a dict or does not contain at least a parameter called 'type'
         which is a string

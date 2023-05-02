@@ -209,3 +209,39 @@ def yaml_no_file_call_processing_while_loading_nested(tmpdir):
                           variations_suffix="var*", grids_suffix="grid",
                           do_not_merge_command_line=True)
     yield config, config2
+
+
+@pytest.fixture
+def yaml_type_check(tmpdir):
+    index = len(os.listdir(tmpdir))
+    content = (f"root_path: '{tmpdir / f'default_second{index}.yaml'}'\nsubconfig: !subconfig\n  "
+               f"sub_path: '{tmpdir / f'default_second{index}.yaml'}'")
+    with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
+        fil.write(content)
+    content = ("param_int: !type:int 1\nparam_float: !type:float 0.1\nparam_str: !type:str abc\n"
+               "param_bool: !type:bool false\n"
+               "param_none: !type:none null\nparam_list: !type:list [0]\nparam_dict: !type:dict\n  a: 0\n"
+               "param_any: !type:Any null\nparam_tuple1: !type:(str,float) 0.4\nparam_tuple2: !type:(str,float) ab\n"
+               "param_optional1: !type:Optional[int] null\nparam_optional2: !type:Optional[int] 3\n"
+               "param_listint: !type:List[int] [0]\nparam_listintstr: !type:List[int,str] [0, ab]\n"
+               "param_dictlistoptionalint: !type:Dict[List[Optional[int]]]\n  a: [0, 1, null, 3]")
+    with open(tmpdir / f'default_second{index}.yaml', "w",
+              encoding='utf-8') as fil:
+        fil.write(content)
+    yield str(tmpdir / f'default{index}.yaml')
+
+
+@pytest.fixture
+def yaml_tag_assignment_check(tmpdir):
+    index = len(os.listdir(tmpdir))
+    content = (f"param1: !type:add_1 0.1\n--- !subconfig1\nparam2: 3.0\n---\n"
+               f"def_second_path: '{tmpdir / f'default_second{index}.yaml'}'\n"
+               "exp_second_path: null")
+    with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
+        fil.write(content)
+    content = ("--- !subconfig2\nparam3: 20.0\nsubconfig3: !subconfig3\n  "
+               "param4: !type:copy 'param1'")
+    with open(tmpdir / f'default_second{index}.yaml', "w",
+              encoding='utf-8') as fil:
+        fil.write(content)
+    yield str(tmpdir / f'default{index}.yaml')

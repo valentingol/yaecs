@@ -39,6 +39,11 @@ from .user_utils import (  # pylint: disable=wrong-import-position # noqa: E402
     make_config,
     tqdm_file,
 )
+from .yaecs_utils import (  # pylint: disable=wrong-import-position # noqa: E402
+    assign_order,
+    assign_yaml_tag,
+    Priority,
+)
 
 try:
     from ._version import version as __version__
@@ -47,5 +52,5 @@ except ImportError:
     __version__ = "unknown version"
     version_tuple = (0, 0, "unknown_version")
 
-__all__ = ['__version__', 'version_tuple', 'ConfigHistory', 'Configuration', 'Experiment', 'get_template_class',
-           'make_config', 'tqdm_file']
+__all__ = ['__version__', 'assign_order', 'assign_yaml_tag', 'ConfigHistory', 'Configuration', 'Experiment',
+           'get_template_class', 'make_config', 'Priority', 'tqdm_file', 'version_tuple']

@@ -15,15 +15,17 @@ Copyright (C) 2022  Reactive Reality
     You should have received a copy of the GNU Lesser General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-import sys
 import functools
 import importlib.util
 import io
 import logging
 import os
 import re
+import sys
+from enum import Enum
 from bisect import bisect
 from collections.abc import Mapping
+from numbers import Real
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Union
 
@@ -252,6 +254,38 @@ def are_same_sub_configs(first, second) -> bool:
     return len(nh1) == len(nh2) and all(nh1[i] == nh2[i] for i in range(len(nh1)))
 
 
+def assign_order(order: float = 0) -> Callable[[Callable], Callable]:
+    """
+    Decorator used to give an order to a processing function. If several processing functions would be called at a given
+    step, they are called in increasing order.
+    :param order: order to give the function
+    :return: decorated function
+    """
+    def decorator_order(func: Callable) -> Callable:
+        func.__dict__["order"] = order
+        return func
+
+    return decorator_order
+
+
+def assign_yaml_tag(processor_tag: str, processor_type: str,
+                    replacement_type_hint: str = "Any") -> Callable[[Callable], Callable]:
+    """
+    Decorator used to mark a function as a processor added automatically as pre or post processing function (as
+    defined by processor_type) to parameters tagged with !type:<processor_tag>. Their type hint will be replaced by
+    the type hint defined as replacement_type_hint.
+    :param processor_tag: tag to use to mark a param in YAML as auto-processed by this function
+    :param processor_type: 'pre' or 'post', type of processing function to add
+    :param replacement_type_hint: type hint to use for any param tagged with this auto-processor
+    :return: decorated function
+    """
+    def decorator_tag_assignment(func: Callable) -> Callable:
+        func.__dict__["assigned_yaml_tag"] = (processor_tag, processor_type, replacement_type_hint)
+        return func
+
+    return decorator_tag_assignment
+
+
 def compare_string_pattern(name: str, pattern: str) -> bool:
     """
     Returns True when string 'name' matches string 'pattern',
@@ -260,7 +294,7 @@ def compare_string_pattern(name: str, pattern: str) -> bool:
     :param pattern: pattern to match
     :return: result of comparison
     """
-    pattern = pattern.split("*")
+    pattern = pattern.strip(" ").split("*")
     if len(pattern) == 1:
         return pattern[0] == name
     if not (name.startswith(pattern[0]) and name.endswith(pattern[-1])):
@@ -271,6 +305,32 @@ def compare_string_pattern(name: str, pattern: str) -> bool:
             return False
         name = name[index + len(fragment):]
     return True
+
+
+def compose(*functions: Callable) -> Callable:
+    """
+    Returns the composition of the functions given as argument. Functions are applied from left to right, ie :
+    compose(f, g, h)(x) = h(g(f(x))).
+    :param functions: all functions to compose, applied from left to right
+    :return: the composed function
+    """
+    def compose_2(function_1, function_2):
+        def composed(*args, **kwargs):
+            return function_2(function_1(*args, **kwargs))
+        orders = []
+        for func in [function_1, function_2]:
+            if hasattr(func, "order"):
+                orders.append(func.order)
+        if orders:
+            composed.__dict__["order"] = max(orders)
+        hooks = []
+        for func in [function_1, function_2]:
+            if func.__name__.startswith("yaecs_config_hook__"):
+                hooks += func.__name__.split("__")[1].split(",")
+        if hooks:
+            composed.__name__ = f"yaecs_config_hook__{','.join(list(set(hooks)))}__composed"
+        return composed
+    return functools.reduce(compose_2, functions, lambda x: x)
 
 
 def dict_apply(dictionary: dict, function: Callable) -> dict:
@@ -363,7 +423,17 @@ def hook(hook_name: str) -> Callable[[Callable], Callable]:
     :return: decorated function
     """
     def decorator_hook(func: Callable) -> Callable:
-        func.__name__ = f"yaecs_config_hook__{hook_name}__{func.__name__}"
+        if func.__name__.startswith("yaecs_config_hook__"):
+            hooks = func.__name__.split("__")[1].split(",")
+            if hook_name in hooks:
+                hook_name_in_func_name = ",".join(hooks)
+            else:
+                hook_name_in_func_name = ",".join(hooks + [hook_name])
+            original_name = "__".join(func.__name__.split("__")[2:])
+        else:
+            hook_name_in_func_name = hook_name
+            original_name = func.__name__
+        func.__name__ = f"yaecs_config_hook__{hook_name_in_func_name}__{original_name}"
 
         @functools.wraps(func)
         def wrapper_hook(self, *args, **kwargs):
@@ -371,19 +441,21 @@ def hook(hook_name: str) -> Callable[[Callable], Callable]:
             self.add_currently_processed_param_as_hook(hook_name=hook_name)
             return value
 
+        for function_attribute in ["order", "assigned_yaml_tag"]:
+            if hasattr(func, function_attribute):
+                setattr(wrapper_hook, function_attribute, getattr(func, function_attribute))
         return wrapper_hook
-    if "__" in hook_name:
-        raise RuntimeError(f"Invalid hook name {hook_name} : '__' is not allowed in hook names.")
+    for invalid_pattern in ["__", ","]:
+        if invalid_pattern in hook_name:
+            raise RuntimeError(f"Invalid hook name {hook_name} : '{invalid_pattern}' is not allowed in hook names.")
     return decorator_hook
 
 
 def is_type_valid(value: Any, config_class: type) -> bool:
     """
-    Checks whether input 'value' can be saved in a YAML file by
-    Configuration's YAML Dumper.
+    Checks whether input 'value' can be saved in a YAML file by Configuration's YAML Dumper.
     :param value: value to check the type of
-    :param config_class: Configuration class, which must be passed as
-    argument to avoid circular imports :(
+    :param config_class: Configuration class, which must be passed as argument to avoid circular imports :(
     :return: result of the test
     """
     if isinstance(value, list):
@@ -425,7 +497,7 @@ def new_print(*args, sep: str = " ", end: str = "", file: io.TextIOWrapper = Non
     """
     if not os.getenv('NODE_RANK'):  # do not print if in a pytorch-lightning spawned process
         if "flush" in keywords:
-            raise TypeError("Because yaecs uses logging.info to log messages logged via the print function, the 'flush'"
+            raise TypeError("Because YAECS uses logging.info to log messages logged via the print function, the 'flush'"
                             " parameter is not supported for the print function within your main.")
         message = sep.join([str(a) for a in args]) + end.strip()
         if message.strip():
@@ -444,9 +516,13 @@ def parse_type(string_to_process: str) -> TypeHint:
     if not string_to_process:
         raise ValueError("Invalid type hint : empty type hint.")
     string = string_to_process.lower()
-    types = {"none": None, "int": int, "float": float, "bool": bool, "str": str, "list": list, "dict": dict}
-    mapping_starts = {"(": "tuple", "[": "list", "d": "set"}
-    mapping_ends = {")": "tuple", "]": "list", "/d": "set"}
+    mapping_starts = {"tuple_0": "(", "tuple_1": "union[", "nonetuple": "optional[",
+                      "list_0": "[", "list_1": "list[",
+                      "set_0": "d", "set_1": "dict["}
+    types = {"none": None, "int": int, "float": float, "bool": bool, "str": str, "list": list, "dict": dict, "any": 0}
+    mapping_ends = {"tuple_0": ")", "tuple_1": "]", "nonetuple": "]",
+                    "list_0": "]", "list_1": "]",
+                    "set_0": "/d", "set_1": "]"}
     to_return = ("root", [])
     current = []
     current_types = []
@@ -469,45 +545,33 @@ def parse_type(string_to_process: str) -> TypeHint:
 
     while i < len(string):
         to_find = True
-        for key, value in types.items():
-            if to_find and string[i] == key[0]:
-                if string[i:i+len(key)] == key:
+        # Try to detect starts of mappings
+        for type_name, fragment in mapping_starts.items():
+            if to_find and string[i:i+len(fragment)] == fragment:
+                if not (fragment == "d" and string[i:i+len("dict")] == "dict"):
                     to_find = False
-                    _increment(to_return, current, value, "type")
-                    i += len(key)
-                elif string[i] == "d":
-                    pass
-                else:
-                    raise ValueError(f"Parsing error : unknown type starting from position {i} : "
-                                     f"{string_to_process}.")
+                    _increment(to_return, current, [], type_name)
+                    _enter_list(to_return, current, current_types, type_name)
+                    i += len(fragment)
+        # Try to detect simple types
+        for fragment, type_name in types.items():
+            if to_find and string[i:i+len(fragment)] == fragment:
+                to_find = False
+                _increment(to_return, current, type_name, "type")
+                i += len(fragment)
+        # Try to detect commas
         if to_find and string[i] == ",":
             to_find = False
             i += 1
-        for key, value in mapping_starts.items():
-            if to_find and string[i] == key[0]:
-                if string[i:i+len(key)] == key:
-                    to_find = False
-                    _increment(to_return, current, [], value)
-                    _enter_list(to_return, current, current_types, value)
-                    i += len(key)
-                else:
-                    raise ValueError(f"Parsing error : unknown mapping type starting from position {i} : "
-                                     f"{string_to_process}.")
-        for key, value in mapping_ends.items():
-            if to_find and string[i] == key[0]:
-                if string[i:i+len(key)] == key:
-                    if current_types[-1] != value:
-                        raise ValueError(f"Parsing error : did not expect symbol '{key}' at position {i} : "
-                                         f"{string_to_process}")
-                    to_find = False
-                    current = current[:-1]
-                    current_types = current_types[:-1]
-                    i += len(key)
-                else:
-                    raise ValueError(f"Parsing error : unknown mapping type ending at position {i} : "
-                                     f"{string_to_process}.")
+        # Try to detect ends of mappings
+        for type_name, fragment in mapping_ends.items():
+            if to_find and string[i:i+len(fragment)] == fragment and current_types[-1] == type_name:
+                to_find = False
+                current = current[:-1]
+                current_types = current_types[:-1]
+                i += len(fragment)
         if to_find:
-            raise ValueError(f"Unknown token at position {i} : {string_to_process}")
+            raise ValueError(f"Unexpected token at position {i} : {string_to_process}")
 
     if current:
         raise ValueError(f"Parsing error : unclosed brackets : {string_to_process}")
@@ -517,21 +581,98 @@ def parse_type(string_to_process: str) -> TypeHint:
         if len(list_to_consider) != 1:
             raise ValueError("Parsing error : a source type must contain exactly 1 type (simple or complex) : "
                              f"{string_to_process}")
-        if list_to_consider[0][0] == "type":
+        if list_to_consider[0][0].startswith("type"):
             return list_to_consider[0][1]
-        if list_to_consider[0][0] == "tuple":
+        if list_to_consider[0][0].startswith("tuple"):
             if not list_to_consider[0][1]:
                 raise ValueError(f"Parsing error : empty tuples are not allowed : {string_to_process}")
             return tuple(_struc_to_type(("", [j])) for j in list_to_consider[0][1])
-        if list_to_consider[0][0] == "list":
+        if list_to_consider[0][0].startswith("nonetuple"):
+            if not list_to_consider[0][1]:
+                raise ValueError(f"Parsing error : empty tuples are not allowed : {string_to_process}")
+            return (None,) + tuple(_struc_to_type(("", [j])) for j in list_to_consider[0][1])
+        if list_to_consider[0][0].startswith("list"):
             if not list_to_consider[0][1]:
                 raise ValueError(f"Parsing error : empty lists are not allowed : {string_to_process}")
             return list(_struc_to_type(("", [j])) for j in list_to_consider[0][1])
-        if list_to_consider[0][0] == "set":
-            return {_struc_to_type(("", list_to_consider[0][1]))}
+        if list_to_consider[0][0].startswith("set"):
+            return {"type": _struc_to_type(("", list_to_consider[0][1]))}
         return None
 
     return _struc_to_type(to_return)
+
+
+class Priority(Enum):
+    """ Define priority levels which can be used to qualify when a processing function should be performed. """
+    ALWAYS_FIRST = -20
+    OFTEN_FIRST = -10
+    INDIFFERENT = 0
+    SITUATIONAL = 0
+    OFTEN_LAST = 10
+    ALWAYS_LAST = 20
+
+    def __hash__(self):
+        return hash(self.value)
+
+    def __gt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value > other.value
+        if isinstance(other, Real):
+            return self.value > other
+        if isinstance(other, str):
+            return self.value > getattr(self.__class__, other)
+        return NotImplemented
+
+    def __rgt__(self, other):
+        return self < other
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        if isinstance(other, Real):
+            return self.value < other
+        if isinstance(other, str):
+            return self.value < getattr(self.__class__, other)
+        return NotImplemented
+
+    def __rlt__(self, other):
+        return self > other
+
+    def __ge__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value >= other.value
+        if isinstance(other, Real):
+            return self.value >= other
+        if isinstance(other, str):
+            return self.value >= getattr(self.__class__, other)
+        return NotImplemented
+
+    def __rge__(self, other):
+        return self <= other
+
+    def __le__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value <= other.value
+        if isinstance(other, Real):
+            return self.value <= other
+        if isinstance(other, str):
+            return self.value <= getattr(self.__class__, other)
+        return NotImplemented
+
+    def __rle__(self, other):
+        return self >= other
+
+    def __eq__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value == other.value
+        if isinstance(other, Real):
+            return self.value == other
+        if isinstance(other, str):
+            return self.name == other
+        return NotImplemented
+
+    def __req__(self, other):
+        return self == other
 
 
 def recursive_set_attribute(obj: Any, key: str, value: Any) -> None:
@@ -551,12 +692,9 @@ def recursive_set_attribute(obj: Any, key: str, value: Any) -> None:
 
 def update_state(state_descriptor: str) -> Callable[[Callable], Callable]:
     """
-    Decorator used to store useful information in Configuration._state
-    when using some recursive functions. Kind of a hack, but very useful
-    to keep track of the loading state and also
-    to debug.
-    :param state_descriptor: string indicating what to store in
-    Configuration._state
+    Decorator used to store useful information in Configuration._state when using some recursive functions. Kind of a
+    hack, but very useful to keep track of the loading state and also to debug.
+    :param state_descriptor: string indicating what to store in Configuration._state
     :return: decorated function
     """
 
