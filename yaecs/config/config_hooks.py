@@ -90,6 +90,10 @@ class ConfigHooksMixin:
         """
         Pre-processing function used to register the corresponding parameter as a path to another config file. The new
         config file will then also be used to build the config currently being built.
+
+        Priority : OFTEN_LAST (10)
+        YAML tag : additional_config_file
+
         :param path: config's path or list of paths
         :return: the same path as the input once the parameters from the new config have been added
         """
@@ -108,6 +112,10 @@ class ConfigHooksMixin:
         """
         Pre-processing function used to register the corresponding parameter as a variation for the current config.
         Please note that config variations need to be declared in the root config.
+
+        Priority : INDIFFERENT (0)
+        YAML tag : config_variations
+
         :param variation_to_register: list of configs
         :return: the same list of configs once the configs have been added to the internal variation tracker
         :raises RuntimeError: register_as_config_variations is called outside _pre_process_parameter
@@ -157,6 +165,10 @@ class ConfigHooksMixin:
         end of the folder name to avoid any overwriting. The path needs to be either None or an empty string (in which
         case the pre-processing does not happen), or an absolute path, or a path relative to the current working
         directory.
+
+        Priority : OFTEN_FIRST (-10)
+        YAML tag : experiment_path
+
         :param path: None, '', absolute path or path relative to the current working directory
         :return: the actual created path with its appended index
         """
@@ -190,6 +202,10 @@ class ConfigHooksMixin:
         Pre-processing function used to register the corresponding parameter as a grid for the current config. Grids are
         made of several parameters registered as variations. Instead of adding the variations in those parameters to the
         list of variations for this config, a grid will be created and all its components will be added instead.
+
+        Priority : INDIFFERENT (0)
+        YAML tag : grid
+
         :param list_to_register: list of parameters composing the grid
         :raises TypeError: list_to_register is not recognised as a valid grid
         :return: the same list of parameters once the grid has been added to the internal grid tracker
@@ -210,6 +226,10 @@ class ConfigHooksMixin:
         is a dict that contains at least one key : 'type'. Valid types are given by the 'ACCEPTED_TRACKERS' variable in
         experiment.py and refer to the type of tracker used. Other keys in the dict depend on the parameters required by
         corresponding tracker type.
+
+        Priority : INDIFFERENT (0)
+        YAML tag : tracker_config
+
         :param tracker_config: dict corresponding to the tracker config
         :raises: ValueError: if the tracker config is not a dict or does not contain at least a parameter called 'type'
         which is a string

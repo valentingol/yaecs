@@ -60,6 +60,10 @@ class ConfigProcessingFunctionsMixin:
         be name of the param it copies. It will be protected against modifications by further config merges (only the
         param being copied can be modified), but can still pe post-processed further after its copy by post-processing
         functions with an order above OFTEN_LAST (10).
+
+        Priority : ALWAYS_LAST (20)
+        YAML tag : copy
+
         :param path_to_copy: path of param from which to copy the value
         :return: path_to_copy
         """
@@ -118,6 +122,10 @@ class ConfigProcessingFunctionsMixin:
         """
         This pre-processing function declares a param as being protected against modifications. This means that only the
         default config can change its value, and any attempt to set it from another config will raise an error.
+
+        Priority : ALWAYS_LAST (20)
+        YAML tag : protected
+
         :param param: value of the param to protect
         :return: param
         """
@@ -137,6 +145,10 @@ class ConfigProcessingFunctionsMixin:
         """
         Returns a post-processing function that extends a path assuming it is located in the experiment path, then the
         corresponding folder is created. Requires an experiment_folder to have been declared.
+
+        Priority : OFTEN_LAST (10)
+        YAML tag : sub_folder
+
         :param folder: path of the subfolder within the experiment folder
         :return: checking function
         """
