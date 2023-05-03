@@ -34,8 +34,8 @@ from .config_convenience import ConfigConvenienceMixin
 from .config_processing_functions import ConfigProcessingFunctionsMixin
 
 from ..yaecs_utils import (adapt_to_type, are_same_sub_configs, compare_string_pattern, compose, ConfigDeclarator,
-                           format_str, is_type_valid, parse_type, recursive_set_attribute, TypeHint, update_state,
-                           YAML_EXPRESSIONS)
+                           format_str, is_type_valid, parse_type, Priority, recursive_set_attribute,
+                           set_function_attribute, TypeHint, update_state, YAML_EXPRESSIONS)
 
 if TYPE_CHECKING:
     from .config import Configuration
@@ -763,14 +763,14 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     raise ValueError(f"Ambiguous order for {processing_type}-processing functions defined for param "
                                      f"'{key}' : multiple orders defined ({order}).")
                 processing_function = compose(*[i for i in value if isinstance(i, Callable)])
-                order = order[0] if order else getattr(processing_function, "order", 0)
+                order = order[0] if order else getattr(processing_function, "order", Priority.INDIFFERENT)
             elif isinstance(value, Iterable):  # case where the method is added from a YAML tag
                 self.add_processing_function(key, value, processing_type)
                 continue
             else:
                 processing_function = value
-                order = getattr(processing_function, "order", 0)
-            processing_function.__dict__["order"] = order
+                order = getattr(processing_function, "order", Priority.INDIFFERENT)
+            set_function_attribute(processing_function, "order", order)
             self.add_processing_function(key, processing_function, processing_type)
 
     @update_state("processing;_name")

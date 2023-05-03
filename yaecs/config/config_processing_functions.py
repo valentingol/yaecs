@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any, Callable, List, Optional, TYPE_CHECKING
 
-from ..yaecs_utils import assign_order, assign_yaml_tag, Priority
+from ..yaecs_utils import assign_order, assign_yaml_tag, Priority, set_function_attribute
 
 if TYPE_CHECKING:
     from numbers import Number
@@ -27,7 +27,8 @@ class ConfigProcessingFunctionsMixin:
 
     def check_param_in_list(self, list_of_choices: List[Any]) -> Callable:
         """
-        Returns a pre-processing function that checks if a param value belongs to a list.
+        Returns a pre-processing function that checks if a param value belongs to a list. Returned function has
+        order OFTEN_FIRST (-10).
         For example in your pre-processing dict there could be a line such as this :
             "mode": self.check_param_in_list(["train", "val", "test", "infer"]),
         :param list_of_choices: list of valid parameter values
@@ -48,9 +49,10 @@ class ConfigProcessingFunctionsMixin:
                                  "Valid choices are [{possibilities}].")
             return param
 
-        return_fn = partial(_check, choices=list_of_choices, config=self)
-        return_fn.__name__ = "check_param_in_list"
-        return return_fn
+        return_function = partial(_check, choices=list_of_choices, config=self)
+        set_function_attribute(return_function, "__name__", "check_param_in_list")
+        set_function_attribute(return_function, "order", Priority.OFTEN_FIRST)
+        return return_function
 
     @assign_order(Priority.ALWAYS_LAST)  # there would most likely not be any other processing for this param
     @assign_yaml_tag("copy", "pre", "str")
@@ -83,8 +85,8 @@ class ConfigProcessingFunctionsMixin:
         main = self.get_main_config()
         param_name = self.get_processed_param_name(full_path=True)
         copy_fn = partial(_copy, main=main)
-        copy_fn.__name__ = "_copy"
-        copy_fn.order = Priority.OFTEN_LAST
+        set_function_attribute(copy_fn, "__name__", "_copy")
+        set_function_attribute(copy_fn, "order", Priority.OFTEN_LAST)
 
         current_processing = object.__getattribute__(main, "_post_processing_functions")
         if not any((param_name in main.match_params(k) and v.__name__ == "_copy")
@@ -96,9 +98,10 @@ class ConfigProcessingFunctionsMixin:
 
         return self.protected_param(path_to_copy)
 
-    def number_in_range(self, minimum: 'Number' = -float('inf'), maximum: 'Number' = float('inf')) -> Callable:
+    def check_number_in_range(self, minimum: 'Number' = -float('inf'), maximum: 'Number' = float('inf')) -> Callable:
         """
-        Returns a pre-processing function that checks if a numerical param value is in a range.
+        Returns a pre-processing function that checks if a numerical param value is in a range. Returned function has
+        order OFTEN_FIRST (-10).
         For example in your pre-processing dict there could be a line such as this :
             "probability": self.number_in_range(minimum=0, maximum=1),
         :param minimum: minimal valid value for the parameter
@@ -106,15 +109,18 @@ class ConfigProcessingFunctionsMixin:
         :return: checking function
         """
 
-        def _check(param: 'Number', minimum_: 'Number', maximum_: 'Number', param_name: str) -> 'Number':
+        def _check(param: 'Number', minimum_: 'Number', maximum_: 'Number', config: 'Configuration') -> 'Number':
             if param is None:
                 return param
             if not minimum_ <= param <= maximum_:
+                param_name = config.get_processed_param_name(full_path=True)
                 raise ValueError(f"Invalid value for param '{param_name}': '{param}'. "
                                  f"Must be in range [{minimum_} ; {maximum_}].")
             return param
-        return partial(_check,
-                       minimum_=minimum, maximum_=maximum, param_name=self.get_processed_param_name(full_path=True))
+        return_function = partial(_check, minimum_=minimum, maximum_=maximum, config=self)
+        set_function_attribute(return_function, "__name__", "check_number_in_range")
+        set_function_attribute(return_function, "order", Priority.OFTEN_FIRST)
+        return return_function
 
     @assign_order(Priority.ALWAYS_LAST)  # there can never be any subsequent processing for this param
     @assign_yaml_tag("protected", "pre", "Any")
@@ -160,7 +166,8 @@ class ConfigProcessingFunctionsMixin:
     def folder_in_experiment_if(self, condition_list: List[tuple] = None) -> Callable:
         """
         Returns a post-processing function that extends a path assuming it is located in the experiment path. Then, if
-        the conditions listed in condition_list ar all met, the corresponding folder is created.
+        the conditions listed in condition_list ar all met, the corresponding folder is created. Returned function has
+        order OFTEN_LAST (10).
         condition_list is a list of conditions represented by tuples of length 2 or 3 :
         - when a condition is represented by a tuple of length 2, the first element should be the path to parameters in
         the main config and the second element should be a value for those parameters. The condition will return true if
@@ -193,4 +200,7 @@ class ConfigProcessingFunctionsMixin:
         if not all(len(c) == 2 or len(c) == 3 for c in condition_list):
             raise ValueError("All elements of argument 'condition_list' of function 'folder_in_experiment' should have "
                              "2 elements (param and value) or 3 elements (param, value and conversion).")
-        return partial(_folder_in_experiment, config=self.get_main_config(), conditions=condition_list)
+        return_function = partial(_folder_in_experiment, config=self.get_main_config(), conditions=condition_list)
+        set_function_attribute(return_function, "__name__", "folder_in_experiment_if")
+        set_function_attribute(return_function, "order", Priority.OFTEN_LAST)
+        return return_function
