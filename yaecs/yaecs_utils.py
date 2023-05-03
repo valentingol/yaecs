@@ -372,6 +372,15 @@ def format_str(config_path_or_dictionary: ConfigDeclarator, size: int = 200) -> 
     return to_return
 
 
+def get_order(func: Callable) -> Union[Real, 'Priority']:
+    """
+    If input function has an "order" attribute, returns it. Otherwise, returns Priority.INDIFFERENT.
+    :param func: function to get the order of
+    :return: the order value
+    """
+    return getattr(func, "order", Priority.INDIFFERENT)
+
+
 def get_param_as_parsable_string(param: Any, in_iterable: bool = False, ignore_unknown_types: bool = False) -> str:
     """
     Gets given value as a string that can be parsed by

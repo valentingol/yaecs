@@ -34,7 +34,7 @@ from .config_convenience import ConfigConvenienceMixin
 from .config_processing_functions import ConfigProcessingFunctionsMixin
 
 from ..yaecs_utils import (adapt_to_type, are_same_sub_configs, compare_string_pattern, compose, ConfigDeclarator,
-                           format_str, is_type_valid, parse_type, Priority, recursive_set_attribute,
+                           format_str, get_order, is_type_valid, parse_type, recursive_set_attribute,
                            set_function_attribute, TypeHint, update_state, YAML_EXPRESSIONS)
 
 if TYPE_CHECKING:
@@ -734,7 +734,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         processors = [(proc if isinstance(proc, Callable)
                        else self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]][0])
                       for proc in self._post_processing_functions.values()]
-        orders = sorted(list({func.order for func in processors}))
+        orders = sorted(list({get_order(func) for func in processors}))
         splits = [name.split(".")[len(self._nesting_hierarchy):] for name in modified]
         names = [(".".join(s), ".".join(s[:-1] + ["___" + s[-1]]) if s[-1] in self._methods else ".".join(s))
                  for s in splits]
@@ -749,10 +749,12 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """ Sets self._pre/post_processing_functions from the user-provided functions. """
         processing_functions = getattr(self, f"parameters_{processing_type}_processing")()
         for key, value in processing_functions.items():
+
             if not isinstance(value, (Callable, Iterable)):
                 raise TypeError(f"Invalid {processing_type}-processing functions defined for param '{key}' : "
                                 "the function should be declared as either a function or an iterable of functions, "
                                 "optionally containing one order value.")
+
             if isinstance(value, Iterable) and not (isinstance(value, str) and value.startswith("_tagged_method_")):
                 if any(not isinstance(element, (Callable, Real)) for element in value):
                     raise TypeError(f"Invalid {processing_type}-processing functions defined for param '{key}' : "
@@ -763,14 +765,12 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     raise ValueError(f"Ambiguous order for {processing_type}-processing functions defined for param "
                                      f"'{key}' : multiple orders defined ({order}).")
                 processing_function = compose(*[i for i in value if isinstance(i, Callable)])
-                order = order[0] if order else getattr(processing_function, "order", Priority.INDIFFERENT)
-            elif isinstance(value, Iterable):  # case where the method is added from a YAML tag
-                self.add_processing_function(key, value, processing_type)
-                continue
+                order = order[0] if order else get_order(processing_function)
+                set_function_attribute(processing_function, "order", order)
+
             else:
                 processing_function = value
-                order = getattr(processing_function, "order", Priority.INDIFFERENT)
-            set_function_attribute(processing_function, "order", order)
+
             self.add_processing_function(key, processing_function, processing_type)
 
     @update_state("processing;_name")
@@ -793,7 +793,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                           if compare_string_pattern(total_name, key)]
             processors = [(proc if isinstance(proc, Callable)
                            else self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]][0]) for proc in processors]
-            processors = sorted([p for p in processors if order is None or p.order == order], key=lambda x: x.order)
+            processors = sorted([p for p in processors if order is None or get_order(p) == order], key=get_order)
             was_processed = bool(processors)
             for processor in processors:
                 try:
