@@ -257,6 +257,16 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             self._manual_merge(to_merge, do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process,
                                source='command line')
 
+    @staticmethod
+    def _added_pre_processing():
+        """ Will contain pre-processing function added via self.add_processing_function_all. """
+        return {}
+
+    @staticmethod
+    def _added_post_processing():
+        """ Will contain post-processing function added via self.add_processing_function_all. """
+        return {}
+
     def _check_for_unlinked_sub_configs(self) -> None:
         """ Used to raise an error when unlinked sub-configs are declared. """
         all_configs = self.get_all_sub_configs()
@@ -747,7 +757,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
     def _prepare_processing_functions(self, processing_type: str) -> None:
         """ Sets self._pre/post_processing_functions from the user-provided functions. """
-        processing_functions = getattr(self, f"parameters_{processing_type}_processing")()
+        processing_functions = {**getattr(self, f"parameters_{processing_type}_processing")(),
+                                **getattr(self, f"_added_{processing_type}_processing")()}
         for key, value in processing_functions.items():
 
             if not isinstance(value, (Callable, Iterable)):

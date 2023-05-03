@@ -18,7 +18,7 @@ Copyright (C) 2022  Reactive Reality
 import logging
 from typing import Any, Callable, Dict, TYPE_CHECKING, Union
 
-from ..yaecs_utils import Priority, set_function_attribute, TypeHint
+from ..yaecs_utils import TypeHint
 if TYPE_CHECKING:
     from .config import Configuration
 
@@ -58,7 +58,7 @@ class ConfigSettersMixin:
         function
         """
         if isinstance(function_to_add, str):
-            check_function = getattr(self.__class__, function_to_add[len("_tagged_method_"):])
+            check_function = self._assigned_as_yaml_tags[function_to_add[len("_tagged_method_"):]][0]
         else:
             check_function = function_to_add
         if hasattr(check_function, "assigned_yaml_tag"):
@@ -73,12 +73,14 @@ class ConfigSettersMixin:
         for subconfig in self._main_config.get_all_sub_configs():
             subconfig.add_processing_function(param_name, function_to_add, processing_type)
         # Add to future sub-configs
-        attribute = f"parameters_{processing_type}_processing"
-        current_processing = object.__getattribute__(self, attribute)()
+        attribute = f"_{processing_type}_processing_functions"
+        current_processing = getattr(self, attribute)
+        attribute = f"_added_{processing_type}_processing"
+        current_added_processing = getattr(self, attribute)()
         set_name = param_name
-        while set_name in current_processing:
+        while set_name in current_processing or set_name in current_added_processing:
             set_name = set_name + " "
-        new_processing = {set_name: function_to_add, **current_processing}
+        new_processing = {set_name: function_to_add, **current_added_processing}
         setattr(self.__class__, attribute, lambda self: new_processing)
 
     def add_type_hint(self, name: str, type_hint: TypeHint) -> None:
