@@ -15,11 +15,10 @@ Copyright (C) 2022  Reactive Reality
     You should have received a copy of the GNU Lesser General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from functools import partial
 import logging
 from typing import Any, Callable, Dict, TYPE_CHECKING, Union
 
-from ..yaecs_utils import Priority, TypeHint
+from ..yaecs_utils import Priority, set_function_attribute, TypeHint
 if TYPE_CHECKING:
     from .config import Configuration
 
@@ -63,7 +62,7 @@ class ConfigSettersMixin:
         else:
             check_function = function_to_add
         if not hasattr(check_function, "order"):
-            check_function.__dict__["order"] = Priority.INDIFFERENT
+            set_function_attribute(check_function, "order", Priority.INDIFFERENT)
         if hasattr(check_function, "assigned_yaml_tag"):
             if check_function.assigned_yaml_tag[1] != processing_type:
                 name = "unknown_function" if not hasattr(check_function, "__name__") else check_function.__name__

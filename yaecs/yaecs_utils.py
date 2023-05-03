@@ -254,7 +254,7 @@ def are_same_sub_configs(first, second) -> bool:
     return len(nh1) == len(nh2) and all(nh1[i] == nh2[i] for i in range(len(nh1)))
 
 
-def assign_order(order: float = 0) -> Callable[[Callable], Callable]:
+def assign_order(order: Union[Real, 'Priority'] = 0) -> Callable[[Callable], Callable]:
     """
     Decorator used to give an order to a processing function. If several processing functions would be called at a given
     step, they are called in increasing order.
@@ -262,7 +262,7 @@ def assign_order(order: float = 0) -> Callable[[Callable], Callable]:
     :return: decorated function
     """
     def decorator_order(func: Callable) -> Callable:
-        func.__dict__["order"] = order
+        set_function_attribute(func, "order", order)
         return func
 
     return decorator_order
@@ -322,7 +322,7 @@ def compose(*functions: Callable) -> Callable:
             if hasattr(func, "order"):
                 orders.append(func.order)
         if orders:
-            composed.__dict__["order"] = max(orders)
+            set_function_attribute(composed, "order", max(orders))
         hooks = []
         for func in [function_1, function_2]:
             if func.__name__.startswith("yaecs_config_hook__"):
@@ -443,7 +443,7 @@ def hook(hook_name: str) -> Callable[[Callable], Callable]:
 
         for function_attribute in ["order", "assigned_yaml_tag"]:
             if hasattr(func, function_attribute):
-                setattr(wrapper_hook, function_attribute, getattr(func, function_attribute))
+                set_function_attribute(wrapper_hook, function_attribute, getattr(func, function_attribute))
         return wrapper_hook
     for invalid_pattern in ["__", ","]:
         if invalid_pattern in hook_name:
@@ -688,6 +688,22 @@ def recursive_set_attribute(obj: Any, key: str, value: Any) -> None:
         recursive_set_attribute(obj[subconfig], key, value)
     else:
         object.__setattr__(obj, key, value)
+
+
+def set_function_attribute(func: Callable, attribute_name: str, value: Any) -> None:
+    """
+    Adds an attribute to a function object.
+    :param func: function to add the attribute to
+    :param attribute_name: name of the attribute to add
+    :param value: value of the attribute
+    """
+    if attribute_name == "__name__":
+        func.__name__ = value
+    else:
+        try:
+            func.__dict__[attribute_name] = value
+        except AttributeError:
+            setattr(func, attribute_name, value)
 
 
 def update_state(state_descriptor: str) -> Callable[[Callable], Callable]:
