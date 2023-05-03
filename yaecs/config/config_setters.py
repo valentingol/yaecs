@@ -61,8 +61,6 @@ class ConfigSettersMixin:
             check_function = getattr(self.__class__, function_to_add[len("_tagged_method_"):])
         else:
             check_function = function_to_add
-        if not hasattr(check_function, "order"):
-            set_function_attribute(check_function, "order", Priority.INDIFFERENT)
         if hasattr(check_function, "assigned_yaml_tag"):
             if check_function.assigned_yaml_tag[1] != processing_type:
                 name = "unknown_function" if not hasattr(check_function, "__name__") else check_function.__name__
