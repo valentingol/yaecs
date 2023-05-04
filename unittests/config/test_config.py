@@ -21,11 +21,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from utils import load_config, template
 
-from yaecs import assign_yaml_tag, assign_order, Configuration, Priority
-from yaecs.yaecs_utils import compare_string_pattern
+from unittests.config.utils import load_config, template
+from yaecs import Configuration, Priority, assign_order, assign_yaml_tag
 from yaecs.user_utils import make_config
+from yaecs.yaecs_utils import compare_string_pattern
 
 
 def check_integrity(config, p_1: Any = 0.1, p_2: Any = 2.0, p_3: Any = 30.0,
