@@ -1,10 +1,16 @@
 # YAECS (Yet Another Experiment Config System)
 
 [![Offial repo](https://img.shields.io/badge/official%20repo-YAECS-%23ff9626?logo=gitlab)](https://gitlab.com/reactivereality/public/yaecs)
-![GitHub last commit (branch)](https://img.shields.io/github/last-commit/valentingol/yaecs/main)
 [![License](https://img.shields.io/badge/license-LGPLV3%2B-%23c4c2c2)](https://www.gnu.org/licenses/)
 
+![GitHub last commit (branch)](https://img.shields.io/github/last-commit/valentingol/yaecs/main)
+[![PyPI version](https://badge.fury.io/py/yaecs.svg)](https://badge.fury.io/py/yaecs)
+
+[![Documentation Status](https://readthedocs.org/projects/yaecs/badge/?version=latest)](https://yaecs.readthedocs.io/en/latest/?badge=latest)
+
 ---
+
+## Documentation: [here](https://yaecs.readthedocs.io/en/stable/)
 
 **DISCLAIMER: This repository is the public version of a repository that is the
 property of [Reactive Reality](https://www.reactivereality.com/). This
@@ -30,7 +36,11 @@ experiments for your future self or collaborators.
 
 ## Installation
 
-The package can be installed from pipy: `pip install yaecs`
+The package can be installed from pipy:
+
+```bash
+pip install yaecs
+```
 
 ## Getting started
 
