@@ -21,26 +21,30 @@ import sys
 import time
 from typing import Callable, Dict, List, Optional, Union
 
-from .config_base import _ConfigurationBase
 from ..yaecs_utils import ConfigDeclarator, format_str
+from .config_base import _ConfigurationBase
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class Configuration(_ConfigurationBase):
-    """ Superclass for YAECS configurations. The superclass implements constructors, while the behaviour is spread
+    """
+    Superclass for YAECS configurations. The superclass implements constructors, while the behaviour is spread
     across the parent classes in the following way :
-    - _ConfigurationBase implements the most basic functionalities such as creation and merging operations. It inherits
+
+    * _ConfigurationBase implements the most basic functionalities such as creation and merging operations. It inherits
       from all other parent classes as Mixins ;
-    - ConfigHooksMixin implements processing functions whose name start with "register_as_" and are decorated by the
+    * ConfigHooksMixin implements processing functions whose name start with `register_as_` and are decorated by the
       yaecs_utils.hook decorator. Users can use those processing either as pre- or post-processing functions, which will
       have the added effect of tagging the processed parameters as playing a certain pre-defined role in the config ;
-    - ConfigGettersMixin implements public getters to access some private attributes as well as other values which
+    * ConfigGettersMixin implements public getters to access some private attributes as well as other values which
       require boilerplate code to be rigorously queried, such as user-defined parameters ;
-    - ConfigSettersMixin implements a few setters which the config uses internally to manipulate private attributes of
+    * ConfigSettersMixin implements a few setters which the config uses internally to manipulate private attributes of
       other Configuration instances (such as sub-configs) ;
-    - ConfigConvenienceMixin implements all functions which are not of central importance to the behaviour of the config
-      but wrap convenient functionalities which can be used either internally of by the user. """
+    * ConfigConvenienceMixin implements all functions which are not of central importance to the behaviour of the config
+      but wrap convenient functionalities which can be used either internally of by the user.
+
+    """
 
     def __init__(self, name: str = "main", overwriting_regime: str = "auto-save",
                  config_path_or_dictionary: Optional[ConfigDeclarator] = None,
@@ -51,13 +55,15 @@ class Configuration(_ConfigurationBase):
         """
         Should never be called directly by the user. Please use one of the constructors instead (load_config,
         build_from_configs, build_from_argv), or the utils.make_config convenience function.
+
         :param name: name for the config or sub-config
         :param overwriting_regime: can be "auto-save" (default, when a param is overwritten it is merged instead and the
-        config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
-        using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility is not guaranteed).
+            config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
+            using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility
+            is not guaranteed).
         :param config_path_or_dictionary: path or dictionary to create the config from
         :param nesting_hierarchy: list containing the names of all the configs in the sub-config chain leading to this
-        config
+            config
         :param state: processing state used for state tracking and debugging
         :param main_config: main config corresponding to this sub-config, or None if this config is the main config
         :param variation: the name of the variation being created
@@ -120,11 +126,13 @@ class Configuration(_ConfigurationBase):
         """
         First creates a config using the default config, then merges config_path into it. If config_path is a list,
         successively merges all configs in the list instead from index 0 to the last.
+
         :param configs: config's path or dictionary, or list of default config's paths or dictionaries to merge
         :param default_config_path: default config's path or dictionary
         :param overwriting_regime: can be "auto-save" (default, when a param is overwritten it is merged instead and the
-        config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
-        using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility is not guaranteed).
+            config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
+            using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility
+            is not guaranteed).
         :param do_not_merge_command_line: if True, does not try to merge the command line parameters
         :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
@@ -159,10 +167,12 @@ class Configuration(_ConfigurationBase):
         """
         First creates a config using the first config provided (or the first config in the provided list), then merges
         the subsequent configs into it from index 1 to the last.
+
         :param configs: config's path or dictionary, or list of default config's paths or dictionaries to merge
         :param overwriting_regime: can be "auto-save" (default, when a param is overwritten it is merged instead and the
-        config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
-        using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility is not guaranteed).
+            config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
+            using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility
+            is not guaranteed).
         :param do_not_merge_command_line: if True, does not try to merge the command line parameters
         :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
@@ -192,14 +202,16 @@ class Configuration(_ConfigurationBase):
         Assumes a pattern of the form '--config <path_to_config>' or '--config [<path1>,<path2>,...]' in sys.argv (the
         brackets are optional), and builds a config from the specified paths by merging them into the default config in
         the specified order.
+
         :param configs: config's path or dictionary, or list of config paths or dictionaries to merge. Those will be
-        merged to the default config before the config from the command line.
+            merged to the default config before the config from the command line.
         :param fallback: config path or dictionary, or list of config paths or dictionaries to fall back to if no config
-        was detected in the argv
+            was detected in the argv
         :param default_config_path: default config's path or dictionary
         :param overwriting_regime: can be "auto-save" (default, when a param is overwritten it is merged instead and the
-        config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
-        using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility is not guaranteed).
+            config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
+            using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility
+            is not guaranteed).
         :param do_not_merge_command_line: if True, does not try to merge the command line parameters
         :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
@@ -225,6 +237,7 @@ class Configuration(_ConfigurationBase):
         """
         Creates a list of configs that are derived from the current config using the internally tracked variations and
         grids registered via the corresponding functions (register_as_config_variations and register_as_grid).
+
         :raises TypeError: if grid dimension is empty or not registered
         :return: the list of configs corresponding to the tracked variations
         """
@@ -302,6 +315,7 @@ class Configuration(_ConfigurationBase):
     def get_default_config_path() -> str:
         """
         Returns the path to the default config of the project. This function must be implemented at project-level.
+
         :return: string corresponding to the path to the default config of the project
         """
         raise NotImplementedError
@@ -348,6 +362,7 @@ class Configuration(_ConfigurationBase):
     def set_variation_name(self, name: str, deep: bool = False) -> None:
         """
         Sets the variation index of the config. This function is not intended to be used by the user.
+
         :param name: index to set the variation index with
         :param deep: whether to also recursively set the variation name of all sub-configs
         """

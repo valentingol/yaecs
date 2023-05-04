@@ -1,14 +1,21 @@
 """ This file defines a library of convenient processing functions. """
 
-from functools import partial
 import logging
 import os
-from typing import Any, Callable, List, Optional, TYPE_CHECKING
+from functools import partial
+from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
-from ..yaecs_utils import assign_order, assign_yaml_tag, compare_string_pattern, Priority, set_function_attribute
+from ..yaecs_utils import (
+    Priority,
+    assign_order,
+    assign_yaml_tag,
+    compare_string_pattern,
+    set_function_attribute,
+)
 
 if TYPE_CHECKING:
     from numbers import Number
+
     from .config import Configuration
 
 YAECS_LOGGER = logging.getLogger(__name__)
@@ -30,7 +37,8 @@ class ConfigProcessingFunctionsMixin:
         Returns a pre-processing function that checks if a param value belongs to a list. Returned function has
         order OFTEN_FIRST (-10).
         For example in your pre-processing dict there could be a line such as this :
-            "mode": self.check_param_in_list(["train", "val", "test", "infer"]),
+        "mode": self.check_param_in_list(["train", "val", "test", "infer"])
+
         :param list_of_choices: list of valid parameter values
         :return: checking function
         """
@@ -62,7 +70,6 @@ class ConfigProcessingFunctionsMixin:
         be name of the param it copies. It will be protected against modifications by further config merges (only the
         param being copied can be modified), but can still pe post-processed further after its copy by post-processing
         functions with an order above OFTEN_LAST (10).
-
         Priority : ALWAYS_LAST (20)
         YAML tag : copy
 
@@ -103,7 +110,8 @@ class ConfigProcessingFunctionsMixin:
         Returns a pre-processing function that checks if a numerical param value is in a range. Returned function has
         order OFTEN_FIRST (-10).
         For example in your pre-processing dict there could be a line such as this :
-            "probability": self.number_in_range(minimum=0, maximum=1),
+        "probability": self.number_in_range(minimum=0, maximum=1)
+
         :param minimum: minimal valid value for the parameter
         :param maximum: maximal valid value for the parameter
         :return: checking function
@@ -128,7 +136,6 @@ class ConfigProcessingFunctionsMixin:
         """
         This pre-processing function declares a param as being protected against modifications. This means that only the
         default config can change its value, and any attempt to set it from another config will raise an error.
-
         Priority : ALWAYS_LAST (20)
         YAML tag : protected
 
@@ -151,7 +158,6 @@ class ConfigProcessingFunctionsMixin:
         """
         Returns a post-processing function that extends a path assuming it is located in the experiment path, then the
         corresponding folder is created. Requires an experiment_folder to have been declared.
-
         Priority : OFTEN_LAST (10)
         YAML tag : sub_folder
 
@@ -169,13 +175,15 @@ class ConfigProcessingFunctionsMixin:
         the conditions listed in condition_list ar all met, the corresponding folder is created. Returned function has
         order OFTEN_LAST (10).
         condition_list is a list of conditions represented by tuples of length 2 or 3 :
-        - when a condition is represented by a tuple of length 2, the first element should be the path to parameters in
-        the main config and the second element should be a value for those parameters. The condition will return true if
-        the corresponding parameters have the corresponding value ;
-        - when a condition is represented by a tuple of length 3, the behaviour is the same except the third element is
-        a function to apply to the parameters values before they are compared to the second element.
-        For example in your post-processing dict there could be a line such as this :
-            "save_weights_path": self.folder_in_experiment(condition_list=[("mode", "train")]),
+
+        * when a condition is represented by a tuple of length 2, the first element should be the path to parameters in
+          the main config and the second element should be a value for those parameters. The condition will return true
+          if the corresponding parameters have the corresponding value ;
+        * when a condition is represented by a tuple of length 3, the behaviour is the same except the third element is
+          a function to apply to the parameters values before they are compared to the second element.
+          For example in your post-processing dict there could be a line such as this :
+          "save_weights_path": self.folder_in_experiment(condition_list=[("mode", "train")])
+
         :param condition_list: list of conditions to be met for the path to be created
         :return: checking function
         """

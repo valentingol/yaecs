@@ -15,11 +15,11 @@ Copyright (C) 2022  Reactive Reality
     You should have received a copy of the GNU Lesser General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from typing import Callable, Dict, List, Optional, Type, Union
 import logging
+from typing import Callable, Dict, List, Optional, Type, Union
 
 from .config.config import Configuration
-from .yaecs_utils import TqdmLogger, ConfigDeclarator
+from .yaecs_utils import ConfigDeclarator, TqdmLogger
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ YAECS_LOGGER = logging.getLogger(__name__)
 def tqdm_file():
     """
     Utility function which returns a file to which users can log their TQDM bars to make them YAECS-friendly.
+
     :return: TQDM file
     """
     return TqdmLogger(logging.getLogger("yaecs.print_catcher"))
@@ -42,27 +43,28 @@ def get_template_class(default_config_path: Optional[ConfigDeclarator] = None,
                        grids_suffix: Optional[str] = None, grids_prefix: Optional[str] = None) -> Type[Configuration]:
     """
     Creates a template Configuration subclass to use in a small project where little customisation is needed.
+
     :param default_config_path: path to the default config to use for the template
     :param pre_processing_dict: pre-processing dict to use for the template. If this gets large, consider implementing
-    the subclass yourself as this will be clearer and more flexible.
+        the subclass yourself as this will be clearer and more flexible.
     :param post_processing_dict: post-processing dict to use for the template. If this gets large, consider implementing
-    the subclass yourself as this will be clearer and more flexible.
+        the subclass yourself as this will be clearer and more flexible.
     :param experiment_path: automatically adds relevant pre-processing rules to consider given parameter name the
-    experiment path
+        experiment path
     :param tracker_config: automatically adds relevant pre-processing rules to consider given parameter name the tracker
-    config
+        config
     :param additional_configs_suffix: automatically adds relevant pre-processing rules to consider parameter names
-    ending with 'additional_configs_suffix' as paths to additional config files
+        ending with 'additional_configs_suffix' as paths to additional config files
     :param additional_configs_prefix: automatically adds relevant pre-processing rules to consider parameter names
-    starting with 'additional_configs_prefix' as paths to additional config files
+        starting with 'additional_configs_prefix' as paths to additional config files
     :param variations_suffix: automatically adds relevant pre-processing rules to consider parameter names ending with
-    'variations_suffix' as config variations
+        'variations_suffix' as config variations
     :param variations_prefix: automatically adds relevant pre-processing rules to consider parameter names starting with
-    'variations_prefix' as config variations
+        'variations_prefix' as config variations
     :param grids_suffix: automatically adds relevant pre-processing rules to consider parameter names ending with
-    'grids_suffix' as grids
+        'grids_suffix' as grids
     :param grids_prefix: automatically adds relevant pre-processing rules to consider parameter names starting with
-    'grids_prefix' as grids
+        'grids_prefix' as grids
     :return: a template Configuration subclass
     """
 
@@ -119,39 +121,40 @@ def make_config(*configs: Union[ConfigDeclarator, List[ConfigDeclarator]],
     """
     One-liner wrapper to create a config from dicts/strings without the need for declaring a subclass. Useful for
     scripts or jupyter notebooks. Impractical/hacky for larger projects.
+
     :param configs: dicts and strings defining a config
     :param config_class: class to use to build the configuration. If not provided, use a template instead.
     :param pre_processing_dict: pre-processing dict to use for the template.
-    If this gets large, consider implementing the subclass yourself as this will be clearer and more flexible.
-    Only used if config_class is not provided.
+        If this gets large, consider implementing the subclass yourself as this will be clearer and more flexible.
+        Only used if config_class is not provided.
     :param post_processing_dict: post-processing dict to use for the template.
-    If this gets large, consider implementing the subclass yourself as this will be clearer and more flexible.
+        If this gets large, consider implementing the subclass yourself as this will be clearer and more flexible.
     :param experiment_path: automatically adds relevant pre-processing rules to consider given parameter name the
-    experiment path.
-    Only used if config_class is not provided.
+        experiment path.
+        Only used if config_class is not provided.
     :param tracker_config: automatically adds relevant pre-processing rules to consider given parameter name the tracker
-    config.
-    Only used if config_class is not provided.
+        config.
+        Only used if config_class is not provided.
     :param additional_configs_suffix: automatically adds relevant pre-processing rules to consider parameter names
-    ending with 'additional_configs_suffix' as paths to additional config files.
-    Only used if config_class is not provided.
+        ending with 'additional_configs_suffix' as paths to additional config files.
+        Only used if config_class is not provided.
     :param additional_configs_prefix: automatically adds relevant pre-processing rules to consider parameter names
-    starting with 'additional_configs_prefix' as paths to additional config files.
-    Only used if config_class is not provided.
+        starting with 'additional_configs_prefix' as paths to additional config files.
+        Only used if config_class is not provided.
     :param variations_suffix: automatically adds relevant pre-processing rules to consider parameter names ending with
-    'variations_suffix' as config variations.
-    Only used if config_class is not provided.
+        'variations_suffix' as config variations.
+        Only used if config_class is not provided.
     :param variations_prefix: automatically adds relevant pre-processing rules to consider parameter names starting with
-    'variations_prefix' as config variations.
-    Only used if config_class is not provided.
+        'variations_prefix' as config variations.
+        Only used if config_class is not provided.
     :param grids_suffix: automatically adds relevant pre-processing rules to consider parameter names ending with
-    'grids_suffix' as grids.
-    Only used if config_class is not provided.
+        'grids_suffix' as grids.
+        Only used if config_class is not provided.
     :param grids_prefix: automatically adds relevant pre-processing rules to consider parameter names starting with
-    'grids_prefix' as grids.
-    Only used if config_class is not provided.
+        'grids_prefix' as grids.
+        Only used if config_class is not provided.
     :param class_building_kwargs: same kwargs as those used in all Configuration constructors.
-    Only used if config_class is not provided.
+        Only used if config_class is not provided.
     :return: config object
     """
     class_args = {

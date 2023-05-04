@@ -17,12 +17,12 @@ Copyright (C) 2022  Reactive Reality
 """
 import importlib.util
 import logging
-import sys
-from contextlib import ExitStack
 import os
-from functools import partial
+import sys
 import traceback
-from typing import Optional, Callable, Dict, List, Any, Tuple, Union
+from contextlib import ExitStack
+from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from mock import patch
 
@@ -53,20 +53,21 @@ class Experiment:
                  description_formatter: Optional[Callable[[Optional[str]], str]] = None):
         """
         Creates an instance of the Experiment class, which wraps around a main function.
+
         :param config: config used for the experiment
         :param main_function: function to run to perform the experiment
         :param experiment_name: name of the experiment, defaults to name
-        of the folder set as experiment path in the config
+            of the folder set as experiment path in the config
         :param run_name: name of the run, defaults as the index of the run in the experiment folder
         :param params_filter_fn: function to use instead of the default filter to get the list of the names of the
-        parameters to log to the tracker from the config. If this is used, then 'log_modified_params_only',
-        'only_params_to_log' and 'params_not_to_log' are ignored.
+            parameters to log to the tracker from the config. If this is used, then 'log_modified_params_only',
+            'only_params_to_log' and 'params_not_to_log' are ignored.
         :param log_modified_params_only: whether the parameters to filter using the other arguments are the parameters
-        that changed compared to the default config (True) or only those of the whole config (False)
+            that changed compared to the default config (True) or only those of the whole config (False)
         :param only_params_to_log: if provided, only the parameters whose names are given will be filtered and logged
         :param params_not_to_log: if provided, parameters whose names are given will be filtered out
         :param description_formatter: optional function to use to format the provided run description instead of the
-        default formatter self.default_formatter
+            default formatter self.default_formatter
         """
         self.config = config
         self.main_function = main_function
@@ -90,8 +91,9 @@ class Experiment:
     def default_formatter(self, description: Optional[str]) -> str:
         """
         This function formats the provided description before passing it to the trackers.
-        :param description: provided description to format. You can use the tag %h once in the description. Everything
-        before this tag will be considered the header of the description
+
+        :param description: provided description to format. You can use the tag `%h` once in the description. Everything
+            before this tag will be considered the header of the description
         :raises RuntimeError: when more than one header tag is detected in the description
         :return: formatted description
         """
@@ -108,8 +110,10 @@ class Experiment:
     def run(self, run_description: Optional[str] = None, **kwargs) -> Any:
         """
         Creates all variations of the config and starts a run for each of them.
+
         :param run_description: if passed, will serve as a description for the purpose of the current run. You can use
-        the tag %h once in the description. Everything before this tag will be considered the header of the description
+            the tag %h once in the description. Everything before this tag will be considered the header
+            of the description
         :param kwargs: arguments to pass to the main function aside from the config and the tracker
         :return: whatever the main function returns
         """
@@ -145,8 +149,10 @@ class Experiment:
     def run_single(self, run_description: Optional[str] = None, **kwargs) -> Any:
         """
         Runs a single experiment with the defined config. Does not check the config variations.
+
         :param run_description: if passed, will serve as a description for the purpose of the current run. You can use
-        the tag %h once in the description. Everything before this tag will be considered the header of the description
+            the tag %h once in the description. Everything before this tag will be considered the header
+            of the description
         :param kwargs: arguments to pass to the main function aside from the config and the tracker
         :return: whatever the main function returns
         """
@@ -194,15 +200,16 @@ class Tracker:
                  params_not_to_log: Optional[List[str]] = None):
         """
         Reads the tracker config from the general config to create a Tracker object used for logging during the run.
+
         :param tracker_config: tracker config from the general config
         :param experiment: passed automatically from the instance of Experiment this tracker originates from
         :param experiment_name: name for the experiment (inferred from the experiment path if not provided)
         :param run_name: name for the run (inferred from the experiment path if not provided)
         :param params_filter_fn: function to use instead of the default filter to get the list of the names of the
-        parameters to log to the tracker from the config. If this is used, then 'log_modified_params_only',
-        'only_params_to_log' and 'params_not_to_log' are ignored.
+            parameters to log to the tracker from the config. If this is used, then 'log_modified_params_only',
+            'only_params_to_log' and 'params_not_to_log' are ignored.
         :param log_modified_params_only: whether the parameters to filter using the other arguments are the parameters
-        that changed compared to the default config (True) or only those of the whole config (False)
+            that changed compared to the default config (True) or only those of the whole config (False)
         :param only_params_to_log: if provided, only the parameters whose names are given will be filtered and logged
         :param params_not_to_log: if provided, parameters whose names are given will be filtered out
         """
@@ -250,6 +257,7 @@ class Tracker:
         log_modified_params_only was set to False in which case it starts from all the parameters in the config. Then,
         it filters out all hooks, then all parameters in except_params, and finally only keeps those that are also in
         only_params.
+
         :param config: instance of Configuration from which to filter the parameters
         :return: the list of the filtered parameters names
         """
@@ -283,6 +291,7 @@ class Tracker:
         Gets experiment and run names, using either names given when instantiating the Experiment (if provided) or
         inferring them from the config's experiment path. If nothing is provided and no experiment path is defined,
         raises an error.
+
         :raises RuntimeError: if no experiment path is defined in the config and no experiment or run name is provided
         :return: the experiment name and the run name
         """
@@ -318,7 +327,7 @@ class Tracker:
 
     def start_run(self, description: Optional[str] = None) -> None:
         """
-        Initialises the configured trackers, which most of the time means preparing their logger is self.loggers.
+        Initializes the configured trackers, which most of the time means preparing their logger is self.loggers.
         """
         experiment_name, run_name = self.extract_names()
         config = self.experiment.config
@@ -372,12 +381,13 @@ class Tracker:
         """
         Logs the given value under the given name at given step in the configured trackers. The description is optional
         and can only be used if the tracker is tensorboard.
+
         :param name: name for the value to be logged
         :param value: value to be logged
         :param step: step at which the value is logged. If not provided, will default to 0 for the tensorboard tracker,
-        will default to -1 for the basic tracker and will be logged as a "single value" for the clearml tracker
+            will default to -1 for the basic tracker and will be logged as a "single value" for the clearml tracker
         :param sub_logger: if specified, logs to corresponding sub-logger. Can be interpreted as a sub-folder for the
-        scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
+            scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
         :param description: only used for the tensorboard tracker, corresponds to a short description of the value
         :param main_process_only: do not try to log in pytorch-lightning sub-processes
         """
@@ -440,11 +450,12 @@ class Tracker:
                     sub_logger: Optional[str] = None, main_process_only: bool = False) -> None:
         """
         Logs several values contained in a dictionary, one by one using Tracker.log_scalar.
+
         :param dictionary: dictionary containing the (name, value) pairs to be logged
         :param step: step at which the value is logged. If not provided, will default to 0 for the tensorboard tracker,
-        will default to -1 for the basic tracker and will be logged as a "single value" for the clearml tracker
+            will default to -1 for the basic tracker and will be logged as a "single value" for the clearml tracker
         :param sub_logger: if specified, logs to corresponding sub-logger. Can be interpreted as a sub-folder for the
-        scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
+            scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
         :param main_process_only: do not try to log in pytorch-lightning sub-processes
         """
         if not main_process_only or not os.getenv('NODE_RANK'):  # do not track in a pytorch-lightning spawned process
@@ -462,7 +473,8 @@ class BasicTrackerContext:
 
     def __init__(self, logger_path: str, runs: Optional[int], current: Optional[int]):
         """
-        Initialises a context used to declare the loggers required by the basic tracker.
+        Initializes a context used to declare the loggers required by the basic tracker.
+
         :param logger_path: path used by the basic tracker to log
         :param runs: number of runs in the experiment
         :param current: index of current run from 0 to runs-1
@@ -549,7 +561,8 @@ class CMLContext:
 
     def __init__(self, tracker: Tracker):
         """
-        Initialises a context used to close the ClearML runs when they are done.
+        Initializes a context used to close the ClearML runs when they are done.
+
         :param tracker: tracker object where to find the ClearML runs
         """
         self.tracker = tracker

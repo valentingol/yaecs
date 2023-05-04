@@ -16,26 +16,49 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from collections.abc import Iterable
 import copy
-from functools import partial
 import logging
-from numbers import Real
 import os
-from pathlib import Path
 import sys
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TYPE_CHECKING, Union
+from collections.abc import Iterable
+from functools import partial
+from numbers import Real
+from pathlib import Path
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
+
 import yaml
 
+from ..yaecs_utils import (
+    YAML_EXPRESSIONS,
+    ConfigDeclarator,
+    TypeHint,
+    adapt_to_type,
+    are_same_sub_configs,
+    compare_string_pattern,
+    compose,
+    format_str,
+    get_order,
+    is_type_valid,
+    parse_type,
+    recursive_set_attribute,
+    set_function_attribute,
+    update_state,
+)
+from .config_convenience import ConfigConvenienceMixin
 from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
-from .config_setters import ConfigSettersMixin
-from .config_convenience import ConfigConvenienceMixin
 from .config_processing_functions import ConfigProcessingFunctionsMixin
-
-from ..yaecs_utils import (adapt_to_type, are_same_sub_configs, compare_string_pattern, compose, ConfigDeclarator,
-                           format_str, get_order, is_type_valid, parse_type, recursive_set_attribute,
-                           set_function_attribute, TypeHint, update_state, YAML_EXPRESSIONS)
+from .config_setters import ConfigSettersMixin
 
 if TYPE_CHECKING:
     from .config import Configuration
@@ -68,6 +91,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """
         Should never be called directly by the user. Please use one of the constructors defined for the Configuration
         class instead, or the utils.make_config convenience function.
+
         :param from_argv: whether the config was created with configs passed from the command line arguments
         :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
@@ -135,16 +159,18 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """
         Returns a processing function that checks for given type. Can be used for example with the following line in a
         parameters post-processing dict:
-            "parameter_that_should_be_int": self.check_type(int),
-        - The type can be any of None, bool, int, float, str, dict, list. The value 0 instead means no type check.
-        - Unions are denoted by tuples of types.
-        - You can specify the type of the elements of your lists by using a list of types. This list should contain
-        either one type (in which case the list is expected to only contain elements of that type) or as many types as
-        there are elements in the list (in which case each element is tested with the corresponding type)
-        - You can specify the type of the elements of your dicts by using a dict or a set of types. If you use a set, it
-        can only contain one type (in which case the dict is expected to contain only values of that type). If you use a
-        dict of types, the keys used in that dict that match the keys in the parameter will be checked using the values
-        as types.
+        "parameter_that_should_be_int": self.check_type(int)
+
+        * The type can be any of None, bool, int, float, str, dict, list. The value 0 instead means no type check.
+        * Unions are denoted by tuples of types.
+        * You can specify the type of the elements of your lists by using a list of types. This list should contain
+          either one type (in which case the list is expected to only contain elements of that type) or as many types as
+          there are elements in the list (in which case each element is tested with the corresponding type)
+        * You can specify the type of the elements of your dicts by using a dict or a set of types. If you use a set, it
+          can only contain one type (in which case the dict is expected to contain only values of that type).
+          If you use a dict of types, the keys used in that dict that match the keys in the parameter will be checked
+          using the values as types.
+
         :param type_or_types: type for which to create the function
         :return: the processing function
         """
@@ -215,6 +241,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         Users should only use this to merge or create parameters during a creation or merge operation (for instance in a
         processing function). If you want to merge parameters in your main code, outside a constructor or other
         operation, please use self.merge.
+
         :param config_path_or_dict: path or dictionary for the config to merge
         """
         if config_path_or_dict is not None:
@@ -231,6 +258,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
               do_not_post_process: bool = False) -> None:
         """
         Merges provided config path of dictionary into the current config.
+
         :param config_path_or_dictionary: path or dictionary for the config to merge
         :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
@@ -244,6 +272,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         Formerly used to manually merge the command line arguments into the config, which is now done automatically and
         thus should no longer be done manually. Can still be used to manually merge a string emulating command line
         arguments.
+
         :param string_to_merge: if specified, merges this string instead of the sys.argv string
         :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
