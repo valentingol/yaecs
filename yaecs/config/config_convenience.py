@@ -225,7 +225,7 @@ class ConfigConvenienceMixin:
         patterns = (patterns[0] if len(patterns) == 1 and isinstance(patterns[0], list) else patterns)
         if patterns is None or (len(patterns) == 1 and patterns[0] is None):
             return None
-        new_names = [n for n in patterns if "*" not in n and n in self.get_parameter_names(True)]
+        new_names = [n.strip(" ") for n in patterns if "*" not in n and n.strip(" ") in self.get_parameter_names(True)]
         for name in [n for n in patterns if "*" in n]:
             new_names = new_names + [p for p in self.get_parameter_names(True) if compare_string_pattern(p, name)]
         return new_names

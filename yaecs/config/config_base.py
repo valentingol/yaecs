@@ -375,7 +375,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 type_hint = tag[6:]
                 if type_hint in self._assigned_as_yaml_tags:
                     _, processor_type, new_type_hint = self._assigned_as_yaml_tags[type_hint]
-                    self.add_processing_function_all(name, f"_tagged_method_{type_hint}", processor_type)
+                    if self.get_variation_name() is None:
+                        self.add_processing_function_all(name, f"_tagged_method_{type_hint}", processor_type)
                     type_hint = new_type_hint
                 self._main_config.add_type_hint(name, parse_type(type_hint))
                 if isinstance(node, yaml.ScalarNode):
@@ -792,6 +793,11 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             raise ValueError(f"Unknown processing_type : '{processing_type}'. Valid types are 'pre' or 'post'.")
         total_name = self._get_full_path(name)
         main = self.get_main_config()
+        processors = [proc for key, proc in getattr(self, f"_{processing_type}_processing_functions").items()
+                      if compare_string_pattern(total_name, key)]
+        processors = [(proc if isinstance(proc, Callable)
+                       else self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]][0]) for proc in processors]
+        processors = sorted([p for p in processors if order is None or get_order(p) == order], key=get_order)
         if processing_type == "pre":
             main.remove_value_before_postprocessing(total_name)
         if main.get_master_switch(processing_type):
@@ -800,11 +806,6 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 self.check_type(main.get_type_hint(total_name))(parameter)
             else:
                 old_value = copy.deepcopy(parameter)
-            processors = [proc for key, proc in getattr(self, f"_{processing_type}_processing_functions").items()
-                          if compare_string_pattern(total_name, key)]
-            processors = [(proc if isinstance(proc, Callable)
-                           else self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]][0]) for proc in processors]
-            processors = sorted([p for p in processors if order is None or get_order(p) == order], key=get_order)
             was_processed = bool(processors)
             for processor in processors:
                 try:
@@ -821,8 +822,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             if processing_type == "post" and was_processed:
                 main.save_value_before_postprocessing(self._get_full_path(name), old_value)
         elif processing_type == "pre":
-            for key, item in self._pre_processing_functions.items():
-                if compare_string_pattern(total_name, key) and item.__name__.startswith("yaecs_config_hook__"):
-                    for hook_name in item.__name__.split("__")[1].split(","):
+            for processor in processors:
+                if processor.__name__.startswith("yaecs_config_hook__"):
+                    for hook_name in processor.__name__.split("__")[1].split(","):
                         self.add_currently_processed_param_as_hook(hook_name)
         return parameter

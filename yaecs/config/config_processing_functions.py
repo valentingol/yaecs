@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any, Callable, List, Optional, TYPE_CHECKING
 
-from ..yaecs_utils import assign_order, assign_yaml_tag, Priority, set_function_attribute
+from ..yaecs_utils import assign_order, assign_yaml_tag, compare_string_pattern, Priority, set_function_attribute
 
 if TYPE_CHECKING:
     from numbers import Number
@@ -88,11 +88,11 @@ class ConfigProcessingFunctionsMixin:
         set_function_attribute(copy_fn, "__name__", "_copy")
         set_function_attribute(copy_fn, "order", Priority.OFTEN_LAST)
 
-        current_processing = object.__getattribute__(main, "_post_processing_functions")
-        if not any((param_name in main.match_params(k) and v.__name__ == "_copy")
+        current_processing = object.__getattribute__(main, "_added_post_processing")()
+        if not any((compare_string_pattern(param_name, k) and v.__name__ == "_copy")
                    for k, v in current_processing.items()):
             main.add_processing_function_all(param_name, copy_fn, "post")
-        else:
+        elif self.get_variation_name() is None:
             YAECS_LOGGER.warning(f"WARNING : Parameter '{param_name}' was already declared as a copy of param "
                                  f"'{path_to_copy}'. Processing function will not be added again.")
 
