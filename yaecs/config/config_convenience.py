@@ -16,17 +16,31 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from copy import deepcopy
 import difflib
-from functools import partial
 import logging
 import os
 import time
-from typing import (Any, Callable, Dict, ItemsView, KeysView, List, Optional, Tuple, Type, TYPE_CHECKING, Union,
-                    ValuesView)
+from copy import deepcopy
+from functools import partial
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    ItemsView,
+    KeysView,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    ValuesView,
+)
+
 import yaml
 
 from ..yaecs_utils import compare_string_pattern, dict_apply, format_str
+
 if TYPE_CHECKING:
     from .config import Configuration
 
@@ -83,6 +97,7 @@ class ConfigConvenienceMixin:
         configuration and the "other" configuration. Tuples are written in the form :
         (parameter_name, parameter_value_in_other). If parameter_name does not exist in other, (parameter_name, None) is
         given instead.
+
         :param other: config to compare self with
         :param reduce: tries to reduce the size of the output text as much as possible
         :return: difference list
@@ -143,6 +158,7 @@ class ConfigConvenienceMixin:
     def copy(self) -> 'ConfigConvenienceMixin':
         """
         Returns a safe, independent copy of the config
+
         :return: instance of Configuration that is a deep copy of the config
         """
         return deepcopy(self)
@@ -152,14 +168,15 @@ class ConfigConvenienceMixin:
                 no_expand: Optional[Union[str, List[str]]] = None) -> str:
         """
         Creates and returns a string describing all the parameters in the config and its sub-configs.
+
         :param show_only: if not None, list of names referring to params. Only params in the list are displayed in the
-        details.
+            details.
         :param expand_only: if not None, list of names referring to sub-configs. Only sub-configs in the list are
-        unrolled in the details.
+            unrolled in the details.
         :param no_show: if not None, list of names referring to params. Params in the list are not displayed in the
-        details.
+            details.
         :param no_expand: if not None, list of names referring to sub-configs. Sub-configs in the list are not unrolled
-        in the details.
+            in the details.
         :return: string containing the details
         """
         constraints = {"show_only": show_only, "expand_only": expand_only, "no_show": no_show, "no_expand": no_expand}
@@ -202,8 +219,9 @@ class ConfigConvenienceMixin:
         """
         Behaves as dict.items(). If deep is False, sub-configs remain sub-configs in the items. Otherwise, they are
         converted to dict.
+
         :param deep: how to return sub-configs that would appear among the items. If False, do not convert them, else
-        recursively convert them to dict
+            recursively convert them to dict
         :return: the items of the config as in dict.items()
         """
         return self.get_dict(deep).items()
@@ -211,6 +229,7 @@ class ConfigConvenienceMixin:
     def keys(self) -> KeysView:
         """
         Behaves as dict.keys(), returning a _dict_keys instance containing the names of the params of the config.
+
         :return: the keys if the config as in dict.keys()
         """
         return self.get_dict(False).keys()
@@ -219,6 +238,7 @@ class ConfigConvenienceMixin:
         """
         For a string, a list of strings or several strings, returns all params matching at least one of the input
         strings.
+
         :param patterns: string, a list of strings or several strings
         :return: all params matching at least one of the input string
         """
@@ -233,11 +253,12 @@ class ConfigConvenienceMixin:
     def save(self, filename: str = None, save_header: bool = True, save_hierarchy: str = True) -> None:
         """
         Saves the current config at the provided location. The saving format allows for a perfect recovery of the config
-        by using : config = Configuration.load_config(filename). If no filename is given, overwrites the last save.
+        by using : `config = Configuration.load_config(filename)`. If no filename is given, overwrites the last save.
+
         :param filename: path to the saving location of the config
         :param save_header: whether to save the config metadata as the fist parameter. This will tag the saved file as a
-        saved config in the eye of the config system when it gets merged, which will deactivate pre-processing
-        :param save_hierarchy: whether to save config hierarchy as a '*_hierarchy.yaml' file
+            saved config in the eye of the config system when it gets merged, which will deactivate pre-processing
+        :param save_hierarchy: whether to save config hierarchy as a `*_hierarchy.yaml` file
         :raises RuntimeError: no file name is provided and there is no previous save to overwrite
         """
         if filename is None:
@@ -273,8 +294,9 @@ class ConfigConvenienceMixin:
         """
         Behaves as dict.values(). If deep is False, sub-configs remain sub-configs in the values. Otherwise, they are
         converted to dict.
+
         :param deep: how to return sub-configs that would appear among the values. If False, do not convert them, else
-        recursively convert them to dict
+            recursively convert them to dict
         :return: the values of the config as in dict.values()
         """
         return self.get_dict(deep).values()
@@ -317,7 +339,7 @@ class ConfigConvenienceMixin:
                     (b if (".".join(class_instance.get_nesting_hierarchy()
                                     + [a]) not in self.get_main_config().get_pre_post_processing_values()) else
                         (self.get_main_config().get_pre_post_processing_values(
-                             )[".".join(class_instance.get_nesting_hierarchy() + [a])]))
+                        )[".".join(class_instance.get_nesting_hierarchy() + [a])]))
                     for (a, b) in class_instance.__dict__.items()
                     if a not in self._protected_attributes
                     and not (class_instance.get_nesting_hierarchy() and a in ["config_metadata"])

@@ -22,9 +22,9 @@ import logging
 import os
 import re
 import sys
-from enum import Enum
 from bisect import bisect
 from collections.abc import Mapping
+from enum import Enum
 from numbers import Real
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Union
@@ -41,9 +41,10 @@ def adapt_to_type(previous_value: Any, value_to_adapt: str, force: str, param: s
     Uses the previous value (more specifically, its type) of a parameter
     to parse a string containing its new value. Takes into account
     attempts from the user to force the new value to take a new type.
+
     :param previous_value: previous value taken by the parameter
     :param value_to_adapt: string corresponding to the new value of the
-    parameter
+        parameter
     :param force: previously-detected type-forcing tag
     :param param: name of the param for error logging
     :raises TypeError: if the new value type cannot be adapted
@@ -207,6 +208,7 @@ def adapt_to_type(previous_value: Any, value_to_adapt: str, force: str, param: s
 def add_to_csv(csv_path: str, name: str, value: Any, step: int) -> None:
     """
     Adds a logged value to the csv containing previously logged values
+
     :param csv_path: path to the csv containing the logged values
     :param name: name of the value to log
     :param value: value of the value to log
@@ -244,6 +246,7 @@ def add_to_csv(csv_path: str, name: str, value: Any, step: int) -> None:
 def are_same_sub_configs(first, second) -> bool:
     """
     Checks if two sub-configs have identical nesting hierarchies.
+
     :param first: first sub-config to check
     :param second: second sub-config to check
     :return: result of the check
@@ -258,6 +261,7 @@ def assign_order(order: Union[Real, 'Priority'] = 0) -> Callable[[Callable], Cal
     """
     Decorator used to give an order to a processing function. If several processing functions would be called at a given
     step, they are called in increasing order.
+
     :param order: order to give the function
     :return: decorated function
     """
@@ -274,6 +278,7 @@ def assign_yaml_tag(processor_tag: str, processor_type: str,
     Decorator used to mark a function as a processor added automatically as pre or post processing function (as
     defined by processor_type) to parameters tagged with !type:<processor_tag>. Their type hint will be replaced by
     the type hint defined as replacement_type_hint.
+
     :param processor_tag: tag to use to mark a param in YAML as auto-processed by this function
     :param processor_type: 'pre' or 'post', type of processing function to add
     :param replacement_type_hint: type hint to use for any param tagged with this auto-processor
@@ -290,6 +295,7 @@ def compare_string_pattern(name: str, pattern: str) -> bool:
     """
     Returns True when string 'name' matches string 'pattern',
     with the '*' character matching any number of characters.
+
     :param name: name to compare
     :param pattern: pattern to match
     :return: result of comparison
@@ -311,6 +317,7 @@ def compose(*functions: Callable) -> Callable:
     """
     Returns the composition of the functions given as argument. Functions are applied from left to right, ie :
     compose(f, g, h)(x) = h(g(f(x))).
+
     :param functions: all functions to compose, applied from left to right
     :return: the composed function
     """
@@ -337,6 +344,7 @@ def dict_apply(dictionary: dict, function: Callable) -> dict:
     """
     Returns a copy of dict 'dictionary' where function 'function'
     was applied to all values.
+
     :param dictionary: dictionary to copy
     :param function: function to map
     :return: copied dictionary
@@ -348,10 +356,11 @@ def escape_symbols(string_to_escape: str, symbols: Union[List[str], str]) -> str
     """
     Take a string 'string_to_escape' as input and escapes characters
     as defined in 'symbols'.
+
     :param string_to_escape: string where the escaping operation takes
-    place
+        place
     :param symbols: list of strings to escape or string containing
-    the characters to escape
+        the characters to escape
     :return: escaped string
     """
     for symbol in symbols:
@@ -362,6 +371,7 @@ def escape_symbols(string_to_escape: str, symbols: Union[List[str], str]) -> str
 def format_str(config_path_or_dictionary: ConfigDeclarator, size: int = 200) -> str:
     """
     Format helper to shorten configs to display depending on logging level.
+
     :param config_path_or_dictionary: config to display
     :param size: number of characters allowed to display
     :return: the formatted string
@@ -375,6 +385,7 @@ def format_str(config_path_or_dictionary: ConfigDeclarator, size: int = 200) -> 
 def get_order(func: Callable) -> Union[Real, 'Priority']:
     """
     If input function has an "order" attribute, returns it. Otherwise, returns Priority.INDIFFERENT.
+
     :param func: function to get the order of
     :return: the order value
     """
@@ -385,13 +396,14 @@ def get_param_as_parsable_string(param: Any, in_iterable: bool = False, ignore_u
     """
     Gets given value as a string that can be parsed by
     the Configuration.
+
     :param param:
     :param in_iterable: used only for bookkeeping in recursive calls
     :param ignore_unknown_types: how to treat types that cannot be
-    parsed by the Configuration
+        parsed by the Configuration
     :raises TypeError: if the type of 'param' cannot be enforced
     :return: string usable in the command line to reproduce the value
-    of param
+        of param
     """
     if param is None:
         return "none"
@@ -428,6 +440,7 @@ def get_param_as_parsable_string(param: Any, in_iterable: bool = False, ignore_u
 def hook(hook_name: str) -> Callable[[Callable], Callable]:
     """
     Decorator used to keep track of registered params.
+
     :param hook_name: name of the hook to store
     :return: decorated function
     """
@@ -463,6 +476,7 @@ def hook(hook_name: str) -> Callable[[Callable], Callable]:
 def is_type_valid(value: Any, config_class: type) -> bool:
     """
     Checks whether input 'value' can be saved in a YAML file by Configuration's YAML Dumper.
+
     :param value: value to check the type of
     :param config_class: Configuration class, which must be passed as argument to avoid circular imports :(
     :return: result of the test
@@ -478,6 +492,7 @@ def lazy_import(name: str) -> ModuleType:
     """
     Imports a module in such a way that it is only loaded in memory when it is actually used.
     Implementation from https://docs.python.org/3/library/importlib.html#implementing-lazy-imports.
+
     :param name: name of the module to load
     :return: the loaded module
     """
@@ -496,7 +511,8 @@ def new_print(*args, sep: str = " ", end: str = "", file: io.TextIOWrapper = Non
     """
     Replaces the builtin print function during an experiment run such that printed messages are also logged. Please note
     that the default file (None) logs to logging's root logger which will always go to the next line after each message.
-    Therefore, the "end" param does not replace '\n' as usual, but adds a suffix after the message and before the '\n'.
+    Therefore, the 'end' param does not replace \\n as usual, but adds a suffix after the message and before the \\n.
+
     :param args: objects to print
     :param sep: how to separate the different objects
     :param end: suffix to add after the message
@@ -519,6 +535,7 @@ def parse_type(string_to_process: str) -> TypeHint:
     """
     Parses an input string containing the type info for a parameter into a complex type as understood by the
     Configuration.check_type function.
+
     :param string_to_process: string to parse for type
     :return: complex type
     """
@@ -688,6 +705,7 @@ def recursive_set_attribute(obj: Any, key: str, value: Any) -> None:
     """
     Recursively gets attributes of 'obj' until object.__setattr__
     can be used to force-set parameter 'key' to value 'value'.
+
     :param obj: object where to set the key to the value
     :param key: attribute of the object to set recursively
     :param value: value to set
@@ -702,6 +720,7 @@ def recursive_set_attribute(obj: Any, key: str, value: Any) -> None:
 def set_function_attribute(func: Callable, attribute_name: str, value: Any) -> None:
     """
     Adds an attribute to a function object.
+
     :param func: function to add the attribute to
     :param attribute_name: name of the attribute to add
     :param value: value of the attribute
@@ -719,6 +738,7 @@ def update_state(state_descriptor: str) -> Callable[[Callable], Callable]:
     """
     Decorator used to store useful information in Configuration._state when using some recursive functions. Kind of a
     hack, but very useful to keep track of the loading state and also to debug.
+
     :param state_descriptor: string indicating what to store in Configuration._state
     :return: decorated function
     """

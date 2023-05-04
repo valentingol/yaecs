@@ -20,13 +20,21 @@ import logging
 import os
 from typing import Any, Callable, List, Optional, Tuple, Union
 
-from ..yaecs_utils import assign_order, assign_yaml_tag, ConfigDeclarator, hook, Hooks, Priority, VariationDeclarator
+from ..yaecs_utils import (
+    ConfigDeclarator,
+    Hooks,
+    Priority,
+    VariationDeclarator,
+    assign_order,
+    assign_yaml_tag,
+    hook,
+)
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class ConfigHooksMixin:
-    """ Hooks Mixin class for YAECS configurations. Implements processing functions whose name start with "register_as_"
+    """ Hooks Mixin class for YAECS configurations. Implements processing functions whose name start with `register_as_`
     and are decorated by the yaecs_utils.hook decorator. Users can use those processing either as pre- or
     post-processing functions, which will have the added effect of tagging the processed parameters as playing a certain
     pre-defined role in the config """
@@ -48,7 +56,8 @@ class ConfigHooksMixin:
         """
         Used within _ConfigurationBase._process_parameter to add the param currently being processed as a hook with
         given name. Instead of using this directly, users should consider decorating their hooking function with the
-        yaecs_utils.hook decorator.
+        `yaecs_utils.hook` decorator.
+
         :param hook_name: name of the hook to add.
         """
         parameter = self.get_processed_param_name(full_path=True)
@@ -60,6 +69,7 @@ class ConfigHooksMixin:
     def get_experiment_path(self) -> str:
         """
         Returns the value of the parameter registered as the experiment path.
+
         :raises RuntimeError: when no experiment path has been registered in the config
         :raises RuntimeError: when more than one experiment path has been registered in the config
         :return: experiment path
@@ -76,6 +86,7 @@ class ConfigHooksMixin:
     def get_hook(self, hook_name: Optional[str] = None) -> Hooks:
         """
         Returns the parameters registered with given hook.
+
         :param hook_name: name of the hook, or None to get the dict of all hooked parameters
         :return: list of hooked parameter names
         """
@@ -90,7 +101,6 @@ class ConfigHooksMixin:
         """
         Pre-processing function used to register the corresponding parameter as a path to another config file. The new
         config file will then also be used to build the config currently being built.
-
         Priority : OFTEN_LAST (10)
         YAML tag : additional_config_file
 
@@ -112,7 +122,6 @@ class ConfigHooksMixin:
         """
         Pre-processing function used to register the corresponding parameter as a variation for the current config.
         Please note that config variations need to be declared in the root config.
-
         Priority : INDIFFERENT (0)
         YAML tag : config_variations
 
@@ -165,7 +174,6 @@ class ConfigHooksMixin:
         end of the folder name to avoid any overwriting. The path needs to be either None or an empty string (in which
         case the pre-processing does not happen), or an absolute path, or a path relative to the current working
         directory.
-
         Priority : OFTEN_FIRST (-10)
         YAML tag : experiment_path
 
@@ -202,7 +210,6 @@ class ConfigHooksMixin:
         Pre-processing function used to register the corresponding parameter as a grid for the current config. Grids are
         made of several parameters registered as variations. Instead of adding the variations in those parameters to the
         list of variations for this config, a grid will be created and all its components will be added instead.
-
         Priority : INDIFFERENT (0)
         YAML tag : grid
 
@@ -226,7 +233,6 @@ class ConfigHooksMixin:
         is a dict that contains at least one key : 'type'. Valid types are given by the 'ACCEPTED_TRACKERS' variable in
         experiment.py and refer to the type of tracker used. Other keys in the dict depend on the parameters required by
         corresponding tracker type.
-
         Priority : INDIFFERENT (0)
         YAML tag : tracker_config
 

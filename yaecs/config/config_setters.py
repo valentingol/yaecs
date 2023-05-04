@@ -16,9 +16,10 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import logging
-from typing import Any, Callable, Dict, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Union
 
 from ..yaecs_utils import TypeHint
+
 if TYPE_CHECKING:
     from .config import Configuration
 
@@ -51,11 +52,12 @@ class ConfigSettersMixin:
                                     ) -> None:
         """
         Triggers add_processing_function on the main config and all defined and future sub-configs.
+
         :param param_name: parameter(s) to which to add a postprocessing function. Expects paths with respect to the
-        main config.
+            main config.
         :param function_to_add: postprocessing function to add, using the generic name "function" if it has no name
         :param processing_type: choose between 'pre' to add a pre-processing function or 'post' to add a post-processing
-        function
+            function
         """
         if isinstance(function_to_add, str):
             check_function = self._assigned_as_yaml_tags[function_to_add[len("_tagged_method_"):]][0]
@@ -86,6 +88,7 @@ class ConfigSettersMixin:
     def add_type_hint(self, name: str, type_hint: TypeHint) -> None:
         """
         Adds a type hint for a parameter to the list of type hints for automatic type checks.
+
         :param name: full path of the param in the main config
         :param type_hint: type of the param
         """
@@ -94,6 +97,7 @@ class ConfigSettersMixin:
     def remove_value_before_postprocessing(self, name: str) -> None:
         """
         Function used for bookkeeping : it remove a parameter from the pre-post-processing archive.
+
         :param name: name of the parameter using the dot convention
         """
         if name in self._pre_postprocessing_values:
@@ -101,7 +105,8 @@ class ConfigSettersMixin:
 
     def remove_type_hint(self, param_name: str) -> None:
         """
-        Removes a registered type hint from a param with given name
+        Removes a registered type hint from a param with given name.
+
         :param param_name: param from which to remove the type hint
         """
         if param_name in self._type_hints:
@@ -110,6 +115,7 @@ class ConfigSettersMixin:
     def save_value_before_postprocessing(self, name: str, value: Any) -> None:
         """
         Function used for bookkeeping : it saves the value a parameter had before its post-processing.
+
         :param name: name of the parameter using the dot convention
         :param value: value of the parameter before post-processing
         """
@@ -120,6 +126,7 @@ class ConfigSettersMixin:
         """
         Sets the state of the master switch for pre-processing across the entire config object. Calling this for a
         sub-config will also affect the main config and all other sub-configs.
+
         :param value: value to set the pre-processing to
         """
         object.__setattr__(self._main_config, "_post_process_master_switch", value)
@@ -128,6 +135,7 @@ class ConfigSettersMixin:
         """
         Sets the state of the master switch for pre-processing across the entire config object. Calling this for a
         sub-config will also affect the main config and all other sub-configs.
+
         :param value: value to set the pre-processing to
         """
         object.__setattr__(self._main_config, "_pre_process_master_switch", value)
