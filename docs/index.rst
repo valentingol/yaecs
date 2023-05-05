@@ -21,7 +21,7 @@ files for safe, clear and repeatable experiments. In a few words, it is:
 -  built for Machine Learning with its constraints in mind, but also
    usable out-of-the-box for other kinds of projects;
 -  built with scalability in mind and can adapt just as easily to large
-   projects investigating hundreds of well-organized parameters across
+   projects investigating hundreds of well-organised parameters across
    many experiments;
 -  designed to encourage good coding practices for research purposes,
    and if used rigorously will ensure a number of highly desirable

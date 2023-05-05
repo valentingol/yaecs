@@ -69,7 +69,7 @@ class TrackerFriendlyBar(ProgressBar):
     Usage : https://pytorch-lightning.readthedocs.io/en/stable/common/progress_bar.html
     """
     def init_sanity_tqdm(self) -> Tqdm:
-        """Override this to customize the tqdm bar for the validation sanity run."""
+        """Override this to customise the tqdm bar for the validation sanity run."""
         tqdm_bar = Tqdm(
             desc=self.sanity_check_description if _NEW else "Validation sanity check",
             position=(2 * self.process_position),
@@ -81,7 +81,7 @@ class TrackerFriendlyBar(ProgressBar):
         return tqdm_bar
 
     def init_train_tqdm(self) -> Tqdm:
-        """Override this to customize the tqdm bar for training."""
+        """Override this to customise the tqdm bar for training."""
         tqdm_bar = Tqdm(
             desc=self.train_description if _NEW else "Training",
             initial=self.train_batch_idx,
@@ -95,7 +95,7 @@ class TrackerFriendlyBar(ProgressBar):
         return tqdm_bar
 
     def init_predict_tqdm(self) -> Tqdm:
-        """Override this to customize the tqdm bar for predicting."""
+        """Override this to customise the tqdm bar for predicting."""
         tqdm_bar = Tqdm(
             desc=self.predict_description if _NEW else "Predicting",
             initial=self.train_batch_idx,
@@ -109,7 +109,7 @@ class TrackerFriendlyBar(ProgressBar):
         return tqdm_bar
 
     def init_validation_tqdm(self) -> Tqdm:
-        """Override this to customize the tqdm bar for validation."""
+        """Override this to customise the tqdm bar for validation."""
         # The main progress bar doesn't exist in `trainer.validate()`
         has_main_bar = self.trainer.state.fn != "validate" if _NEW else self.main_progress_bar is not None
         tqdm_bar = Tqdm(
@@ -123,7 +123,7 @@ class TrackerFriendlyBar(ProgressBar):
         return tqdm_bar
 
     def init_test_tqdm(self) -> Tqdm:
-        """Override this to customize the tqdm bar for testing."""
+        """Override this to customise the tqdm bar for testing."""
         tqdm_bar = Tqdm(
             desc="Testing",
             position=(2 * self.process_position),

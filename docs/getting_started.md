@@ -34,7 +34,7 @@ That's all there is to it! Now if we use
 `config = ProjectSpecific.load_config()`, we can then call `config.data_path`
 or `config.learning_rate` to get their values as defined in the default config.
 We don't need to specify where to get the default config because a project
-should only ever have one default config, which centralizes all the parameters
+should only ever have one default config, which centralises all the parameters
 in that project. Since the location of the default config is a project
 constant, it is defined in your project-specific subclass and there is no need
 to clutter your main code with it. Now, for example, your main.py could look
@@ -67,7 +67,7 @@ Configuration hierarchy :
 The Configuration hierarchy tells you about the creation history of the config,
 in this case only the default config was used. Then, all parameters are
 displayed. There are of course many other features in this package which you
-can use to organize your parameters, hierarchise your experiments etc. The
+can use to organise your parameters, hierarchise your experiments etc. The
 idea being that once the bare minimum presented above is set up, scaling up
 is just as simple.
 
@@ -80,7 +80,7 @@ The Config History is a side-feature of the main Config System. It can be
 configured for any project which uses the Config System and provides a
 flexible framework to easily build graphs representing past experiments. In
 these graphs, each node represents an experiment, and vertices are drawn
-between your experiments to visualize easily which parameters changed from one
+between your experiments to visualise easily which parameters changed from one
 node to another.
 
 The graph can be coloured to show your most successful experiments, or grouped
