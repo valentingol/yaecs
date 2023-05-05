@@ -60,7 +60,7 @@ That's all there is to it! Now if we use
 `config = ProjectSpecific.load_config()`, we can then call `config.data_path`
 or `config.learning_rate` to get their values as defined in the default config.
 We don't need to specify where to get the default config because a project
-should only ever have one default config, which centralizes all the parameters
+should only ever have one default config, which centralises all the parameters
 in that project. Since the location of the default config is a project
 constant, it is defined in your project-specific subclass and there is no
 need to clutter your main code with it. Now, for example, your main.py could

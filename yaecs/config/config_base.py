@@ -24,36 +24,15 @@ from collections.abc import Iterable
 from functools import partial
 from numbers import Real
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import (TYPE_CHECKING,
+                    Any, Callable, Dict, List, Optional, Tuple, Type, Union)
 
 import yaml
 
-from ..yaecs_utils import (
-    YAML_EXPRESSIONS,
-    ConfigDeclarator,
-    TypeHint,
-    adapt_to_type,
-    are_same_sub_configs,
-    compare_string_pattern,
-    compose,
-    format_str,
-    get_order,
-    is_type_valid,
-    parse_type,
-    recursive_set_attribute,
-    set_function_attribute,
-    update_state,
-)
+from ..yaecs_utils import (YAML_EXPRESSIONS,
+                           ConfigDeclarator, TypeHint,
+                           adapt_to_type, are_same_sub_configs, compare_string_pattern, compose, format_str, get_order,
+                           is_type_valid, parse_type, recursive_set_attribute, set_function_attribute, update_state)
 from .config_convenience import ConfigConvenienceMixin
 from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin

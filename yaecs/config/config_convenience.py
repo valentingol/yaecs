@@ -22,20 +22,8 @@ import os
 import time
 from copy import deepcopy
 from functools import partial
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    ItemsView,
-    KeysView,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-    ValuesView,
-)
+from typing import (TYPE_CHECKING,
+                    Any, Callable, Dict, ItemsView, KeysView, List, Optional, Tuple, Type, Union, ValuesView)
 
 import yaml
 

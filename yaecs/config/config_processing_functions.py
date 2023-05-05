@@ -5,13 +5,8 @@ import os
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
-from ..yaecs_utils import (
-    Priority,
-    assign_order,
-    assign_yaml_tag,
-    compare_string_pattern,
-    set_function_attribute,
-)
+from ..yaecs_utils import (Priority,
+                           assign_order, assign_yaml_tag, compare_string_pattern, set_function_attribute)
 
 if TYPE_CHECKING:
     from numbers import Number

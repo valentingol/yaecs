@@ -169,7 +169,7 @@ To use YAECS in a project, the very first thing to always do is to prepare the d
 
 It is **safer** because if you want to change a parameter and miss-spell its name, YAECS will know that the parameter name is wrong because it is not in the default config. Therefore instead of starting your experiment with incorrect values, YAECS will throw an error.
 
-It is **desirable** because it gives you a centralized place where you can look up all the values, all the hyper-parameters, all the magic numbers, without going through dozens of source files. YAECS is designed so that having a very large default config never becomes a burden for clarity. Therefore, no need to shy away from having **a lot** of parameters in there.
+It is **desirable** because it gives you a centralised place where you can look up all the values, all the hyper-parameters, all the magic numbers, without going through dozens of source files. YAECS is designed so that having a very large default config never becomes a burden for clarity. Therefore, no need to shy away from having **a lot** of parameters in there.
 
 YAML is a very intuitive config format. We chose it for its elegance, flexibility and the fact that it supports comments (which is not the case in JSON for example). If you need, you can find the YAML documentation here : TODO. Here is the config example we choose to use in this tutorial :
 
@@ -547,7 +547,7 @@ python main.py --do_test
 
 #### 3) Parameter processing is awesome
 
-Here we present what we believe to be one of YAECS' main improvement over its competitors : parameters processing.  The idea is quite simple : most of the time, it is really useful to be able to perform some kind of processing on your parameters before using them, and it only makes sense that these operations should be performed by the config system. Here is why. The config should be prepared such that the code can access it in a simple, reliable and well-organized well. But at the same time, the config should be prepared by a human in a clear interface using the YAML language. In many cases, those two conditions do not fully align, and therefore it makes sense that the config system should be tasked with translating the config as seen by the human operator into the config as used by the code.
+Here we present what we believe to be one of YAECS' main improvement over its competitors : parameters processing.  The idea is quite simple : most of the time, it is really useful to be able to perform some kind of processing on your parameters before using them, and it only makes sense that these operations should be performed by the config system. Here is why. The config should be prepared such that the code can access it in a simple, reliable and well-organised well. But at the same time, the config should be prepared by a human in a clear interface using the YAML language. In many cases, those two conditions do not fully align, and therefore it makes sense that the config system should be tasked with translating the config as seen by the human operator into the config as used by the code.
 
 Here are a few example use cases :
 
@@ -697,7 +697,7 @@ class MyProjectConfig(Configuration):
     def parameters_post_processing(self):
         return {}
 ```
-And there you go ! Now all parameters that end with `_config_file` will be recognized as you trying to add the corresponding paths to the config.
+And there you go ! Now all parameters that end with `_config_file` will be recognised as you trying to add the corresponding paths to the config.
 
 This ends the Intermediate section of our tutorial. By now, you already know most of what you need to work efficiently with YAECS. To become a real pro, there is only one section left !
 
@@ -1098,7 +1098,7 @@ def parameters_pre_processing(self):
 
 It can often be very useful to split your config into several files to access
 the parameter you are looking for more efficiently. In combination with some
-nice features of the YAML syntax, the Configuration class allows to organize
+nice features of the YAML syntax, the Configuration class allows to organise
 your config more efficiently.
 
 #### 1. Several documents in a single file
@@ -1195,8 +1195,8 @@ interpreted as a path to a new config file.
 Another desirable property of our configuration is the ability to nest
 configurations inside other configurations. Reusing the example of section 2.
 of the previous advanced feature, it is easy to see that as the number of
-parameters grows, it would be nice to not only organize those parameters in
-different files on the disk, but also organize them in different “sub-configs”
+parameters grows, it would be nice to not only organise those parameters in
+different files on the disk, but also organise them in different “sub-configs”
 in our Configuration object. That way, a function that requires access to
 parameters of a certain nature can be passed only the parameters
 relevant to this function.

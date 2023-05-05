@@ -327,7 +327,7 @@ class Tracker:
 
     def start_run(self, description: Optional[str] = None) -> None:
         """
-        Initializes the configured trackers, which most of the time means preparing their logger is self.loggers.
+        Initialises the configured trackers, which most of the time means preparing their logger is self.loggers.
         """
         experiment_name, run_name = self.extract_names()
         config = self.experiment.config
@@ -473,7 +473,7 @@ class BasicTrackerContext:
 
     def __init__(self, logger_path: str, runs: Optional[int], current: Optional[int]):
         """
-        Initializes a context used to declare the loggers required by the basic tracker.
+        Initialises a context used to declare the loggers required by the basic tracker.
 
         :param logger_path: path used by the basic tracker to log
         :param runs: number of runs in the experiment
@@ -561,7 +561,7 @@ class CMLContext:
 
     def __init__(self, tracker: Tracker):
         """
-        Initializes a context used to close the ClearML runs when they are done.
+        Initialises a context used to close the ClearML runs when they are done.
 
         :param tracker: tracker object where to find the ClearML runs
         """

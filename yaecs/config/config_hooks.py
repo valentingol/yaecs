@@ -20,15 +20,8 @@ import logging
 import os
 from typing import Any, Callable, List, Optional, Tuple, Union
 
-from ..yaecs_utils import (
-    ConfigDeclarator,
-    Hooks,
-    Priority,
-    VariationDeclarator,
-    assign_order,
-    assign_yaml_tag,
-    hook,
-)
+from ..yaecs_utils import (ConfigDeclarator, Hooks, Priority, VariationDeclarator,
+                           assign_order, assign_yaml_tag, hook)
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
