@@ -94,9 +94,6 @@ class ConfigProcessingFunctionsMixin:
         if not any((compare_string_pattern(param_name, k) and v.__name__ == "_copy")
                    for k, v in current_processing.items()):
             main.add_processing_function_all(param_name, copy_fn, "post")
-        elif self.get_variation_name() is None:
-            YAECS_LOGGER.warning(f"WARNING : Parameter '{param_name}' was already declared as a copy of param "
-                                 f"'{path_to_copy}'. Processing function will not be added again.")
 
         return self.protected_param(path_to_copy)
 

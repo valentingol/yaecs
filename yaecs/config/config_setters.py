@@ -69,21 +69,23 @@ class ConfigSettersMixin:
                 YAECS_LOGGER.warning(f"WARNING : processing function {name} is recommended to use "
                                      f"as {check_function.assigned_yaml_tag[1]}-processing function, "
                                      f"but was declared as {processing_type}-processing function.")
-        # Add to main config
-        self._main_config.add_processing_function(param_name, function_to_add, processing_type)
-        # Add to current sub-configs
-        for subconfig in self._main_config.get_all_sub_configs():
-            subconfig.add_processing_function(param_name, function_to_add, processing_type)
-        # Add to future sub-configs
-        attribute = f"_{processing_type}_processing_functions"
-        current_processing = getattr(self, attribute)
-        attribute = f"_added_{processing_type}_processing"
-        current_added_processing = getattr(self, attribute)()
+        current_added_processing_name = f"_added_{processing_type}_processing"
+        current_added_processing = getattr(self, current_added_processing_name)()
+        current_processing_name = f"_{processing_type}_processing_functions"
+        current_processing = getattr(self, current_processing_name)
         set_name = param_name
         while set_name in current_processing or set_name in current_added_processing:
             set_name = set_name + " "
-        new_processing = {set_name: function_to_add, **current_added_processing}
-        setattr(self.__class__, attribute, lambda self: new_processing)
+        if not any(v.__name__ == function_to_add.__name__ for k, v in current_added_processing.items()
+                   if k == set_name):
+            # Add to main config
+            self._main_config.add_processing_function(param_name, function_to_add, processing_type)
+            # Add to current sub-configs
+            for subconfig in self._main_config.get_all_sub_configs():
+                subconfig.add_processing_function(param_name, function_to_add, processing_type)
+            # Add to future sub-configs
+            new_processing = {set_name: function_to_add, **current_added_processing}
+            setattr(self.__class__, current_added_processing_name, lambda self: new_processing)
 
     def add_type_hint(self, name: str, type_hint: TypeHint) -> None:
         """
