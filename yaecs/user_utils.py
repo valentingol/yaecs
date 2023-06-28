@@ -16,10 +16,11 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import logging
+import sys
 from typing import Callable, Dict, List, Optional, Type, Union
 
 from .config.config import Configuration
-from .yaecs_utils import ConfigDeclarator, TqdmLogger
+from .yaecs_utils import ConfigInput, ConfigDeclarator, TqdmLogger, get_config_from_argv
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -117,6 +118,7 @@ def make_config(*configs: Union[ConfigDeclarator, List[ConfigDeclarator]],
                 additional_configs_suffix: Optional[str] = None, additional_configs_prefix: Optional[str] = None,
                 variations_suffix: Optional[str] = None, variations_prefix: Optional[str] = None,
                 grids_suffix: Optional[str] = None, grids_prefix: Optional[str] = None,
+                fallback: Optional[ConfigInput] = "{}", pattern: str = "--config",
                 **class_building_kwargs) -> Configuration:
     """
     One-liner wrapper to create a config from dicts/strings without the need for declaring a subclass. Useful for
@@ -153,10 +155,15 @@ def make_config(*configs: Union[ConfigDeclarator, List[ConfigDeclarator]],
     :param grids_prefix: automatically adds relevant pre-processing rules to consider parameter names starting with
         'grids_prefix' as grids.
         Only used if config_class is not provided.
+    :param fallback: if provided, use this as a fallback when no config is provided in argv. The default value "{}"
+        stands for "by default do not merge anything if no merge pattern is found in argv"
+    :param pattern: pattern to use to find the config in argv.
     :param class_building_kwargs: same kwargs as those used in all Configuration constructors.
         Only used if config_class is not provided.
     :return: config object
     """
+
+    # Prepare class
     class_args = {
         "pre_processing_dict": pre_processing_dict, "post_processing_dict": post_processing_dict,
         "experiment_path": experiment_path, "tracker_config": tracker_config,
@@ -169,4 +176,12 @@ def make_config(*configs: Union[ConfigDeclarator, List[ConfigDeclarator]],
     elif any(arg is not None for arg in class_args.values()):
         YAECS_LOGGER.warning("WARNING : The following arguments are not used if config_class is provided :\n"
                              f"{list(class_args.keys())}.")
-    return config_class.build_from_configs(*configs, **class_building_kwargs)
+
+    # Get configs from argv
+    configs_from_argv = get_config_from_argv(pattern=pattern, fallback={} if fallback == "{}" else fallback)
+    class_building_kwargs["from_argv"] = pattern if pattern in sys.argv else ""
+    if all(c == {} for c in configs_from_argv):
+        configs_from_argv = []
+        class_building_kwargs["from_argv"] = ""
+
+    return config_class.build_from_configs(*configs, *configs_from_argv, **class_building_kwargs)

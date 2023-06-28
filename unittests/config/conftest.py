@@ -40,7 +40,7 @@ def yaml_default(tmpdir):
                "exp_second_path: null")
     with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
         fil.write(content)
-    content = ("--- !subconfig2\nparam3: 20.0\nsubconfig3: !subconfig3\n  "
+    content = ("--- !subconfig2\nparam3: 20.0\nsubconfig3:\n  "
                "param4: 'string'")
     with open(tmpdir / f'default_second{index}.yaml', "w",
               encoding='utf-8') as fil:
@@ -65,7 +65,7 @@ def yaml_experiment(tmpdir):
 
 @pytest.fixture
 def yaml_default_unlinked(tmpdir):
-    content = "param1:\n  param2: 1\n  param3: !param3\n    param4: 2"
+    content = "param1: !type:dict\n  param2: 1\n  param3:\n    param4: 2"
     with open(tmpdir / f'tmp{len(os.listdir(tmpdir))}.yaml', "w",
               encoding='utf-8') as fil:
         fil.write(content)
@@ -83,7 +83,7 @@ def yaml_default_preproc_default_dot_param(tmpdir):
 
 @pytest.fixture
 def yaml_default_sub_variations(tmpdir):
-    content = "param1: !param1\n  var: []"
+    content = "param1:\n  var: []"
     with open(tmpdir / f'tmp{len(os.listdir(tmpdir))}.yaml', "w",
               encoding='utf-8') as fil:
         fil.write(content)
@@ -101,7 +101,7 @@ def yaml_default_set_twice(tmpdir):
 
 @pytest.fixture
 def yaml_experiment_sub_star(tmpdir):
-    content = "subconfig2: !subconfig2\n  '*param*': 1.0"
+    content = "subconfig2:\n  '*param*': 1.0"
     with open(tmpdir / f'tmp{len(os.listdir(tmpdir))}.yaml', "w",
               encoding='utf-8') as fil:
         fil.write(content)
@@ -110,7 +110,7 @@ def yaml_experiment_sub_star(tmpdir):
 
 @pytest.fixture
 def yaml_experiment_sub_dot(tmpdir):
-    content = "subconfig2: !subconfig2\n  subconfig3.param4: 1.0"
+    content = "subconfig2:\n  subconfig3.param4: 1.0"
     with open(tmpdir / f'tmp{len(os.listdir(tmpdir))}.yaml', "w",
               encoding='utf-8') as fil:
         fil.write(content)
@@ -122,7 +122,7 @@ def yaml_craziest_config(tmpdir):
     with open(tmpdir / 'd_first.yaml', "w", encoding='utf-8') as fil:
         fil.write("p1: 1\n"
                   "--- !c1\n"
-                  "c2: !c2\n"
+                  "c2:\n"
                   f"  f_path: {'d_second.yaml'}\n"
                   "---\n"
                   "c4.p3: 3\n"
@@ -136,7 +136,7 @@ def yaml_craziest_config(tmpdir):
                   "p6: 6")
     with open(tmpdir / 'd_third.yaml', "w", encoding='utf-8') as fil:
         fil.write("--- !c6\n"
-                  "p4: {a: 4}\n"
+                  "p4: !type:(dict,int) {a: 4}\n"
                   "---\n"
                   "p5: 5")
     with open(tmpdir / 'e_first.yaml', 'w', encoding='utf-8') as fil:
@@ -144,7 +144,7 @@ def yaml_craziest_config(tmpdir):
                   "--- !c1\n"
                   f"c2.f_path: {tmpdir / 'e_second.yaml'}\n"
                   "---\n"
-                  "c4: !c4\n"
+                  "c4:\n"
                   "  p3: 'test'\n"
                   "c4.p7: 'test2'")
     with open(tmpdir / 'e_second.yaml', "w", encoding='utf-8') as fil:
@@ -185,12 +185,12 @@ def yaml_no_file_call_processing_while_loading(tmpdir):
 @pytest.fixture
 def yaml_no_file_call_processing_while_loading_nested(tmpdir):
     with open(tmpdir / 'nd_first.yaml', "w", encoding='utf-8') as fil:
-        fil.write(f"c: !c\n  test_path: {tmpdir / 'nd_second.yaml'}\n  "
+        fil.write(f"c:\n  test_path: {tmpdir / 'nd_second.yaml'}\n  "
                   "exp_path: null")
     with open(tmpdir / 'nd_second.yaml', "w", encoding='utf-8') as fil:
         fil.write("param: 0.1")
     with open(tmpdir / 'ne_first.yaml', "w", encoding='utf-8') as fil:
-        fil.write(f"c: !c\n  exp_path: {tmpdir / 'ne_second.yaml'}")
+        fil.write(f"c:\n  exp_path: {tmpdir / 'ne_second.yaml'}")
     with open(tmpdir / 'ne_second.yaml', "w", encoding='utf-8') as fil:
         fil.write("param: 0.2")
     config = make_config(str(tmpdir / 'nd_first.yaml'),
@@ -214,7 +214,7 @@ def yaml_no_file_call_processing_while_loading_nested(tmpdir):
 @pytest.fixture
 def yaml_type_check(tmpdir):
     index = len(os.listdir(tmpdir))
-    content = (f"root_path: '{tmpdir / f'default_second{index}.yaml'}'\nsubconfig: !subconfig\n  "
+    content = (f"root_path: '{tmpdir / f'default_second{index}.yaml'}'\nsubconfig:\n  "
                f"sub_path: '{tmpdir / f'default_second{index}.yaml'}'")
     with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
         fil.write(content)
@@ -239,9 +239,38 @@ def yaml_tag_assignment_check(tmpdir):
                "exp_second_path: null")
     with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
         fil.write(content)
-    content = ("--- !subconfig2\nparam3: 20.0\nsubconfig3: !subconfig3\n  "
+    content = ("--- !subconfig2\nparam3: 20.0\nsubconfig3:\n  "
                "param4: !type:copy 'param1'")
     with open(tmpdir / f'default_second{index}.yaml', "w",
               encoding='utf-8') as fil:
+        fil.write(content)
+    yield str(tmpdir / f'default{index}.yaml')
+
+
+@pytest.fixture
+def config_vs_dict_checks(tmpdir):
+    index = len(os.listdir(tmpdir))
+    content = ("config1:\n"
+               "  config2:\n"
+               "    param1: !type:dict\n"
+               "      key1: !type:dict\n"
+               "        key2: 0\n"
+               "      key3: ['!type:dict']\n"
+               "--- !config3.config4\n"
+               "config5:\n"
+               "  config6:\n"
+               "    param1: !type:dict\n"
+               "      key1: !type:dict\n"
+               "        key1: 0\n"
+               "      key2: ['!type:dict']\n"
+               "--- !config10.config11\n"
+               "config1.config7: !main_2\n"
+               "  config8:\n"
+               "    param1: !type:dict\n"
+               "      key1: !type:dict\n"
+               "        key1: 0\n"
+               "      key2: ['!type:dict']\n"
+               "  config9.param2: null")
+    with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
         fil.write(content)
     yield str(tmpdir / f'default{index}.yaml')

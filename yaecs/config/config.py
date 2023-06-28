@@ -19,9 +19,9 @@ Copyright (C) 2022  Reactive Reality
 import logging
 import sys
 import time
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional
 
-from ..yaecs_utils import ConfigDeclarator, format_str
+from ..yaecs_utils import ConfigInput, ConfigDeclarator, format_str, get_config_from_argv
 from .config_base import _ConfigurationBase
 
 YAECS_LOGGER = logging.getLogger(__name__)
@@ -118,8 +118,7 @@ class Configuration(_ConfigurationBase):
         self._operating_creation_or_merging = False
 
     @classmethod
-    def load_config(cls, *configs: Union[List[ConfigDeclarator],
-                                         ConfigDeclarator], default_config_path: Optional[ConfigDeclarator] = None,
+    def load_config(cls, *configs: ConfigInput, default_config_path: Optional[ConfigDeclarator] = None,
                     overwriting_regime: str = "auto-save", do_not_merge_command_line: bool = False,
                     do_not_pre_process: bool = False, do_not_post_process: bool = False,
                     **kwargs) -> 'Configuration':
@@ -160,10 +159,9 @@ class Configuration(_ConfigurationBase):
         return config
 
     @classmethod
-    def build_from_configs(cls, *configs: Union[List[ConfigDeclarator], ConfigDeclarator],
-                           overwriting_regime: str = "auto-save", do_not_merge_command_line: bool = False,
-                           do_not_pre_process: bool = False, do_not_post_process: bool = False,
-                           **kwargs) -> 'Configuration':
+    def build_from_configs(cls, *configs: ConfigInput, overwriting_regime: str = "auto-save",
+                           do_not_merge_command_line: bool = False, do_not_pre_process: bool = False,
+                           do_not_post_process: bool = False, **kwargs) -> 'Configuration':
         """
         First creates a config using the first config provided (or the first config in the provided list), then merges
         the subsequent configs into it from index 1 to the last.
@@ -194,7 +192,7 @@ class Configuration(_ConfigurationBase):
                                do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process, **kwargs)
 
     @classmethod
-    def build_from_argv(cls, *configs: Union[List[ConfigDeclarator], ConfigDeclarator], fallback: Optional[str] = None,
+    def build_from_argv(cls, *configs: ConfigInput, fallback: Optional[ConfigInput] = None, pattern: str = "--config",
                         default_config_path: Optional[ConfigDeclarator] = None, overwriting_regime: str = "auto-save",
                         do_not_merge_command_line: bool = False, do_not_pre_process: bool = False,
                         do_not_post_process: bool = False, **kwargs) -> 'Configuration':
@@ -207,6 +205,7 @@ class Configuration(_ConfigurationBase):
             merged to the default config before the config from the command line.
         :param fallback: config path or dictionary, or list of config paths or dictionaries to fall back to if no config
             was detected in the argv
+        :param pattern: pattern to look for in sys.argv
         :param default_config_path: default config's path or dictionary
         :param overwriting_regime: can be "auto-save" (default, when a param is overwritten it is merged instead and the
             config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
@@ -219,19 +218,13 @@ class Configuration(_ConfigurationBase):
         :raises TypeError: if --config is not found and no fallback
         :return: instance of Configuration object containing the desired config
         """
-        if "--config" not in sys.argv and fallback is None:
-            raise TypeError("The pattern '--config' was not detected "
-                            "in sys.argv.")
-        if "--config" in sys.argv:
-            fallback = [cfg.strip(" ") for cfg in sys.argv[sys.argv.index("--config") + 1].strip("[]").split(",")]
-        if not isinstance(fallback, list):
-            fallback = [fallback]
+        configs_from_argv: List[ConfigDeclarator] = get_config_from_argv(pattern=pattern, fallback=fallback)
 
-        return cls.load_config(*configs, *fallback, default_config_path=default_config_path,
+        return cls.load_config(*configs, *configs_from_argv, default_config_path=default_config_path,
                                overwriting_regime=overwriting_regime,
                                do_not_merge_command_line=do_not_merge_command_line,
                                do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process,
-                               from_argv=True, **kwargs)
+                               from_argv=pattern if pattern in sys.argv else "", **kwargs)
 
     def create_variations(self) -> List['Configuration']:
         """
@@ -368,7 +361,7 @@ class Configuration(_ConfigurationBase):
         """
         object.__setattr__(self, "_variation_name", name)
         if deep:
-            for subconfig in self._sub_configs_list:
+            for subconfig in self.get_all_sub_configs():
                 subconfig.set_variation_name(name, deep=True)
 
     @classmethod

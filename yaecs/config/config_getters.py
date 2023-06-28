@@ -19,7 +19,7 @@ Copyright (C) 2022  Reactive Reality
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
-from ..yaecs_utils import TypeHint, escape_symbols, get_param_as_parsable_string
+from ..yaecs_utils import TypeHint, are_same_sub_configs, escape_symbols, get_param_as_parsable_string
 
 if TYPE_CHECKING:
     from .config import Configuration
@@ -84,10 +84,9 @@ class ConfigGettersMixin:
 
         :return: list corresponding to the sub-configs
         """
-        all_configs = list(self._sub_configs_list)
-        for i in self._sub_configs_list:
-            all_configs = all_configs + i.get_all_sub_configs()
-        return all_configs
+        if are_same_sub_configs(self, self._main_config):
+            return list(self._sub_configs_list)
+        return self._main_config.get_all_sub_configs()
 
     def get_command_line_argument(self, deep: bool = True, do_return_string: bool = False,
                                   ignore_unknown_types: bool = False,
