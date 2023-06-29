@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 
 from unittests.config.utils import load_config, template
-from yaecs import Configuration, Priority, assign_order, assign_yaml_tag
+from yaecs import Configuration, Experiment, Priority, assign_order, assign_yaml_tag
 from yaecs.user_utils import make_config
 from yaecs.yaecs_utils import compare_string_pattern
 
@@ -361,7 +361,8 @@ def test_variations(capsys, yaml_default):
             }, {
                 "p2": 3.0
             }],
-            "grid": None
+            "grid": None,
+            "tracker_config": {"type": []}
         }, config_class=template(yaml_default), do_not_merge_command_line=True)
     captured = capsys.readouterr()
     assert "WARNING" not in captured.out
@@ -381,6 +382,10 @@ def test_variations(capsys, yaml_default):
     assert variations[3].p1 == variations[4].p1 == variations[5].p1 == 0.2
     assert (variations[1].p2 == variations[4].p2 == 2.0
             and variations[2].p2 == variations[5].p2 == 3.0)
+
+    def _main(config, tracker):
+        return
+    Experiment(config, _main, experiment_name="test", run_name="test").run(run_description="")
 
 
 def test_pre_processing(capsys, tmp_file_name,

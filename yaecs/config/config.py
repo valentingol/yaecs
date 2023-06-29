@@ -372,7 +372,8 @@ class Configuration(_ConfigurationBase):
         object.__setattr__(self, "_variation_name", name)
         if deep:
             for subconfig in self.get_all_sub_configs():
-                subconfig.set_variation_name(name, deep=True)
+                if ".".join(subconfig.get_nesting_hierarchy()).startswith(".".join(self.get_nesting_hierarchy())):
+                    object.__setattr__(subconfig, "_variation_name", name)
 
     @classmethod
     def _get_instance(cls, name: str = "main", overwriting_regime: str = "auto-save",
