@@ -31,5 +31,5 @@ def load_config(*configs, default_config=None, preprocessing=None,
 
 def template(default_config=None):
     return get_template_class(default_config_path=default_config,
-                              additional_configs_suffix="_path",
+                              additional_configs_suffix="_path", tracker_config="tracker_config",
                               variations_suffix="var*", grids_suffix="grid")
