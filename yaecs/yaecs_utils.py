@@ -244,20 +244,6 @@ def add_to_csv(csv_path: str, name: str, value: Any, step: int) -> None:
             csv_file.write(",".join(data) + "\n")
 
 
-def are_same_sub_configs(first, second) -> bool:
-    """
-    Checks if two sub-configs have identical nesting hierarchies.
-
-    :param first: first sub-config to check
-    :param second: second sub-config to check
-    :return: result of the check
-    """
-    if first.get_name() != second.get_name():
-        return False
-    nh1, nh2 = first.get_nesting_hierarchy(), second.get_nesting_hierarchy()
-    return len(nh1) == len(nh2) and all(nh1[i] == nh2[i] for i in range(len(nh1)))
-
-
 def assign_order(order: Union[Real, 'Priority'] = 0) -> Callable[[Callable], Callable]:
     """
     Decorator used to give an order to a processing function. If several processing functions would be called at a given

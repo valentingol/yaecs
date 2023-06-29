@@ -289,6 +289,22 @@ class ConfigConvenienceMixin:
         """
         return self.get_dict(deep).values()
 
+    @staticmethod
+    def _are_same_sub_configs(first: Any, second: Any) -> bool:
+        """
+        Checks if two sub-configs have identical nesting hierarchies.
+
+        :param first: first sub-config to check
+        :param second: second sub-config to check
+        :return: result of the check
+        """
+        if not isinstance(first, ConfigConvenienceMixin) or not isinstance(second, ConfigConvenienceMixin):
+            return False
+        if first.get_name() != second.get_name():
+            return False
+        nh1, nh2 = first.get_nesting_hierarchy(), second.get_nesting_hierarchy()
+        return len(nh1) == len(nh2) and all(nh1[i] == nh2[i] for i in range(len(nh1)))
+
     def _did_you_mean(self, name: str, filter_type: Optional[type] = None, suffix: str = "") -> str:
         """ Used to propose suggestions when the user tries to access a parameter which does not exist. """
         all_params = self.get_parameter_names(True)
@@ -322,7 +338,7 @@ class ConfigConvenienceMixin:
         def config_representer(yaml_dumper, class_instance):
             # pylint: disable=bad-continuation
             return yaml_dumper.represent_mapping(
-                "!" + class_instance.get_name().split("_VARIATION_")[0], {
+                "tag:yaml.org,2002:map", {
                     a[3:] if a.startswith("___") else a: self._format_metadata() if a == "config_metadata" else
                     (b if (".".join(class_instance.get_nesting_hierarchy()
                                     + [a]) not in self.get_main_config().get_pre_post_processing_values()) else
