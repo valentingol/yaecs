@@ -74,7 +74,7 @@ class Configuration(_ConfigurationBase):
         :return: none
         """
 
-        # PROTECTED ATTRIBUTES
+        # Set protected attributes
         object.__setattr__(self, "_operating_creation_or_merging", True)
         self._state = [] if state is None else state
         self._main_config = self if main_config is None else main_config
@@ -91,7 +91,7 @@ class Configuration(_ConfigurationBase):
         super().__init__(**kwargs)
         self._protected_attributes = list(self.__dict__) + ["_protected_attributes"]
 
-        # SPECIAL ATTRIBUTES
+        # Set config metadata
         self.config_metadata = {
             "saving_time": time.time(),
             "config_hierarchy": [],
@@ -102,14 +102,24 @@ class Configuration(_ConfigurationBase):
             raise ValueError("'overwriting_regime' needs to be either 'auto-save', "
                              "'locked' or 'unsafe'.")
 
-        # INITIALISATION
+        # Initialise config
         self._state.append(f"setup;{self._name}")
         config_path_or_dictionary = (self.get_default_config_path()
                                      if config_path_or_dictionary is None else config_path_or_dictionary)
         self.init_from_config(config_path_or_dictionary)
-        self.config_metadata["config_hierarchy"] = ([] if not self._nesting_hierarchy else list(
-            main_config.get('.'.join(self._nesting_hierarchy[:-1]), main_config).config_metadata['config_hierarchy']))
+
+        # Find config hierarchy from parents and set it
+        param = None
+        if self._nesting_hierarchy:
+            for index in range(len(self._nesting_hierarchy) - 1):
+                param = main_config.get('.'.join(self._nesting_hierarchy[:index + 1]), main_config)
+                if not isinstance(param, _ConfigurationBase):
+                    param = None  # encountered in temporary configs when merging a deep dict
+                    break
+        self.config_metadata["config_hierarchy"] = [] if param is None else param.config_metadata['config_hierarchy']
         self.config_metadata["config_hierarchy"] += [config_path_or_dictionary]
+
+        # Checkup and post-setup operations
         if not self._nesting_hierarchy:
             self._check_for_unlinked_sub_configs()
         if main_config is None:

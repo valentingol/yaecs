@@ -18,7 +18,7 @@ Copyright (C) 2022  Reactive Reality
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Union
 
-from ..yaecs_utils import TypeHint, are_same_sub_configs
+from ..yaecs_utils import TypeHint
 
 if TYPE_CHECKING:
     from .config import Configuration
@@ -104,8 +104,8 @@ class ConfigSettersMixin:
 
         :param sub_config: sub-config to register
         """
-        if are_same_sub_configs(self, self._main_config):
-            if all(not are_same_sub_configs(i, sub_config) for i in self.get_all_sub_configs()):
+        if self._are_same_sub_configs(self, self._main_config):
+            if all(not self._are_same_sub_configs(i, sub_config) for i in self.get_all_sub_configs()):
                 self._sub_configs_list.append(sub_config)
         else:
             self._main_config.set_sub_config(sub_config)
@@ -162,7 +162,10 @@ class ConfigSettersMixin:
 
         :param sub_config: sub-config to register
         """
-        if are_same_sub_configs(self, self._main_config):
-            self._sub_configs_list = [c for c in self.get_all_sub_configs() if not are_same_sub_configs(c, sub_config)]
+        if self._are_same_sub_configs(self, self._main_config):
+            if not self._are_same_sub_configs(
+                    self._main_config.get(".".join(sub_config.get_nesting_hierarchy()), None), sub_config):
+                self._sub_configs_list = [c for c in self.get_all_sub_configs()
+                                          if not self._are_same_sub_configs(c, sub_config)]
         else:
             self._main_config.unset_sub_config(sub_config)

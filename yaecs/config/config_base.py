@@ -31,8 +31,8 @@ import yaml
 
 from ..yaecs_utils import (YAML_EXPRESSIONS,
                            ConfigDeclarator, TypeHint,
-                           adapt_to_type, are_same_sub_configs, compare_string_pattern, compose, format_str, get_order,
-                           is_type_valid, parse_type, recursive_set_attribute, set_function_attribute, update_state)
+                           adapt_to_type, compare_string_pattern, compose, format_str, get_order, is_type_valid,
+                           parse_type, recursive_set_attribute, set_function_attribute, update_state)
 from .config_convenience import ConfigConvenienceMixin
 from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
@@ -282,7 +282,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         for i in all_configs:
             found_correspondence = False
             for j in linked_configs:
-                if are_same_sub_configs(i, j):
+                if self._are_same_sub_configs(i, j):
                     found_correspondence = True
                     break
             if not found_correspondence:
@@ -591,6 +591,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             else:
                 if isinstance(value, _ConfigurationBase):
                     self.unset_sub_config(value)
+                    for sub_config in value.get_all_linked_sub_configs():
+                        self.unset_sub_config(sub_config)
                     value = value.get_dict(deep=True)
                 if self._verbose:
                     YAECS_LOGGER.debug(f"Setting '{key}' : \nold : '{old_value}' \n"
