@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 
 from unittests.config.utils import load_config, template
-from yaecs import Configuration, Priority, assign_order, assign_yaml_tag
+from yaecs import Configuration, Experiment, Priority, assign_order, assign_yaml_tag
 from yaecs.user_utils import make_config
 from yaecs.yaecs_utils import compare_string_pattern
 
@@ -361,7 +361,8 @@ def test_variations(capsys, yaml_default):
             }, {
                 "p2": 3.0
             }],
-            "grid": None
+            "grid": None,
+            "tracker_config": {"type": []}
         }, config_class=template(yaml_default), do_not_merge_command_line=True)
     captured = capsys.readouterr()
     assert "WARNING" not in captured.out
@@ -381,6 +382,10 @@ def test_variations(capsys, yaml_default):
     assert variations[3].p1 == variations[4].p1 == variations[5].p1 == 0.2
     assert (variations[1].p2 == variations[4].p2 == 2.0
             and variations[2].p2 == variations[5].p2 == 3.0)
+
+    def _main(config, tracker):
+        return
+    Experiment(config, _main, experiment_name="test", run_name="test").run(run_description="")
 
 
 def test_pre_processing(capsys, tmp_file_name,
@@ -477,18 +482,19 @@ def test_post_processing(capsys, yaml_default, yaml_experiment, tmp_file_name,
             return f"<Storage: {self.stored}>"
 
     postprocessing = {"*to_store": lambda x: Storage(**x)}
-    config = make_config({
+    default = {
         "a": 10,
         "b.to_store": {
             "i": 1,
             "j": 2
         }
-    }, post_processing_dict=postprocessing)
+    }
+    config = make_config(default, post_processing_dict=postprocessing)
     config.save(str(tmp_file_name))
-    assert config == make_config(str(tmp_file_name),
+    assert config == make_config(default, str(tmp_file_name),
                                  post_processing_dict=postprocessing)
-    assert make_config(str(tmp_file_name)).b.to_store == {"i": 1, "j": 2}
-    assert make_config(str(tmp_file_name)).a == 10
+    assert make_config(default, str(tmp_file_name)).b.to_store == {"i": 1, "j": 2}
+    assert make_config(default, str(tmp_file_name)).a == 10
     # Does post-processing interact correctly with get_command_line_arguments ?
     config = make_config({
         "a": 10,
@@ -673,6 +679,25 @@ def test_compose(yaml_default):
     postprocessing = {"param1": (add_1, double_value)}
     config = load_config(default_config=yaml_default, postprocessing=postprocessing)
     check_integrity(config, p_1=2.2, p_2=3.0, p_3=20.0)
+
+
+def test_config_vs_dict_checks(caplog, config_vs_dict_checks):
+
+    with caplog.at_level(logging.WARNING):
+        logging.getLogger("yaecs").propagate = True
+        config = load_config(default_config=config_vs_dict_checks)
+    assert caplog.text.count("WARNING") == 2
+    string = f"\nMAIN CONFIG :\nConfiguration hierarchy :\n> {config_vs_dict_checks}" \
+             "\n\n - config1 : \n	CONFIG1 CONFIG :\n	 - config2 : \n		CONFIG2 CONFIG :\n" \
+             "		 - param1 : {'key1': {'key2': 0}, 'key3': ['!type:dict']}\n\n\n - config3 : \n	CONFIG3 CONFIG :" \
+             "\n	 - config4 : \n		CONFIG4 CONFIG :\n		 - config5 : \n			CONFIG5 CONFIG :" \
+             "\n			 - config6 : \n				CONFIG6 CONFIG :\n				 - param1 : {'key1': {'key1':" \
+             " 0}, 'key2': ['!type:dict']}\n\n\n\n\n - config10 : \n	CONFIG10 CONFIG :\n	 - config11 : " \
+             "\n		CONFIG11 CONFIG :\n		 - config1 : \n			CONFIG1 CONFIG :\n			 - config7 : " \
+             "\n				CONFIG7 CONFIG :\n				 - config8 : \n					CONFIG8 CONFIG :" \
+             "\n					 - param1 : {'key1': {'key1': 0}, 'key2': ['!type:dict']}\n\n				 - co" \
+             "nfig9 : \n					CONFIG9 CONFIG :\n					 - param2 : None\n\n\n\n\n\n"
+    assert config.details() == string
 
 
 def test_warnings(caplog, tmp_file_name):

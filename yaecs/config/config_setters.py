@@ -16,7 +16,7 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Dict, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Union
 
 from ..yaecs_utils import TypeHint
 
@@ -31,6 +31,7 @@ class ConfigSettersMixin:
 
     _main_config: 'Configuration'
     _pre_postprocessing_values: Dict[str, Any]
+    _sub_configs_list: List['Configuration']
     _type_hints: Dict[str, TypeHint]
 
     def __init__(self, *args, **kwargs):
@@ -69,21 +70,24 @@ class ConfigSettersMixin:
                 YAECS_LOGGER.warning(f"WARNING : processing function {name} is recommended to use "
                                      f"as {check_function.assigned_yaml_tag[1]}-processing function, "
                                      f"but was declared as {processing_type}-processing function.")
-        # Add to main config
-        self._main_config.add_processing_function(param_name, function_to_add, processing_type)
-        # Add to current sub-configs
-        for subconfig in self._main_config.get_all_sub_configs():
-            subconfig.add_processing_function(param_name, function_to_add, processing_type)
-        # Add to future sub-configs
-        attribute = f"_{processing_type}_processing_functions"
-        current_processing = getattr(self, attribute)
-        attribute = f"_added_{processing_type}_processing"
-        current_added_processing = getattr(self, attribute)()
+        current_added_processing_name = f"_added_{processing_type}_processing"
+        current_added_processing = getattr(self, current_added_processing_name)()
+        current_processing_name = f"_{processing_type}_processing_functions"
+        current_processing = getattr(self, current_processing_name)
         set_name = param_name
         while set_name in current_processing or set_name in current_added_processing:
             set_name = set_name + " "
-        new_processing = {set_name: function_to_add, **current_added_processing}
-        setattr(self.__class__, attribute, lambda self: new_processing)
+        if not any(v == function_to_add if isinstance(function_to_add, str) else v.__name__ == function_to_add.__name__
+                   for k, v in current_added_processing.items()
+                   if set_name.strip(" ") == k.strip(" ")):
+            # Add to main config
+            self._main_config.add_processing_function(param_name, function_to_add, processing_type)
+            # Add to current sub-configs
+            for subconfig in self.get_all_sub_configs():
+                subconfig.add_processing_function(param_name, function_to_add, processing_type)
+            # Add to future sub-configs
+            new_processing = {set_name: function_to_add, **current_added_processing}
+            setattr(self.__class__, current_added_processing_name, lambda self: new_processing)
 
     def add_type_hint(self, name: str, type_hint: TypeHint) -> None:
         """
@@ -93,6 +97,18 @@ class ConfigSettersMixin:
         :param type_hint: type of the param
         """
         self._type_hints[name] = type_hint
+
+    def set_sub_config(self, sub_config: 'Configuration') -> None:
+        """
+        Registers a new sub-config to the main config.
+
+        :param sub_config: sub-config to register
+        """
+        if self._are_same_sub_configs(self, self._main_config):
+            if all(not self._are_same_sub_configs(i, sub_config) for i in self.get_all_sub_configs()):
+                self._sub_configs_list.append(sub_config)
+        else:
+            self._main_config.set_sub_config(sub_config)
 
     def remove_value_before_postprocessing(self, name: str) -> None:
         """
@@ -139,3 +155,17 @@ class ConfigSettersMixin:
         :param value: value to set the pre-processing to
         """
         object.__setattr__(self._main_config, "_pre_process_master_switch", value)
+
+    def unset_sub_config(self, sub_config: 'Configuration') -> None:
+        """
+        Registers a new sub-config to the main config.
+
+        :param sub_config: sub-config to register
+        """
+        if self._are_same_sub_configs(self, self._main_config):
+            if not self._are_same_sub_configs(
+                    self._main_config.get(".".join(sub_config.get_nesting_hierarchy()), None), sub_config):
+                self._sub_configs_list = [c for c in self.get_all_sub_configs()
+                                          if not self._are_same_sub_configs(c, sub_config)]
+        else:
+            self._main_config.unset_sub_config(sub_config)

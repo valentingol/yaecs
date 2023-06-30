@@ -84,10 +84,9 @@ class ConfigGettersMixin:
 
         :return: list corresponding to the sub-configs
         """
-        all_configs = list(self._sub_configs_list)
-        for i in self._sub_configs_list:
-            all_configs = all_configs + i.get_all_sub_configs()
-        return all_configs
+        if self._are_same_sub_configs(self, self._main_config):
+            return list(self._sub_configs_list)
+        return self._main_config.get_all_sub_configs()
 
     def get_command_line_argument(self, deep: bool = True, do_return_string: bool = False,
                                   ignore_unknown_types: bool = False,

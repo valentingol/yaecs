@@ -27,10 +27,11 @@ from collections.abc import Mapping
 from enum import Enum
 from numbers import Real
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 YAECS_LOGGER = logging.getLogger(__name__)
 ConfigDeclarator = Union[str, dict]
+ConfigInput = Union[List[ConfigDeclarator], ConfigDeclarator]
 Hooks = Union[Dict[str, List[str]], List[str]]
 TypeHint = Union[type, tuple, list, dict, set, int]
 VariationDeclarator = Union[List[ConfigDeclarator], Dict[str, ConfigDeclarator]]
@@ -243,20 +244,6 @@ def add_to_csv(csv_path: str, name: str, value: Any, step: int) -> None:
             csv_file.write(",".join(data) + "\n")
 
 
-def are_same_sub_configs(first, second) -> bool:
-    """
-    Checks if two sub-configs have identical nesting hierarchies.
-
-    :param first: first sub-config to check
-    :param second: second sub-config to check
-    :return: result of the check
-    """
-    if first.get_name() != second.get_name():
-        return False
-    nh1, nh2 = first.get_nesting_hierarchy(), second.get_nesting_hierarchy()
-    return len(nh1) == len(nh2) and all(nh1[i] == nh2[i] for i in range(len(nh1)))
-
-
 def assign_order(order: Union[Real, 'Priority'] = 0) -> Callable[[Callable], Callable]:
     """
     Decorator used to give an order to a processing function. If several processing functions would be called at a given
@@ -380,6 +367,23 @@ def format_str(config_path_or_dictionary: ConfigDeclarator, size: int = 200) -> 
     if YAECS_LOGGER.level >= logging.INFO:
         return to_return if len(to_return) < size else f"{to_return[:size//2 - 3]} [...] {to_return[-size//2 - 3:]}"
     return to_return
+
+
+def get_config_from_argv(pattern: str, fallback: Optional[ConfigInput] = None) -> List[str]:
+    """
+    Get a configuration from the command line arguments.
+
+    :param pattern: pattern to detect in sys.argv
+    :param fallback: fallback value if pattern is not detected in sys.argv
+    :return: the configuration
+    """
+    if pattern not in sys.argv and fallback is None:
+        raise TypeError(f"The pattern '{pattern}' was not detected in sys.argv.")
+    if pattern in sys.argv:
+        fallback = [cfg.strip(" ") for cfg in sys.argv[sys.argv.index(pattern) + 1].strip("[]").split(",")]
+    if not isinstance(fallback, list):
+        fallback = [fallback]
+    return fallback
 
 
 def get_order(func: Callable) -> Union[Real, 'Priority']:

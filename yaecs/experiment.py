@@ -392,7 +392,6 @@ class Tracker:
         :param main_process_only: do not try to log in pytorch-lightning sub-processes
         """
         if not main_process_only or not os.getenv('NODE_RANK'):  # do not track in a pytorch-lightning spawned process
-            value = float(value)
             if not self.types and self.basic_logger is None:
                 YAECS_LOGGER.warning("WARNING : no tracker configured, scalars will not be logged anywhere.")
                 if os.getenv('NODE_RANK'):
@@ -404,6 +403,13 @@ class Tracker:
                     extended_name = f"{sub_logger}/{extended_name}"
                 add_to_csv(os.path.join(self.basic_logger, "logged_scalars.csv"),
                            extended_name, value, -1 if step is None else step)
+            try:
+                value = float(value)
+            except ValueError:
+                types = [t for t in self.types if t != "basic"]
+                if types:
+                    YAECS_LOGGER.warning(f"WARNING : will not log non-float value {value} to {types} trackers.")
+                return
             if "sacred" in self.types:
                 extended_name = name
                 if sub_logger is not None:

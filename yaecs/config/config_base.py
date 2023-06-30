@@ -31,8 +31,8 @@ import yaml
 
 from ..yaecs_utils import (YAML_EXPRESSIONS,
                            ConfigDeclarator, TypeHint,
-                           adapt_to_type, are_same_sub_configs, compare_string_pattern, compose, format_str, get_order,
-                           is_type_valid, parse_type, recursive_set_attribute, set_function_attribute, update_state)
+                           adapt_to_type, compare_string_pattern, compose, format_str, get_order, is_type_valid,
+                           parse_type, recursive_set_attribute, set_function_attribute, update_state)
 from .config_convenience import ConfigConvenienceMixin
 from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
@@ -66,12 +66,12 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
     _state: List[str]
     _verbose: bool
 
-    def __init__(self, from_argv: bool = False, do_not_pre_process: bool = False, do_not_post_process: bool = False):
+    def __init__(self, from_argv: str = "", do_not_pre_process: bool = False, do_not_post_process: bool = False):
         """
         Should never be called directly by the user. Please use one of the constructors defined for the Configuration
         class instead, or the utils.make_config convenience function.
 
-        :param from_argv: whether the config was created with configs passed from the command line arguments
+        :param from_argv: pattern used to find the config in the command line arguments, or "" if not applicable
         :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
         :raises ValueError: if the overwriting regime is not valid
@@ -227,7 +227,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             if isinstance(config_path_or_dict, str):
                 with open(self._find_path(config_path_or_dict), encoding='utf-8') as yaml_file:
                     for dictionary_to_add in yaml.load_all(yaml_file, Loader=self._get_yaml_loader()):
-                        for item in dictionary_to_add.items():
+                        for item in self._superficial_dict_cleanup(dictionary_to_add).items():
                             self._process_item_to_merge_or_add(item)
             else:
                 for item in config_path_or_dict.items():
@@ -282,7 +282,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         for i in all_configs:
             found_correspondence = False
             for j in linked_configs:
-                if are_same_sub_configs(i, j):
+                if self._are_same_sub_configs(i, j):
                     found_correspondence = True
                     break
             if not found_correspondence:
@@ -373,8 +373,11 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
         def generic_constructor(yaml_loader, tag, node):
 
-            if tag[1:].lower().startswith("type:"):
-                if not yaml_loader.constructed_objects:
+            is_param_tag = bool(yaml_loader.constructed_objects)
+
+            # If type tag, handle type-hinting or processing assignment.
+            if tag[1:].lower().startswith("type:") and tag[1:].lower() != "type:config":
+                if not is_param_tag:
                     raise RuntimeError(f"'{tag[1:]}' is not a valid sub-config name.")
                 if not any(state.startswith("setup") for state in self._state):
                     raise RuntimeError("Type-hinting is only allowed in the default config.")
@@ -404,39 +407,47 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                             return yaml_loader.yaml_constructors[f"tag:yaml.org,2002:{key}"](yaml_loader, node)
                     return yaml_loader.construct_scalar(node)
                 if isinstance(node, yaml.SequenceNode):
-                    return yaml_loader.construct_sequence(node)
+                    return yaml_loader.construct_sequence(node, deep=True)
                 if isinstance(node, yaml.MappingNode):
-                    return yaml_loader.construct_mapping(node)
+                    return yaml_loader.construct_mapping(node, deep=True)
 
-            sub_configs_name = tag[1:].split(".")
-            sub_config_name = sub_configs_name[0]
-            if len(sub_configs_name) > 1:
-                to_append = ".".join(sub_configs_name[1:])
-                for i in range(len(node.value)):  # pylint: disable=consider-using-enumerate
-                    node.value[i][0].value = to_append + "." + node.value[i][0].value
-            self._nesting_hierarchy.append(sub_config_name)
-            if yaml_loader.constructed_objects:
-                dict_to_return = self._get_instance(
-                    name=sub_config_name, config_path_or_dictionary=yaml_loader.construct_mapping(node, deep=True),
-                    nesting_hierarchy=self._nesting_hierarchy, state=self._state, main_config=self._main_config,
-                    verbose=self._verbose)
-                if all(not are_same_sub_configs(i, dict_to_return) for i in self._sub_configs_list):
-                    self._sub_configs_list.append(dict_to_return)
-
+            # Otherwise, assume sub-config tag
+            if is_param_tag:
+                # Case 1 : not root of the YAML file > infer name from parameter name
+                sub_configs_names = list(yaml_loader.constructed_objects.keys())[-1].value.split(".")
+                sub_config = sub_configs_names[0]
+                apply_to_node = ".".join(sub_configs_names[1:])
+                if tag[1:].lower() != "type:config":
+                    YAECS_LOGGER.warning(f"WARNING : Naming sub-configs is deprecated. Tag '{tag}' will be ignored and "
+                                         "should be removed. They might be used for a different purpose in a future "
+                                         "release."
+                                         "\nSince now YAML dicts are implicitly considered sub-configs, be sure to tag "
+                                         "with '!type:dict' if you want to use a dict.")
             else:
-                dict_to_return = {
-                    sub_config_name:
-                    self._get_instance(name=sub_config_name,
-                                       config_path_or_dictionary=yaml_loader.construct_mapping(node, deep=True),
-                                       nesting_hierarchy=self._nesting_hierarchy, state=self._state,
-                                       main_config=self._main_config, verbose=self._verbose)
-                }
-                if all(not are_same_sub_configs(i, dict_to_return[sub_config_name]) for i in self._sub_configs_list):
-                    self._sub_configs_list.append(dict_to_return[sub_config_name])
+                if tag[1:].lower() == "type:config":
+                    # Case 2 : name not provided and root of the YAML file > assume dict
+                    return yaml_loader.construct_mapping(node, deep=True)
+                # Case 3 : name provided and root of the YAML file > use first part as config name
+                sub_configs_names = tag[1:].split(".")
+                sub_config = sub_configs_names[0]
+                apply_to_node = ".".join(sub_configs_names[1:])
+
+            if apply_to_node:
+                # Add prefix to all sub-config parameters
+                for i in range(len(node.value)):  # pylint: disable=consider-using-enumerate
+                    node.value[i][0].value = apply_to_node + "." + node.value[i][0].value
+            self._nesting_hierarchy.append(sub_config)  # needs to be set temporarily (potential recursive call)
+            to_convert = yaml_loader.construct_mapping(node)
+            new_config = self._get_instance(name=sub_config,
+                                            config_path_or_dictionary=self._superficial_dict_cleanup(to_convert),
+                                            nesting_hierarchy=self._nesting_hierarchy, state=self._state,
+                                            main_config=self._main_config, verbose=self._verbose)
+            self.set_sub_config(new_config)
             self._nesting_hierarchy.pop(-1)
-            return dict_to_return
+            return new_config if is_param_tag else {sub_config: new_config}
 
         loader = yaml.FullLoader
+        loader.DEFAULT_MAPPING_TAG = "!type:config"
         yaml.add_multi_constructor("", generic_constructor, Loader=loader)
         return loader
 
@@ -473,7 +484,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             if isinstance(config_path_or_dictionary, str):
                 with open(self._find_path(config_path_or_dictionary), encoding='utf-8') as yaml_file:
                     for dictionary_to_add in yaml.load_all(yaml_file, Loader=self._get_yaml_loader()):
-                        dicts_to_merge.append(dictionary_to_add)
+                        dicts_to_merge.append(self._superficial_dict_cleanup(dictionary_to_add))
                     yaml_file.close()
             else:
                 dicts_to_merge.append(config_path_or_dictionary)
@@ -569,6 +580,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                                      f"config.\n{self._did_you_mean(key)}") from exception
             if isinstance(old_value, _ConfigurationBase):
                 if isinstance(value, _ConfigurationBase):
+                    self.unset_sub_config(value)
                     old_value.init_from_config(value.get_dict(deep=False))
                 elif isinstance(value, dict):
                     old_value.init_from_config(value)
@@ -577,6 +589,11 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                                     f"with non-config element '{value}'.\n"
                                     "This replacement cannot be performed.")
             else:
+                if isinstance(value, _ConfigurationBase):
+                    self.unset_sub_config(value)
+                    for sub_config in value.get_all_linked_sub_configs():
+                        self.unset_sub_config(sub_config)
+                    value = value.get_dict(deep=True)
                 if self._verbose:
                     YAECS_LOGGER.debug(f"Setting '{key}' : \nold : '{old_value}' \n"
                                        f"new : '{value}'.")
@@ -664,6 +681,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 self[name].add_type_hint(key, value)
         self[name].init_from_config(content)
         self[name].config_metadata["config_hierarchy"] += [content]
+        self.set_sub_config(self[name])
 
     def _gather_command_line_dict(self, string_to_merge: Optional[str] = None) -> Dict[str, Any]:
         """ Method called automatically at the end of each constructor to gather all parameters from the command line
@@ -697,11 +715,11 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
         # Gather parameters, their values and their types
         to_merge = {}  # {param_name: [former_value, new_value, type_forcing], ...}
-        found_config_path = not self._from_argv
+        found_config_path = not bool(self._from_argv)
         in_param = []
         un_matched_params = []
         for element in list_to_merge:
-            if element.startswith("--") and (found_config_path or element[2:] != "config"):
+            if element.startswith("--") and (found_config_path or element != self._from_argv):
                 if "=" in element:
                     pattern, value = element[2:].split("=", 1)
                     value = value if value != "" else None
@@ -835,3 +853,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     for hook_name in processor.__name__.split("__")[1].split(","):
                         self.add_currently_processed_param_as_hook(hook_name)
         return parameter
+
+    @staticmethod
+    def _superficial_dict_cleanup(dictionary: dict) -> dict:
+        """ After a YAML loading operation, cleans up composed keys of Configuration items. """
+        return {(k.split(".")[0] if isinstance(v, _ConfigurationBase) else k): v for k, v in dictionary.items()}
