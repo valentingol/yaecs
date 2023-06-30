@@ -2,54 +2,95 @@
 
 ---
 
-This documentation page describes our take on config systems : YAECS. It is mainly comprised of the Configuration object, which is meant to make some operations more practical, including :
+This documentation page describes our take on config systems : YAECS. It is mainly comprised of the Configuration
+object, which is meant to make some operations more practical, including :
 
 - printing, saving and loading configurations easily and in a flexible way
 - flexibility to adapt to the size of a project (simple configs for small
 projects, multi-file and/or nested configs for large projects)
-- making it easy to change the config between two experiments, to implement hyper-parameter searches, or to visualise the differences between past experiments
-- increasing the overall readability of the config files and introducing safeguards against bad practices for projects with several contributors/use cases
-- allowing for every single parameter in a project to be grouped in a single place (the default config) for easy access, without making the config hard to manipulate and use due to its size
+- making it easy to change the config between two experiments, to implement hyper-parameter searches, or to visualise
+the differences between past experiments
+- increasing the overall readability of the config files and introducing safeguards against bad practices for projects
+with several contributors/use cases
+- allowing for every single parameter in a project to be grouped in a single place (the default config) for easy access,
+without making the config hard to manipulate and use due to its size
 
 ## 0) Our philosophy
 
-Before heading right into the nitty gritty of things, we'd like to take a moment to tell you our thoughts about experiments and the research process. This will let us define the terms we use throughout this documentation, and if you realise that we think alike, maybe this config system is for you ;)
+Before heading right into the nitty gritty of things, we'd like to take a moment to tell you our thoughts about
+experiments and the research process. This will let us define the terms we use throughout this documentation, and if you
+realise that we think alike, maybe this config system is for you ;)
 
 ### What we call experiments
 
-A research project has many phases. Some are very wild and exploratory, using notebooks or third-party tools to quickly iterate and visualise. Some others involve debugging or refactoring. What we call **experiments** are the following situations :
+A research project has many phases. Some are very wild and exploratory, using notebooks or third-party tools to quickly
+iterate and visualise. Some others involve debugging or refactoring. What we call **experiments** are the following
+situations :
 
-- you run a part of your code to gain **trustworthy knowledge** about a certain component or process in your project. *This includes for example evaluating a metric to report it in a paper or take an impactful decision for the future of your paper* (rule of importance)
-- you run a part of your code **for a long time**, or using a **large amount of data**, or needing **significant computational resources**. *This includes for example training a neural network, evaluating on more than 10 samples, or having to package your code to run it on another machine* (rule of cost)
-- the effect you are studying is **complex**, involves **significant portions of code**, or involves interactions between **several different modules** with distinct purposes that you investigate at the same time. *This includes evaluating a specific function in the context of your entire pipeline, exploring possibilities for more than a day, or changing the behaviour of several components simultaneously* (rule of complexity)
+- you run a part of your code to gain **trustworthy knowledge** about a certain component or process in your project.
+*This includes for example evaluating a metric to report it in a paper or take an impactful decision for the future of*
+*your paper* (rule of importance)
+- you run a part of your code **for a long time**, or using a **large amount of data**, or needing **significant**
+**computational resources**. *This includes for example training a neural network, evaluating on more than 10 samples,*
+*or having to package your code to run it on another machine* (rule of cost)
+- the effect you are studying is **complex**, involves **significant portions of code**, or involves interactions
+between **several different modules** with distinct purposes that you investigate at the same time. *This includes*
+*evaluating a specific function in the context of your entire pipeline, exploring possibilities for more than a day,*
+*or changing the behaviour of several components simultaneously* (rule of complexity)
 
-**In those cases, we argue that your action should be regarded as an experiment, and performed under a number of safeguards.**
-This is the core of our philosophy, and the purpose which this library intends to serve.
+**In those cases, we argue that your action should be regarded as an experiment, and performed under a number of**
+**safeguards.** This is the core of our philosophy, and the purpose which this library intends to serve.
 
 ### Properties of the ideal experiment
 
-Now that we have outlined the scope of what we consider "experiments", here we describe how we think a good experiment should be.
+Now that we have outlined the scope of what we consider "experiments", here we describe how we think a good experiment
+should be.
 
-- **clear** : understanding your experiment, its purpose, setup and results, should be as simple as possible, be it for coworkers, the scientific community, or most of the time future you :)
-- **reproducible** : running your experiment again, to witness the same behaviour or continue investigating from that previous state, should be reliable and effortless
-- **responsible** : an experiment is an investment of precious resources and a step towards a result with an impact on our world. For efficiency and accountability, its outcome and context should be logged
-- **simple** : we are all human, and projects can be long and taxing. Starting a new experiment should be simple, enjoyable and exciting
+- **clear** : understanding your experiment, its purpose, setup and results, should be as simple as possible, be it for
+coworkers, the scientific community, or most of the time future you :)
+- **reproducible** : running your experiment again, to witness the same behaviour or continue investigating from that
+previous state, should be reliable and effortless
+- **responsible** : an experiment is an investment of precious resources and a step towards a result with an impact on
+our world. For efficiency and accountability, its outcome and context should be logged
+- **simple** : we are all human, and projects can be long and taxing. Starting a new experiment should be simple,
+enjoyable and exciting
 
 ### What we call configs
 
-A very abstract way of viewing experiments is to consider them "processes that use resources to produce outcomes". In our case, resources are as diverse as the code, the hardware, the data... but for the purpose of this explanation, we can simplify them in 2 categories : the support and the configuration (config). The support is comprised of all the resources needed to reproduce all the experiments in your project. All the hardware. All versions of your code and data. And the config is simply how to configure your support to reproduce a given experiment. Each experiment has its own config, and the project has a single support which suffices to reproduce any experiment.
+A very abstract way of viewing experiments is to consider them "processes that use resources to produce outcomes". In
+our case, resources are as diverse as the code, the hardware, the data... but for the purpose of this explanation, we
+can simplify them in 2 categories : the support and the configuration (config). The support is comprised of all the
+resources needed to reproduce all the experiments in your project. All the hardware. All versions of your code and data.
+And the config is simply how to configure your support to reproduce a given experiment. Each experiment has its own
+config, and the project has a single support which suffices to reproduce any experiment.
 
-In this library, we tackle the config side of things. Other tools such as git, remote deployment to specific hardware or dataset version control can help setting up and maintaining the support throughout the project.
+In this library, we tackle the config side of things. Other tools such as git, remote deployment to specific hardware or
+dataset version control can help setting up and maintaining the support throughout the project.
 
-So then, back to the config. The config generally assumes a certain knowledge of the support, which makes sense in that it is a configuration *of that support*. Therefore, appropriate naming and organisation should make it obvious, with that knowledge, which element of the support each part of the config controls. The config is an object which contains key-value pairs as would a dictionary. When running an experiment, instead of resorting to hard-coded values which present many issues, the support queries the corresponding config for its values using the keys. Such key-value pairs are commonly referred to as "parameters" (though from a Machine Learning perspective they are ususally called hyper-parameters to disambiguate them from learnable parameters).
+So then, back to the config. The config generally assumes a certain knowledge of the support, which makes sense in that
+it is a configuration *of that support*. Therefore, appropriate naming and organisation should make it obvious, with
+that knowledge, which element of the support each part of the config controls. The config is an object which contains
+key-value pairs as would a dictionary. When running an experiment, instead of resorting to hard-coded values which
+present many issues, the support queries the corresponding config for its values using the keys. Such key-value pairs
+are commonly referred to as "parameters" (though from a Machine Learning perspective they are ususally called
+hyper-parameters to disambiguate them from learnable parameters).
 
 ### How proper configs save the day
 
-The support is usually huge, changes often and is worked on by several people at the same time. For that reason, reaching our goal of having simple, reproductible, clear experiments can be a daunting task. But is it really ? Thinking about it, what *distinguishes* experiments, the config, is on the contrary quite simple. Experiments that make too many factors vary at once are usually a bad practice which users will try to avoid, which means most of the time only a few differences separate two experiments.
+The support is usually huge, changes often and is worked on by several people at the same time. For that reason,
+reaching our goal of having simple, reproductible, clear experiments can be a daunting task. But is it really ? Thinking
+about it, what *distinguishes* experiments, the config, is on the contrary quite simple. Experiments that make too many
+factors vary at once are usually a bad practice which users will try to avoid, which means most of the time only a few
+differences separate two experiments.
 
-This means at least in principle that setting up your configs, logging them, reading them and sharing them with other people familiar with the support should be simple, and what is simple is usually also clear and enjoyable. A quick glance should be sufficient to remind you what this specific experiment was about, and then you can go on to checking the results. To reproduce an experiment, you simply use the same config, and you can then modify it as you wish.
+This means at least in principle that setting up your configs, logging them, reading them and sharing them with other
+people familiar with the support should be simple, and what is simple is usually also clear and enjoyable. A quick
+glance should be sufficient to remind you what this specific experiment was about, and then you can go on to checking
+the results. To reproduce an experiment, you simply use the same config, and you can then modify it as you wish.
 
-Of course, not everything is that simple. Complex projects can require hundreds or even thousands of config parameters to support all existing and potential future experiments. Moreover, two experiments close in time are easy to compare, but months later, the config may look very different. This is where YAECS comes in.
+Of course, not everything is that simple. Complex projects can require hundreds or even thousands of config parameters
+to support all existing and potential future experiments. Moreover, two experiments close in time are easy to compare,
+but months later, the config may look very different. This is where YAECS comes in.
 
 ### The guiding principles of YAECS
 
@@ -57,18 +98,26 @@ YAECS learns from other existing config systems such as YACS or hydra to make it
 
 - integrating the YAECS config system in small projects takes almost no effort at all ;
 - the amount of overhead in your main code is minimal ;
-- it seemlessly grows and adapts as your project does, accepting an ever-increasing number of parameters and features while maintaining a similar ease of use ;
-- it provides all the flexibility needed to hide away complex parameter processing behind simple APIs. Features that could be useful to handle configs should be available, and once the relevant feature has been set up in your project, the ease of use for following experiments should remain unchanged or be improved ;
-- it simplifies backward and forward reproducibility and, coupled with a certain rigor when implementing new features, allows you to reproduce experiments without even checking out another code version. That way, previous experiments can be reproduced while still benefitting from new codebase improvements ;
+- it seemlessly grows and adapts as your project does, accepting an ever-increasing number of parameters and features
+while maintaining a similar ease of use ;
+- it provides all the flexibility needed to hide away complex parameter processing behind simple APIs. Features that
+could be useful to handle configs should be available, and once the relevant feature has been set up in your project,
+the ease of use for following experiments should remain unchanged or be improved ;
+- it simplifies backward and forward reproducibility and, coupled with a certain rigor when implementing new features,
+allows you to reproduce experiments without even checking out another code version. That way, previous experiments can
+be reproduced while still benefitting from new codebase improvements ;
 - it provides integration with common trackers to log and visualise its configs and the resulting outcome ;
-- and it prints warnings or raises errors as a safeguard against bad practices... because we all have those days don't we ;)
+- and it prints warnings or raises errors as a safeguard against bad practices... because we all have those days don't
+we ;)
 
-Did we meet all our goals ? Well... that is for you to judge :) if you think we haven't, do leave us gitlab issues for us to do better.
+Did we meet all our goals ? Well... that is for you to judge :) if you think we haven't, do leave us gitlab issues for
+us to do better.
 We hope you enjoy your YAECS experience !
 
 ## I) Getting started
 
-Getting started with using YAECS requires a single thing : creating a Configuration object containing your parameters. There are many ways to create this config object, but let us focus on the easiest one.
+Getting started with using YAECS requires a single thing : creating a Configuration object containing your parameters.
+There are many ways to create this config object, but let us focus on the easiest one.
 
 ```python
 from yaecs import make_config
@@ -89,11 +138,17 @@ print(config["experiment_name"])  # overfit
 print(config.get("learning_rate", None))  # 0.001
 ```
 
-At this point you might think that this is nothing more than a more fancy dictionary... and you'd be right, that's actually a very good way to think about your config. In fact, because it mostly behaves like a dictionary, it is much easier to integrate into existing code or libraries which expect dictionaries.
+At this point you might think that this is nothing more than a more fancy dictionary... and you'd be right, that's
+actually a very good way to think about your config. In fact, because it mostly behaves like a dictionary, it is much
+easier to integrate into existing code or libraries which expect dictionaries.
 
-Of course, in many situations, it is much more than a simple dictionary, as we will demonstrate thoughout this documentation. In this first introduction, we will cover two more things : loading a config from a **yaml file**, and some basic **command line interaction**. If you want more, we encourage you to keep reading our other tutorials TODO in which we give **practical tips** and **best practices** for the management of your config over the course of a project.
+Of course, in many situations, it is much more than a simple dictionary, as we will demonstrate thoughout this
+documentation. In this first introduction, we will cover two more things : loading a config from a **yaml file**, and
+some basic **command line interaction**. If you want more, we encourage you to keep reading our other tutorials TODO in
+which we give **practical tips** and **best practices** for the management of your config over the course of a project.
 
-The main purpose of using a config system is to manage your parameters more easily by **getting them out of your code**. So let's do just that :)
+The main purpose of using a config system is to manage your parameters more easily by **getting them out of your code**.
+So let's do just that :)
 
 We will create a file called `config.yaml` in the root of our project, next to our `main.py` :
 
@@ -125,7 +180,8 @@ overfit
 0.001
 ```
 
-One way the YAECS config system provides to manage parameters is to edit them from the command line, which is performed automatically when you create your config. See for yourself :
+One way the YAECS config system provides to manage parameters is to edit them from the command line, which is performed
+automatically when you create your config. See for yourself :
 
 ```bash
 $ python main.py --batch_size 16
@@ -142,9 +198,13 @@ production
 0.001
 ```
 
-The YAECS command line parser, one of YAECS' many ways of **preparing your experiment's config**, is very flexible and fast when you want to change only a handful of parameters.
+The YAECS command line parser, one of YAECS' many ways of **preparing your experiment's config**, is very flexible and
+fast when you want to change only a handful of parameters.
 
-This is as far as we go for this short introduction. If you're already used to config systems and managing config files, this might be enough to get you started. However, if you've always just used hardcoded values in your code, and maybe argparse, you might not really know where to start. We advise you to look at our tutorial TODO, which will walk you through config management using YAECS from early set-up to advanced usage.
+This is as far as we go for this short introduction. If you're already used to config systems and managing config files,
+this might be enough to get you started. However, if you've always just used hardcoded values in your code, and maybe
+argparse, you might not really know where to start. We advise you to look at our tutorial TODO, which will walk you
+through config management using YAECS from early set-up to advanced usage.
 
 Happy experimenting !
 
@@ -152,7 +212,8 @@ Happy experimenting !
 
 ### Basic setup for small projects
 
-You have never used a config system, and you just found out about YAECS ? You've come to the right place ! In this first part of our tutorial, we will walk you through the basics of setting up your project for easy and safe experiments.
+You have never used a config system, and you just found out about YAECS ? You've come to the right place ! In this first
+part of our tutorial, we will walk you through the basics of setting up your project for easy and safe experiments.
 
 In this first "basic" part of our tutorial, we will :
 
@@ -165,13 +226,22 @@ Let's start !
 
 #### 1) Creating the default config
 
-To use YAECS in a project, the very first thing to always do is to prepare the default config. The default config needs to be a YAML file, which will contain **all the parameters for your project** and their default values. We have decided to enforce the requirement that every single param be in the defaults, because it is both safer and desirable for you.
+To use YAECS in a project, the very first thing to always do is to prepare the default config. The default config needs
+to be a YAML file, which will contain **all the parameters for your project** and their default values. We have decided
+to enforce the requirement that every single param be in the defaults, because it is both safer and desirable for you.
 
-It is **safer** because if you want to change a parameter and miss-spell its name, YAECS will know that the parameter name is wrong because it is not in the default config. Therefore instead of starting your experiment with incorrect values, YAECS will throw an error.
+It is **safer** because if you want to change a parameter and miss-spell its name, YAECS will know that the parameter
+name is wrong because it is not in the default config. Therefore instead of starting your experiment with incorrect
+values, YAECS will throw an error.
 
-It is **desirable** because it gives you a centralised place where you can look up all the values, all the hyper-parameters, all the magic numbers, without going through dozens of source files. YAECS is designed so that having a very large default config never becomes a burden for clarity. Therefore, no need to shy away from having **a lot** of parameters in there.
+It is **desirable** because it gives you a centralised place where you can look up all the values, all the
+hyper-parameters, all the magic numbers, without going through dozens of source files. YAECS is designed so that having
+a very large default config never becomes a burden for clarity. Therefore, no need to shy away from having **a lot** of
+parameters in there.
 
-YAML is a very intuitive config format. We chose it for its elegance, flexibility and the fact that it supports comments (which is not the case in JSON for example). If you need, you can find the YAML documentation here : TODO. Here is the config example we choose to use in this tutorial :
+YAML is a very intuitive config format. We chose it for its elegance, flexibility and the fact that it supports comments
+(which is not the case in JSON for example). If you need, you can find the YAML documentation here : TODO. Here is the
+config example we choose to use in this tutorial :
 
 ```yaml
 ---  # Default config - configs/default.yaml
@@ -204,21 +274,33 @@ train:
       weight_decay: 0
 ```
 
-Let us save this under `configs/default.yaml`. We created this config file to give you an example of what it could look like (and also to show you some nice features later), but yours will most likely be bigger. Here is what we advise you to store in this default config :
+Let us save this under `configs/default.yaml`. We created this config file to give you an example of what it could look
+like (and also to show you some nice features later), but yours will most likely be bigger. Here is what we advise you
+to store in this default config :
 
-- variables you intend to change later, or you think you might change later (for example up there `do_test`, `experiment_path`, `train.epochs`, ...)
-- variables you don't necessarily want to change, but for which you might want to be able to find the value easily (for example `use_gpu` or `model.activation`)
+- variables you intend to change later, or you think you might change later (for example up there `do_test`,
+`experiment_path`, `train.epochs`, ...)
+- variables you don't necessarily want to change, but for which you might want to be able to find the value easily
+(for example `use_gpu` or `model.activation`)
 - generally any hardcoded value in your code that has an understandable meaning
 
-So yeah... that's gonna be a lot of parameters. Much more than in our simple example here. But fear not, don't be shy, put them all in. This is by far the most time-consuming part of the process, but you will not regret the time you invest here. Even if you decide later that YAECS is not for you after all, you will be glad to have it whichever other tool you decide to go for.
+So yeah... that's gonna be a lot of parameters. Much more than in our simple example here. But fear not, don't be shy,
+put them all in. This is by far the most time-consuming part of the process, but you will not regret the time you invest
+here. Even if you decide later that YAECS is not for you after all, you will be glad to have it whichever other tool you
+decide to go for.
 
-As for the values to use for the parameters you put in there, well, it's a default config, so use default values. Values which make sense in general, which will be used "by default" if the user does not specify their own. As you can see with `experiment_path`, sometimes no value really makes sense for a parameter, for example when this parameter should always be set by the user in all experiments. In those cases you can use `null`, which is YAML's equivalent for python's `None`.
+As for the values to use for the parameters you put in there, well, it's a default config, so use default values. Values
+which make sense in general, which will be used "by default" if the user does not specify their own. As you can see with
+`experiment_path`, sometimes no value really makes sense for a parameter, for example when this parameter should always
+be set by the user in all experiments. In those cases you can use `null`, which is YAML's equivalent for python's
+`None`.
 
 And here you go, that's your first (and longest) step out of the way.
 
 #### 2) Loading your config and starting an experiment
 
-Imagine you want to start a new experiment, for example an overfitting experiment. Let us prepare a config file for this experiment, which we will store in `configs/overfit.yaml`.
+Imagine you want to start a new experiment, for example an overfitting experiment. Let us prepare a config file for this
+experiment, which we will store in `configs/overfit.yaml`.
 
 ```yaml
 ---  # Experiment config - configs/overfit.yaml
@@ -235,7 +317,8 @@ In contrast to the default config, it :
 
 - is short and contains only the values that are modified ;
 - cannot add new parameter, only update existing ones.
-In this config file, what is being done in this specific experiment is clear at a glance, regardless of the complexity of the default config. For now, your project's folder should look something like this :
+In this config file, what is being done in this specific experiment is clear at a glance, regardless of the complexity
+of the default config. For now, your project's folder should look something like this :
 
 ```markdown
 project_root
@@ -246,7 +329,8 @@ project_root
 └── ...
 ```
 
-And now, let's get down to business and see what the code part of things will look like. Before using YAECS, your `main.py` might have looked like this :
+And now, let's get down to business and see what the code part of things will look like. Before using YAECS, your
+`main.py` might have looked like this :
 
 ```python
 # import some stuff
@@ -277,72 +361,40 @@ if __name__ == "__main__":
     main(config)
 ```
 
-Two very important notes here :
+And there you go ! You have a working example !
 
-- **the code above will not work**, because up to now I ommited an important point to avoid confusion. To see how to fix our current setup, please read the next section about sub-configs ;
-- here we use make_config to simplify things, but it will not allow us to leverage all of YAECS' features. In the "intermediate" section of this guide, we will learn how to load configs with other, more powerful functions.
-
-At this point, you probably have many questions... so let's head on to the next sections to answer them !
+Important note : here we use make_config to simplify things, but it will not allow us to leverage all of YAECS'
+features.
+In the "intermediate" section of this guide, we will learn how to create configs with other, more powerful constructors.
 
 #### 3) An omnipresent feature for config organisation : sub-configs
 
-The only change we have to do to make everything work is in the configs. I'll first show you the working version, then I'll explain the difference and why it's important.
+At this point, we should explain the important aspect of a "sub-config". As you can see from our example above, there 
+are parameters in our config that contain other parameters (for example `model`, or `data`). They are defined as YAML
+dictionaries, but don't be fooled : they will not be parsed as python `dict` by YAECS, but as sub-configs. It *is*
+possible to declare a parameter in the YAML file that will take as value a python `dict`, but to do that, you need to 
+*tag* it.
 
-In the default config :
+A YAML tag, in YAML, is a small statement starting with a `!` used to "tag" the following value. In YAECS, we use those 
+tags to differentiate sub-configs from simple dictionaries. Indeed, in YAML, declaring `dict: a: 1` or its equivalent 
+`dict: {a: 1}` will result in YAECS creating a sub-config called `dict`, which contains a param called `a` with value 1.
+To instead define a param called `dict` containing a python dict `{"a": 1}`, you need to *tag* this dictionary using a
+type-hint : `dict: !type:dict {a: 1}`. You can learn more about type hints in the corresponding part of this tutorial TODO.
 
-```yaml
----  # Default config - configs/default.yaml
+Dictionaries **are not** sub-configs. Sub-configs can check and process their parameters, and they can be accessed using
+the `config.subconfig.parameter` syntax. They are also restricted to only the parameters which have been defined in the
+defaut config. In an experiment config, you can access and modify a single parameter of a subconfig, and the others will
+take their default values. When you replace the value of a dict in the experiment config, on the contrary, you have to
+write the complete dict, because dict keys have no default values.
 
-experiment_path: null
-use_gpu: true
-do_train: true
-do_val: true
-do_test: false
+Knowing when you want a sub-config and when you want a dict can be tricky and requires experience, but most of the time
+you can't go much wrong by simply sub-configs, which is why this was chosen as the default behaviour.
 
-model: !model
-   type: ResNet
-   layers: 10
-   activations: ReLU
+Sub-configs allow you to organise your parameters into categories and sub-categories, which will come in handy in
+basically all your projects.
 
-data: !data
-   size: [64, 64]
-   number_of_samples: null
-   flip_probability: 0.5
-   rotate_probability: 0
-
-train: !train
-   epochs: 100
-   batch_size: 32
-   optimiser: !optimiser
-      type: Adam
-      learning_rate: .001
-      betas: [0.9, 0.999]
-      weight_decay: 0
-```
-
-... and in the experiment config :
-
-```yaml
----  # Experiment config - configs/overfit.yaml
-
-experiment_path: "logs/overfit"
-data: !data
-   number_of_samples: 2
-   flip_probability: 0
-train.batch_size: 2
-```
-
-What we did is rather simple : for every parameter which contains other parameters (referred to as "sub-configs"), we added a so-called YAML tag. A YAML tag, in YAML, is a small statement starting with a `!` used to "tag" the following value. In YAECS, we use those tags to differentiate sub-configs from simple dictionaries.
-
-Indeed, in YAML, declaring `dict: a: 1` or its equivalent `dict: {a: 1}` defines a python `dict` by default. To define a YAECS sub-config instead, you need to *tag* this dictionary using a tag that is **exactly the parameter's name**, for example `subconfig: !subconfig {a: 1}`.
-
-Dictionaries **are not** sub-configs. Sub-configs can check and process their parameters, and they can be accessed using the `config.subconfig.parameter` syntax. They are also restricted to only the parameters which have been defined in the defaut config. In an experiment config, you can access and modify a single parameter of a subconfig, and the others will take their default values. When you replace the value of a dict in the experiment config, on the contrary, you have to write the complete dict, because dict keys have no default values.
-
-Knowing when you want a sub-config and when you want a dict can be tricky and requires experience, but most of the time you can't go much wrong by simply declaring **all** your dicts as sub-configs instead.
-
-Sub-configs allow you to organise your parameters into categories and sub-categories, which will come in handy in basically all your projects.
-
-In the following, we re-write the previous experiment config using **3 ways** to declare parameters in sub-configs. All three of them will work both in default or experiment configs.
+There are **3 ways** to declare parameters in sub-configs in your YAML files. All three of them will work both in
+default or experiment configs, and they have the same behaviour. We demonstrate all three of them below :
 
 Using the dot convention (optimal when there is one or two parameters in the sub-config) :
 
@@ -355,20 +407,20 @@ data.flip_probability: 0
 train.batch_size: 2
 ```
 
-Using tagged dictionnaries (optimal when there are two parameters or more) :
+Using **untagged** dictionnaries (optimal when there are two parameters or more) :
 
 ```yaml
 ---  # Experiment config with tagged dictionnaries only
 
 experiment_path: "logs/overfit"
-data: !data
+data:
    number_of_samples: 2
    flip_probability: 0
-train: !train
+train:
    batch_size: 2
 ```
 
-Using tagged documents (optimal when the sub-config is complex and/or contains other sub-configs) :
+Using **tagged** documents (optimal when the sub-config is complex and/or contains other sub-configs) :
 
 ```yaml
 ---  # Start of a first document, without any tag, therefore within the main config's scope
@@ -384,23 +436,40 @@ flip_probability: 0
 batch_size: 2
 ```
 
-Those 3 options will result in the exact same behaviour ! Combining them will allow you to adapt your config to complex situations while keeping things clean.
+Notice how, in this last case, you do need to tag the document to indicate the name of the create sub-configs. This tag
+will create a sub-config and place all parameters in the document in this sub-config. You can see this as some sort of
+scope. 
 
-Now that we have seen how to declare configs and sub-configs, and how to load them into the code, let's wrap up this first part of our beginner tutorial with the printing, saving and reproducing of configs.
+Those 3 options will result in the exact same behaviour ! Combining them will allow you to adapt your config to complex
+situations while keeping things clean.
+
+Now that we have seen how to declare configs and sub-configs, and how to load them into the code, let's wrap up this
+first part of our beginner tutorial with the printing, saving and reproducing of configs.
 
 #### 4) Using, printing, saving, reproducing
 
-To wrap up this first part of our tutorial, let's go over four basic operations that you will need over the course of your experiments : accessing your parameters, printing your config details, saving your config and using it to reproduce an experiment.
+To wrap up this first part of our tutorial, let's go over four basic operations that you will need over the course of
+your experiments : accessing your parameters, printing your config details, saving your config and using it to reproduce
+an experiment.
 
 ##### Accessing params
 
-Accessing parameters can be done either using standard object operations (such as `config.param` or `getattr(config, "param"`) or dictionnary operations (such as `config["param"]` or `config.get("param")`). Actually, many dict methods are implemented for configs, such as `items`, `keys` or `values`. Nevertheless, `Configuration` does not inherit from `dict`, therefore we also provide the `get_dict` method in case you need your config to be a dict (for example to pass it to a third-party library which explicitly checks for a `dict` object).
+Accessing parameters can be done either using standard object operations (such as `config.param` or
+`getattr(config, "param"`) or dictionnary operations (such as `config["param"]` or `config.get("param")`). Actually,
+many dict methods are implemented for configs, such as `items`, `keys` or `values`. Nevertheless, `Configuration` does
+not inherit from `dict`, therefore we also provide the `get_dict` method in case you need your config to be a dict (for
+example to pass it to a third-party library which explicitly checks for a `dict` object).
 
 ##### Printing configs
 
-You can use `config.details()` to generate a string that describes your config. If you use `print(config.details())` with our previous config, here is what you get : TODO
+You can use `config.details()` to generate a string that describes your config. If you use `print(config.details())`
+with our previous config, here is what you get : TODO
 
-Let's discuss in more details the first thing displayed : the config hierarchy. It is a list of path and dicts which indicates the order in which different sources were used to create this config. The first one in the list is always the default config. It is also the only one in the list which is allowed to set new parameters. All the other sources in the list can only modify parameters which have been set by the default config. This list is quite practical to get a condensed gist of the idea behind your experiment. For example, if you read :
+Let's discuss in more details the first thing displayed : the config hierarchy. It is a list of path and dicts which
+indicates the order in which different sources were used to create this config. The first one in the list is always the
+default config. It is also the only one in the list which is allowed to set new parameters. All the other sources in the
+list can only modify parameters which have been set by the default config. This list is quite practical to get a
+condensed gist of the idea behind your experiment. For example, if you read :
 
 ```bash
 - configs/default.yaml
@@ -408,11 +477,17 @@ Let's discuss in more details the first thing displayed : the config hierarchy. 
 - {data.flip_probability: 0.5}
 ```
 
-... you might already be able to figure out most parameters, and also the intent behind the experiment, before having seen any of the parameters at all ! Here the experimenter simply wanted to do an overfitting experiment, and they activated the flip augmentation (perhaps using the command line interface) to see if this would affect the model's capability to overfit.
+... you might already be able to figure out most parameters, and also the intent behind the experiment, before having
+seen any of the parameters at all ! Here the experimenter simply wanted to do an overfitting experiment, and they
+activated the flip augmentation (perhaps using the command line interface) to see if this would affect the model's
+capability to overfit.
 
 ##### Saving configs
 
-Saving a config is as simple as calling `config.save("save_path.yaml")`. This will save two files : `path.yaml` which contains the full list of all parameters as well as some metadata, and `save_path_hierarchy.yaml` which contains the config hierarchy we talked about before. The latter is saved in a separate file for easy access because of how practical it is.
+Saving a config is as simple as calling `config.save("save_path.yaml")`. This will save two files : `path.yaml` which
+contains the full list of all parameters as well as some metadata, and `save_path_hierarchy.yaml` which contains the
+config hierarchy we talked about before. The latter is saved in a separate file for easy access because of how practical
+it is.
 
 ##### Reproducing experiments
 
@@ -423,15 +498,22 @@ reproduced_config = make_config("save_path.yaml",
                                 default_config="configs/default.yaml")
 ```
 
-The saved config will be used as an experiment config and overwrite the values of the default config with the values of the experiment to reproduce.
+The saved config will be used as an experiment config and overwrite the values of the default config with the values of
+the experiment to reproduce.
 
-The most certain way to achieve perfect reproducility regardless of the coding practices of the experimenter is to go back to the git commit where the experiment was performed and use the saved config file. However, by design YAECS makes it simpler to achieve perfect reproductibility *without* leaving your current branch. This requires additional rigor to be observed by the experimenter, which we summarise as a set of good practices which you can find here TODO.
+The most certain way to achieve perfect reproducility regardless of the coding practices of the experimenter is to go
+back to the git commit where the experiment was performed and use the saved config file. However, by design YAECS makes
+it simpler to achieve perfect reproductibility *without* leaving your current branch. This requires additional rigor to
+be observed by the experimenter, which we summarise as a set of good practices which you can find here TODO.
 
-This ends the first part of our tutorial, which aimed at teaching you the basics required to integrate YAECS in a small project and introduce you to its most fundamental features. As of now though, nothing distinguishes it from its alternatives like Hydra or YACS. If you want to know more, follow us into the second part of our tutorial : TODO
+This ends the first part of our tutorial, which aimed at teaching you the basics required to integrate YAECS in a small
+project and introduce you to its most fundamental features. As of now though, nothing distinguishes it from its
+alternatives like Hydra or YACS. If you want to know more, follow us into the second part of our tutorial : TODO
 
 ### Intermediate features for more scalability
 
-Now that you understand the basics of setting up config files for your projects and loading them, let us see how you can make your life easier with a few more very practical features.
+Now that you understand the basics of setting up config files for your projects and loading them, let us see how you can
+make your life easier with a few more very practical features.
 
 In this second "intermediate" part of this tutorial, we will :
 
@@ -444,7 +526,10 @@ Let us get started.
 
 #### 1) Sub-classing Configuration and using constructors
 
-For now, we have only created configs by passing a dict or a path to our convenient `make_config` utility function. But in most projects, this won't be the most flexible way to proceed. In any project that you intend to be working on for a while, we suggest you create your own subclass for the Configuration class. This is slightly more cumbersome, but also much more scalable and will keep your `main.py` cleaner. Let's create a new file, for example called `config.py`.
+For now, we have only created configs by passing a dict or a path to our convenient `make_config` utility function. But
+in most projects, this won't be the most flexible way to proceed. In any project that you intend to be working on for a
+while, we suggest you create your own subclass for the Configuration class. This is slightly more cumbersome, but also
+much more scalable and will keep your `main.py` cleaner. Let's create a new file, for example called `config.py`.
 
 ```markdown
 project_root
@@ -456,7 +541,8 @@ project_root
 └── ...
 ```
 
-This file should be seen as a part of your codebase and commited to the project's repository. To re-use the vocabulary introduced in section 0 (TODO), it is part of the support. In this file, let's create a basic sub-class.
+This file should be seen as a part of your codebase and commited to the project's repository. To re-use the vocabulary
+introduced in section 0 (TODO), it is part of the support. In this file, let's create a basic sub-class.
 
 ```python
 from yaecs import Configuration
@@ -473,11 +559,15 @@ class MyProjectConfig(Configuration):
         return {}
 ```
 
-Because the default config can also be seen as a part of the support (because there is one and only one default config per project and it should be the same for all users), it is required to hard-code it in the subclass definition. There should never be a use case for using a different default config than this one.
+Because the default config can also be seen as a part of the support (because there is one and only one default config
+per project and it should be the same for all users), it is required to hard-code it in the subclass definition. There
+should never be a use case for using a different default config than this one.
 
-The `parameters_pre_processing` and `parameters_post_processing` methods are not required, but they'll come in handy, though we'll leave them empty for now. You will learn more about them in a future section (TODO).
+The `parameters_pre_processing` and `parameters_post_processing` methods are not required, but they'll come in handy,
+though we'll leave them empty for now. You will learn more about them in a future section (TODO).
 
-Now that our subclass is ready, let's come back to our `main.py` and present its 3 constructors, starting with the simplest : `load_config`.
+Now that our subclass is ready, let's come back to our `main.py` and present its 3 constructors, starting with the
+simplest : `load_config`.
 
 ```python
 # import some stuff
@@ -493,17 +583,35 @@ if __name__ == "__main__":
     main(config)
 ```
 
-This constructor takes as argument one or several paths or dictionaries, and merges them one after the other into the default config. Then, it merges the command line arguments (TODO), and finally, it performs post-processing operations (TODO).  The default config path does not need to be specified because it is hardcoded into the subclass.
+This constructor takes as argument one or several paths or dictionaries, and merges them one after the other into the
+default config. Then, it merges the command line arguments (TODO), and finally, it performs post-processing operations
+(TODO).  The default config path does not need to be specified because it is hardcoded into the subclass.
 
-The fact that the default config path is not clearly written in the `main.py` can be seen as unclear. In particular, if a user unfamiliar with YAECS reviews the project, they might not expect the default values to be initialised based on a path hardcoded in a different file. To avoid this issue, you can choose to still pass the default config explicitly using the `default_config_path` keyword argument, or you can use the `build_from_configs` constructor.
+The fact that the default config path is not clearly written in the `main.py` can be seen as unclear. In particular, if
+a user unfamiliar with YAECS reviews the project, they might not expect the default values to be initialised based on a
+path hardcoded in a different file. To avoid this issue, you can choose to still pass the default config explicitly
+using the `default_config_path` keyword argument, or you can use the `build_from_configs` constructor.
 
-`build_from_configs` also expects one or several config paths or dictionaries as argument, but contrary to `load_config` it will not use the hard-coded default config, instead using the first provided path or dictionary as the default config. Otherwise, it behaves like `load_config`. Under the hood, this is what `make_config` uses : it generates a template sub-class and calls its `build_from_configs` constructor with its arguments. This is why `make_config` will also implicitly merge command line parameters (TODO) and perform post-processing (TODO).
+`build_from_configs` also expects one or several config paths or dictionaries as argument, but contrary to `load_config`
+it will not use the hard-coded default config, instead using the first provided path or dictionary as the default
+config. Otherwise, it behaves like `load_config`. Under the hood, this is what `make_config` uses : it generates a
+template sub-class and calls its `build_from_configs` constructor with its arguments. This is why `make_config` will
+also implicitly merge command line parameters (TODO) and perform post-processing (TODO).
 
-Finally, a most useful constructor is the `build_from_argv`. Its base usage is to call it without argument : `MyProjectConfig.build_from_argv()`. As its name implies, it expects to receive the config to merge from the command line interface. When using this constructor, the command will be parsed for a pattern of the form `--config path/to/config.yaml`, and the provided path will be used as experiment config. You can also provide several paths separated by comas : `--config path1,path2`.
+Finally, a most useful constructor is the `build_from_argv`. Its base usage is to call it without argument :
+`MyProjectConfig.build_from_argv()`. As its name implies, it expects to receive the config to merge from the command
+line interface. When using this constructor, the command will be parsed for a pattern of the form
+`--config path/to/config.yaml`, and the provided path will be used as experiment config. You can also provide several
+paths separated by comas : `--config path1,path2`.
 
-By default, `build_from_argv` will raise an error if no such pattern is detected. This is a safety measure against oversights. However, you can also configure a fallback to be used everytime the `config` flag is not set : `MyProjectConfig.build_from_argv(fallback="path/to/fallback/config.yaml")`.
+By default, `build_from_argv` will raise an error if no such pattern is detected. This is a safety measure against
+oversights. However, you can also configure a fallback to be used everytime the `config` flag is not set :
+`MyProjectConfig.build_from_argv(fallback="path/to/fallback/config.yaml")`.
 
-`build_from_argv` also accepts config paths or dictionaries as positional arguments. Those configs are merged into the default config first, followed by the one given in the command line, followed by the command line params (TODO). Those features make it the most convenient and flexible constructor to use in general, thus we will henceforth consider that your `main.py` looks like this :
+`build_from_argv` also accepts config paths or dictionaries as positional arguments. Those configs are merged into the
+default config first, followed by the one given in the command line, followed by the command line params (TODO). Those
+features make it the most convenient and flexible constructor to use in general, thus we will henceforth consider that
+your `main.py` looks like this :
 
 ```python
 # import some stuff
@@ -521,7 +629,9 @@ if __name__ == "__main__":
 
 #### 2) Using the command line interface
 
-In this section, you will learn to control your config from the command line interface (CLI). There are two aspects to this : modifying parameters from the CLI, and choosing your experiment config file from the CLI. We saw how to do the latter in the previous section already with the `build_from_argv` constructor (TODO), so here we focus on the former.
+In this section, you will learn to control your config from the command line interface (CLI). There are two aspects to
+this : modifying parameters from the CLI, and choosing your experiment config file from the CLI. We saw how to do the
+latter in the previous section already with the `build_from_argv` constructor (TODO), so here we focus on the former.
 
 Let's assume you usually start your python code using something like :
 
@@ -529,17 +639,27 @@ Let's assume you usually start your python code using something like :
 python main.py
 ```
 
-If your config is a YAECS config, then any parameter you pass as an argument to your script will be merged at the end of the config creation, if it corresponds to a parameter. Continuing with the example from the previous tutorial section, here's what you would do to start a new experiment, still with our overfit experiment config but this time with some flip probability.
+If your config is a YAECS config, then any parameter you pass as an argument to your script will be merged at the end of
+the config creation, if it corresponds to a parameter. Continuing with the example from the previous tutorial section,
+here's what you would do to start a new experiment, still with our overfit experiment config but this time with some
+flip probability.
 
 ```bash
 python main.py --experiment_path logs/overfit_with_flip --data.flip_probability 0.5
 ```
 
-Here we of course change the name of the experiment, and then also our flip probability. The YAECS parser is quite flexible, and supports expressions such as `--name value`, `--name=value`, the "\*" wildcard in a param name to match several params at once (although in shells it needs to be escaped) and of course the dot-convention to access params of sub-configs.
+Here we of course change the name of the experiment, and then also our flip probability. The YAECS parser is quite
+flexible, and supports expressions such as `--name value`, `--name=value`, the "\*" wildcard in a param name to match
+several params at once (although in shells it needs to be escaped) and of course the dot-convention to access params of
+sub-configs.
 
-Most of the time, changing parameters from the CLI is just that simple. It only gets a bit more tricky if you want to change the type of a parameter (ie. replace a param that was a float with a string for instance), or replace entire lists or dicts from the CLI. For those operations, please refer to our dedicated section : TODO.
+Most of the time, changing parameters from the CLI is just that simple. It only gets a bit more tricky if you want to
+change the type of a parameter (ie. replace a param that was a float with a string for instance), or replace entire
+lists or dicts from the CLI. For those operations, please refer to our dedicated section : TODO.
 
-*Note :* if you want to replace a param with the boolean value `True`, you don't need to write it explicitly. If you don't provide a new value, the CLI parser will assume you want to set the parameter to `True`. For example, to perform the test in our earlier example :
+*Note :* if you want to replace a param with the boolean value `True`, you don't need to write it explicitly. If you
+don't provide a new value, the CLI parser will assume you want to set the parameter to `True`. For example, to perform
+the test in our earlier example :
 
 ```bash
 python main.py --do_test
@@ -547,19 +667,34 @@ python main.py --do_test
 
 #### 3) Parameter processing is awesome
 
-Here we present what we believe to be one of YAECS' main improvement over its competitors : parameters processing.  The idea is quite simple : most of the time, it is really useful to be able to perform some kind of processing on your parameters before using them, and it only makes sense that these operations should be performed by the config system. Here is why. The config should be prepared such that the code can access it in a simple, reliable and well-organised well. But at the same time, the config should be prepared by a human in a clear interface using the YAML language. In many cases, those two conditions do not fully align, and therefore it makes sense that the config system should be tasked with translating the config as seen by the human operator into the config as used by the code.
+Here we present what we believe to be one of YAECS' main improvement over its competitors : parameters processing.  The
+idea is quite simple : most of the time, it is really useful to be able to perform some kind of processing on your
+parameters before using them, and it only makes sense that these operations should be performed by the config system.
+Here is why. The config should be prepared such that the code can access it in a simple, reliable and well-organised
+well. But at the same time, the config should be prepared by a human in a clear interface using the YAML language. In
+many cases, those two conditions do not fully align, and therefore it makes sense that the config system should be
+tasked with translating the config as seen by the human operator into the config as used by the code.
 
 Here are a few example use cases :
 
 - if you want to check the value of a param for safety (see `check` in example below)
-- if you want to convert a param to another format (degrees to radians, human-readable to machine-readable etc.) (see `convert`)
+- if you want to convert a param to another format (degrees to radians, human-readable to machine-readable etc.)
+(see `convert`)
 - if you want to use the info in your YAML-supported values to create custom objects (see `instanciate`)
 - if you want to control how the config is created via parameters in the config itself (see next section TODO)
-- if you want to prepare or initialise stuff based on the content of the config (for example by creating folders for your logs) (see `register_as_experiment_path`)
+- if you want to prepare or initialise stuff based on the content of the config (for example by creating folders for
+your logs) (see `register_as_experiment_path`)
 
-All these use cases are covered by either using parameters **pre-processing**, or parameters **post-processing**. In this part, we won't go in too much details about the difference between those. Instead, we'll simply provide a few examples, to make things clearer. We perform a deeper dive into this mecanism here (TODO).
+All these use cases are covered by either using parameters **pre-processing**, or parameters **post-processing**. In
+this part, we won't go in too much details about the difference between those. Instead, we'll simply provide a few
+examples, to make things clearer. We perform a deeper dive into this mecanism here (TODO).
 
-Processing is very simple : all you have to do is associate the names of your parameters with functions. Those functions are required to accept exactly one argument (the previous value of the param), and return exactly one value (the processed value of the param). Then, during the config creation operations, the specified function will be used when the specified name is encountered. This mapping between name and function is configured using the dictionary returned by the `parameters_pre_processing` and `parameters_post_processing` methods in your subclass. Here is an example modified config.py to implement the above-mentioned processing functions :
+Processing is very simple : all you have to do is associate the names of your parameters with functions. Those functions
+are required to accept exactly one argument (the previous value of the param), and return exactly one value (the
+processed value of the param). Then, during the config creation operations, the specified function will be used when the
+specified name is encountered. This mapping between name and function is configured using the dictionary returned by the
+`parameters_pre_processing` and `parameters_post_processing` methods in your subclass. Here is an example modified
+config.py to implement the above-mentioned processing functions :
 
 ```python
 from pathlib import Path
@@ -595,38 +730,69 @@ class MyProjectConfig(Configuration):
         }
 ```
 
-As you can see, processing is a flexible feature that can enable very complex behaviours depending on your needs. Use the provided library of pre-built processing functions TODO, or build your own ! 
+As you can see, processing is a flexible feature that can enable very complex behaviours depending on your needs. Use
+the provided library of pre-built processing functions TODO, or build your own ! 
 
 #### 4) Our proposed workflow to use YAECS efficiently
 
-As an experimenter, your goal should be to easily start any experiment you want and enrich your code with new innovative features without losing reproducibility for older experiments. In this section, we propose a workflow that satisfies these conditions and address some common issues and concerns.
+As an experimenter, your goal should be to easily start any experiment you want and enrich your code with new innovative
+features without losing reproducibility for older experiments. In this section, we propose a workflow that satisfies
+these conditions and address some common issues and concerns.
 
-**STEP 1 : Preparing your project.** At the start of your project, you want to populate a basic default config with parameters you think you might need. After one or two projects, you will probably have a template or strongly established habits to help you do that. Those parameters include for example learning rates, numbers of epochs, batch sizes, data processing parameters, a path where to save your experiment results etc.. Sometimes, you might use existing research code as a basis for your work. In this case, if said codebase does not have a config, you can simply browse the code and extract all values from it to the config.
+**STEP 1 : Preparing your project.** At the start of your project, you want to populate a basic default config with
+parameters you think you might need. After one or two projects, you will probably have a template or strongly
+established habits to help you do that. Those parameters include for example learning rates, numbers of epochs, batch
+sizes, data processing parameters, a path where to save your experiment results etc.. Sometimes, you might use existing
+research code as a basis for your work. In this case, if said codebase does not have a config, you can simply browse the
+code and extract all values from it to the config.
 
-**STEP 2 : Starting an experiment.** To start your first experiment, you might have an idea of something you'd like to try. Often, this might be for example reproducing the results of a paper. To do this, prepare an experiment config file that reproduces the values you want to use, then use this file as your experiment config (for example by using build_from_argv and calling your code with the `--config` flag TODO).
+**STEP 2 : Starting an experiment.** To start your first experiment, you might have an idea of something you'd like to
+try. Often, this might be for example reproducing the results of a paper. To do this, prepare an experiment config file
+that reproduces the values you want to use, then use this file as your experiment config (for example by using
+`build_from_argv` and calling your code with the `--config` flag TODO).
 
-**STEP 3 : Improvising from there.** Very often, an idea sparking an experiment doesn't work right from the start. You might need to tweak the learning rate, or train slightly longer. We find that, instead of creating a new YAML file for each small change or changing your experiment configs, it is easier and better practice to make those changes from the CLI TODO. So long as your experiment does not deviate from the experiment config file, it makes sense to iteratively tweak things from the CLI. This encourages experiment config files to actually take the role of configuring not experiments but *series* of experiments. Therefore : 
+**STEP 3 : Improvising from there.** Very often, an idea sparking an experiment doesn't work right from the start. You
+might need to tweak the learning rate, or train slightly longer. We find that, instead of creating a new YAML file for
+each small change or changing your experiment configs, it is easier and better practice to make those changes from the
+CLI TODO. So long as your experiment does not deviate from the experiment config file, it makes sense to iteratively
+tweak things from the CLI. This encourages experiment config files to actually take the role of configuring not
+experiments but *series* of experiments. Therefore : 
 - the default config contains the information relative to the project
 - the experiment config contains the information relative to the series of experiment
 - the CLI contains the information relative to a specific iteration
 
-**STEP 4 : Adding features and parameters.** It is naive to think you can build your code once and then find the best solution simply by interacting with the config. You will always need to make changes to the code, to solve bugs, add features and refactor. It is however possible, by being rigorous, to ensure perfect *forward reproducibility*. Forward reproducibility means that at any point during development, you can still load old saved configs from past experiments and they will be perfectly reproduced. To achieve this, you should apply the following rules :
+**STEP 4 : Adding features and parameters.** It is naive to think you can build your code once and then find the best
+solution simply by interacting with the config. You will always need to make changes to the code, to solve bugs, add
+features and refactor. It is however possible, by being rigorous, to ensure perfect *forward reproducibility*. Forward
+reproducibility means that at any point during development, you can still load old saved configs from past experiments
+and they will be perfectly reproduced. To achieve this, you should apply the following rules :
 - never rename a parameter or change its default value : always change values from experiment configs ;
-- when adding a new feature controled by a new parameter, always make sure that the default value disactivates the new feature. For example, if you want to add a new data augmentation function, the new parameter "use_new_augmentation" should be False by default ;
-- if you change your post-processing functions TODO, make sure that they still have the same behaviour for values used previously for your parameters.
+- when adding a new feature controled by a new parameter, always make sure that the default value disactivates the new
+feature. For example, if you want to add a new data augmentation function, the new parameter "use_new_augmentation"
+should be False by default ;
+- if you change your post-processing functions TODO, make sure that they still have the same behaviour for values used
+previously for your parameters.
 
-For a while, following these rules might be simple. For long projects however, maintaining full forward reproducibility might be challenging. In our advanced tips for larger projects TODO, we provide more advice to scale up to massive projects.
+For a while, following these rules might be simple. For long projects however, maintaining full forward reproducibility
+might be challenging. In our advanced tips for larger projects TODO, we provide more advice to scale up to massive
+projects.
 
 
 #### 5) Splitting a config across multiple files
 
-To wrap up with our intermediate features, we would like to present how to split a config across multiple files. This is useful to organise large configs containing hundreds of parameters, which can make your config file really long. Usually, we recommend splitting across a config across 4 files :
-- a base file that contains the most general parameters (debug mode, is the experiment a training, a test or an inference, path to the experiment results, cpu/gpu etc.) ;
+To wrap up with our intermediate features, we would like to present how to split a config across multiple files. This is
+useful to organise large configs containing hundreds of parameters, which can make your config file really long.
+Usually, we recommend splitting across a config across 4 files :
+- a base file that contains the most general parameters (debug mode, is the experiment a training, a test or an
+inference, path to the experiment results, cpu/gpu etc.) ;
 - a file for data-related parameters (data paths, sample descriptions, processing parameters etc.) ;
 - a file for model-related parameters (architecture, layers, normalisation etc.) ;
-- a file for run-related parameters (training params such as epochs, optimiser or batch sizes ; validation params ; inference parms).
+- a file for run-related parameters (training params such as epochs, optimiser or batch sizes ; validation params ;
+inference parms).
 
-Generally speaking, to build a config you only give your Configuration object one path. Therefore, how can you let your config system know where to look for other files for other parameters ? The answer lie in a feature we've already seen : parameters processing :). Let us assume the 4 following configs :
+Generally speaking, to build a config you only give your Configuration object one path. Therefore, how can you let your
+config system know where to look for other files for other parameters ? The answer lie in a feature we've already seen :
+parameters processing :). Let us assume the 4 following configs :
 
 ```
 project_root
@@ -671,7 +837,7 @@ normalisation: BatchNorm
 ```yaml
 ---  # Run file (configs/default/run.yaml)
 
-train: !train
+train:
     batch_size: 8
     epochs: 100
     ...
@@ -680,7 +846,10 @@ test.batch_size: 32
 infer.batch_size: 1
 ```
 
-You might have noticed that the base file - ie. the file we will give to the config system - contains paths to the other files. All we need to do is tell the config system that those are not just any parameter : they are actually paths that the config system should use to find the rest of the config. To do this, you can simply assign them the `register_as_additional_config_file` pre-processing function, for example like this :
+You might have noticed that the base file - ie. the file we will give to the config system - contains paths to the other
+files. All we need to do is tell the config system that those are not just any parameter : they are actually paths that
+the config system should use to find the rest of the config. To do this, you can simply assign them the
+`register_as_additional_config_file` pre-processing function, for example like this :
 ```python
 from yaecs import Configuration
 
@@ -697,13 +866,16 @@ class MyProjectConfig(Configuration):
     def parameters_post_processing(self):
         return {}
 ```
-And there you go ! Now all parameters that end with `_config_file` will be recognised as you trying to add the corresponding paths to the config.
+And there you go ! Now all parameters that end with `_config_file` will be recognised as you trying to add the
+corresponding paths to the config.
 
-This ends the Intermediate section of our tutorial. By now, you already know most of what you need to work efficiently with YAECS. To become a real pro, there is only one section left !
+This ends the Intermediate section of our tutorial. By now, you already know most of what you need to work efficiently
+with YAECS. To become a real pro, there is only one section left !
 
 ### Advanced tips for larger projects
 
-Now that you might feel better acquainted with the core features of YAECS we can give you more details about a couple of very nice features which can save you a lot of time in certain particular situations.
+Now that you might feel better acquainted with the core features of YAECS we can give you more details about a couple of
+very nice features which can save you a lot of time in certain particular situations.
 
 In this third "advanced" part we will :
 
@@ -1190,7 +1362,7 @@ def parameters_pre_processing(self):
 This way, any param ending with “_config_path” anywhere in the config would be
 interpreted as a path to a new config file.
 
-### Defining nested configs
+### Defining nested configs (DEPRECATED)
 
 Another desirable property of our configuration is the ability to nest
 configurations inside other configurations. Reusing the example of section 2.
