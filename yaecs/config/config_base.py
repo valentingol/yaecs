@@ -31,8 +31,8 @@ import yaml
 
 from ..yaecs_utils import (YAML_EXPRESSIONS,
                            ConfigDeclarator, TypeHint,
-                           adapt_to_type, compare_string_pattern, compose, format_str, get_order, is_type_valid,
-                           parse_type, recursive_set_attribute, set_function_attribute, update_state)
+                           compare_string_pattern, compose, format_str, get_order, is_type_valid, parse_type, recursive_set_attribute,
+                           set_function_attribute, update_state)
 from .config_convenience import ConfigConvenienceMixin
 from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
@@ -729,32 +729,25 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 for parameter in self.get_parameter_names(deep=True):
                     if compare_string_pattern(parameter, pattern):
                         in_param.append(parameter)
-                        to_merge[parameter] = [self[parameter], value, None]
+                        to_merge[parameter] = value
                 if not in_param:
                     un_matched_params.append(pattern)
             elif element.startswith("--"):
                 in_param = []
                 found_config_path = True
-            elif in_param and to_merge[in_param[0]][1] is None:
+            elif in_param and to_merge[in_param[0]] is None:
                 for parameter in in_param:
-                    to_merge[parameter][1] = element
-            elif in_param and element[0] == "!":
-                if element[1:] in ["int", "float", "str", "bool", "list", "dict"]:
-                    for parameter in in_param:
-                        to_merge[parameter][2] = element[1:]
-                    in_param = []
-                else:
-                    raise TypeError(f"Unknown type '{element[1:]}', should be in [int, float, str, bool, list, dict].")
+                    to_merge[parameter] = element
             elif in_param:
                 for parameter in in_param:
-                    to_merge[parameter][1] += f" {element}"
+                    to_merge[parameter] = f"{to_merge[parameter]} {element}"
 
         if un_matched_params and self._verbose:
             YAECS_LOGGER.warning(f"WARNING : parameters {un_matched_params}, encountered while merging params from the "
                                  f"command line, do not match any param in the config. They will not be merged.")
 
         # Infer types, then return
-        return {key: adapt_to_type(val[0], val[1], val[2], key) for key, val in to_merge.items()}
+        return {key: yaml.safe_load("true" if val is None else val) for key, val in to_merge.items()}
 
     def _post_process_modified_parameters(self) -> None:
         """ This method is called at the end of a config creation or merging operation. It applies post-processing to
