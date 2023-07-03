@@ -218,6 +218,41 @@ def get_config_from_argv(pattern: str, fallback: Optional[ConfigInput] = None) -
     return fallback
 
 
+def get_quasi_bash_sys_argv(string_to_convert: str) -> List[str]:
+    """
+    If a string is passed as input, process it as sys.argv would in a bash shell
+    It gives exactly what sys.argv would if the script was used in a bash terminal, except that escaped '!' in quotes
+    are properly escaped and the escape symbol is removed, contrary to bash (which would keep the escape for some
+    obscure reason).
+
+    :param string_to_convert: string to process
+    :return: the list of strings that sys.argv would give
+    """
+    converted_list = [""]
+    in_quotes = ""
+    escaped = False
+    for index, char in enumerate(string_to_convert):
+        if char == "\\" and not escaped and (not in_quotes or string_to_convert[index+1] == "!"):
+            escaped = True
+        elif char in ['"', "'"] and not escaped:
+            if not in_quotes:
+                in_quotes = char
+            elif in_quotes == char:
+                in_quotes = ""
+            else:
+                converted_list[-1] += char
+        elif char == " " and not in_quotes and converted_list[-1] and not escaped:
+            converted_list.append("")
+        elif char == "!" and not escaped:
+            raise ValueError("Bash would say 'event not found', please escape the '!' character.")
+        else:
+            escaped = False
+            converted_list[-1] += char
+    if in_quotes:
+        raise ValueError(f"Could not parse args : open quotations were left unclosed : {in_quotes}.")
+    return converted_list
+
+
 def get_order(func: Callable) -> Union[Real, 'Priority']:
     """
     If input function has an "order" attribute, returns it. Otherwise, returns Priority.INDIFFERENT.
@@ -230,30 +265,31 @@ def get_order(func: Callable) -> Union[Real, 'Priority']:
 
 def get_param_as_parsable_string(param: Any) -> str:
     """
-    Gets given value as a string that can be parsed by the Configuration.
+    Gets given value as a string that can be parsed by the Configuration. The string is formatted so as to be either
+    used as is in a bash shell (ie., python main.py --param_name string), or with merge_from_command_line (ie.,
+    config.merge_from_command_line(f"--param_name {string}")
 
     :param param: parameter value to be returned as a valid string
-    :param in_iterable: used only for bookkeeping in recursive calls
-    :param ignore_unknown_types: how to treat types that cannot be parsed by the Configuration
     :raises TypeError: if the type of 'param' cannot be enforced
     :return: string usable in the command line to reproduce the value of param
     """
+    container_separator = ",\\ "
     if param is None:
         return "null"
     if isinstance(param, list):
         parsable_strings = [get_param_as_parsable_string(i) for i in param]
-        return f"[{','.join(parsable_strings)}]"
+        return f"[{container_separator.join(parsable_strings)}]"
     if isinstance(param, dict):
-        parsable_strings = [f"{key}:{get_param_as_parsable_string(value)}" for key, value in param.items()]
-        return "{" + ",".join(parsable_strings) + "}"
+        parsable_strings = [f"{key}:\\ {get_param_as_parsable_string(value)}" for key, value in param.items()]
+        return "{" + container_separator.join(parsable_strings) + "}"
     if isinstance(param, (int, float)) and not isinstance(param, bool):
         return format(Context(prec=20).create_decimal(repr(param)), 'f')
-    elif isinstance(param, str):
-        return f"\"{param}\""
-    elif isinstance(param, bool):
+    if isinstance(param, str):
+        string = escape_symbols(param, ['"', "'", "!", " "])
+        return escape_symbols(f'"{string}"', ['"'])
+    if isinstance(param, bool):
         return str(param).lower()
-    else:
-        raise TypeError(f"Provided value's type is not YAML-compatible (None, str, bool, int, float, list and dict work).")
+    raise TypeError("Provided value's type is not YAML-compatible (None, str, bool, int, float, list and dict work).")
 
 
 def hook(hook_name: str) -> Callable[[Callable], Callable]:

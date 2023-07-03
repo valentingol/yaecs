@@ -19,7 +19,7 @@ Copyright (C) 2022  Reactive Reality
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
-from ..yaecs_utils import TypeHint, escape_symbols, get_param_as_parsable_string
+from ..yaecs_utils import TypeHint, get_param_as_parsable_string
 
 if TYPE_CHECKING:
     from .config import Configuration
@@ -88,34 +88,24 @@ class ConfigGettersMixin:
             return list(self._sub_configs_list)
         return self._main_config.get_all_sub_configs()
 
-    def get_command_line_argument(self, deep: bool = True, do_return_string: bool = False,
-                                  ignore_unknown_types: bool = False,
-                                  ) -> Union[List[str], str]:
+    def get_command_line_argument(self, deep: bool = True, do_return_string: bool = False) -> Union[List[str], str]:
         """
         Returns a list of command line parameters that can be used in a bash shell to re-create this exact config
         from the default. Can alternatively return the string itself with do_return_string=True.
 
         :param deep: whether to also take the sub-config parameters into account
         :param do_return_string: whether to return a string (True) or a list of strings (False, default)
-        :param ignore_unknown_types: if False (default), types that cannot be parsed in YAML raise an error. Else, they
-            are skipped when creating the list.
         :return: list or string containing the parameters
         """
         to_return = []
         for param in self.get_parameter_names(deep=deep):
             if not isinstance(self[param], ConfigGettersMixin):
                 full_name = self._get_full_path(param)
-                pair = get_param_as_parsable_string(
+                value = get_param_as_parsable_string(
                     self[param] if full_name not in self.get_main_config().get_pre_post_processing_values() else
                     self.get_main_config().get_pre_post_processing_values()[full_name],
-                    ignore_unknown_types=ignore_unknown_types,
                 )
-                if pair.count(" !"):
-                    pair_as_list = pair.split(" !")
-                    param_value, param_force = (" !".join(pair_as_list[:-1]), pair_as_list[-1],)
-                    to_return.append(escape_symbols(f"--{param} '{param_value}' \\!{param_force}", ["{", "}", "*"]))
-                else:
-                    to_return.append(escape_symbols(f"--{param} {pair}", ["{", "}", "*"]))
+                to_return.append(f"--{param} {value}")
 
         return " ".join(to_return) if do_return_string else to_return
 
