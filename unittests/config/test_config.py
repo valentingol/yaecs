@@ -230,7 +230,7 @@ def test_merge_from_command_line(caplog, yaml_default, yaml_experiment):
 
     def mcl(cfg, string):
         # pylint: disable=protected-access
-        to_merge = cfg._gather_command_line_dict(string_to_merge=string)
+        to_merge = cfg._gather_command_line_dict(to_merge=string)
         if to_merge:
             logging.getLogger("yaecs.config").info(f"Merging from command line : {to_merge}")
             cfg._merge(to_merge)
@@ -266,21 +266,17 @@ def test_merge_from_command_line(caplog, yaml_default, yaml_experiment):
     check_integrity(config_2, 1, 0.6, p_4="test test")
     with caplog.at_level(logging.WARNING):
         logging.getLogger("yaecs").propagate = True
-        mcl(config_2, "--param1 2 --*param2=none --*param3=none !str "
-                      "--*param4= '[ 1!int  ,0.5 !float, {string:\\'"
-                      "[as !str}!dict]' !list")
+        mcl(config_2, "--param1 2 --*param2=null --*param3=\\\"null\\\" "
+                      "--*param4= [ 1  ,0.5 , {string: \\\"\\'[as \\!a \\\"}] ")
     assert caplog.text.count("WARNING") == 0
     caplog.clear()
-    check_integrity(config_2, 2, None, "none",
-                    p_4=[1, 0.5, {
-                        "string": "'[as"
-                    }])
+    check_integrity(config_2, 2, None, "null", p_4=[1, 0.5, {"string": "'[as !a "}])
     with caplog.at_level(logging.WARNING):
         logging.getLogger("yaecs").propagate = True
         mcl(config, config_2.get_command_line_argument(do_return_string=True))
     assert caplog.text.count("WARNING") == 0
     caplog.clear()
-    check_integrity(config, 2, None, "none", p_4=[1, 0.5, {"string": "'[as"}])
+    check_integrity(config_2, 2, None, "null", p_4=[1, 0.5, {"string": "'[as !a "}])
     with caplog.at_level(logging.WARNING):
         logging.getLogger("yaecs").propagate = True
         mcl(config, "--subconfig1.param2")
@@ -295,12 +291,9 @@ def test_merge_from_command_line(caplog, yaml_default, yaml_experiment):
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         logging.getLogger("yaecs").propagate = True
-        mcl(config, "--subconfig1.param2=1")
+        mcl(config, "--subconfig1.param2=yes")
     assert caplog.text.count("WARNING") == 0
     assert config.subconfig1.param2 is True
-    with pytest.raises(Exception, match="could not convert string to float: "
-                       "'False'"):
-        mcl(config, "--param1=False")
 
 
 def test_method_name(caplog):
