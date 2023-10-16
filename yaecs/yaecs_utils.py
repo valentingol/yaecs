@@ -15,6 +15,7 @@ Copyright (C) 2022  Reactive Reality
     You should have received a copy of the GNU Lesser General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from decimal import Context
 import functools
 import importlib.util
 import io
@@ -35,175 +36,6 @@ ConfigInput = Union[List[ConfigDeclarator], ConfigDeclarator]
 Hooks = Union[Dict[str, List[str]], List[str]]
 TypeHint = Union[type, tuple, list, dict, set, int]
 VariationDeclarator = Union[List[ConfigDeclarator], Dict[str, ConfigDeclarator]]
-
-
-def adapt_to_type(previous_value: Any, value_to_adapt: str, force: str, param: str) -> Any:
-    """
-    Uses the previous value (more specifically, its type) of a parameter
-    to parse a string containing its new value. Takes into account
-    attempts from the user to force the new value to take a new type.
-
-    :param previous_value: previous value taken by the parameter
-    :param value_to_adapt: string corresponding to the new value of the
-        parameter
-    :param force: previously-detected type-forcing tag
-    :param param: name of the param for error logging
-    :raises TypeError: if the new value type cannot be adapted
-    :raises ValueError: the boolean value cannot be interpreted
-    :return: new value for the param
-    """
-
-    def _parse_scalar(raw_string, force_):
-        if force_ is None:
-            for forced_type in ["int", "float", "str", "bool", "list", "dict"]:
-                if raw_string.endswith(f"!{forced_type}") and raw_string[raw_string.rindex("!") - 1] != "\\":
-                    force_ = forced_type
-                    raw_string = raw_string[:-1 - len(forced_type)]
-        raw_string.lstrip(" ")
-        while raw_string[-1] == " " and raw_string[-2] != "\\":
-            raw_string = raw_string[:-1]
-        to_return = ""
-        esc = False
-        for character in raw_string:
-            if esc or character != "\\":
-                esc = False
-                to_return += character
-            else:
-                esc = True
-        return raw_string, force_
-
-    def _parse_container(container_string):
-        new_list = [""]
-        in_brackets = []
-        esc = False
-        for character in container_string:
-            if esc:
-                esc = False
-                if character == " ":
-                    new_list[-1] += "\\" + character
-                else:
-                    new_list[-1] += character
-            else:
-                if character == "\\":
-                    esc = True
-                elif character == "," and not in_brackets:
-                    new_list.append("")
-                elif character != " " or new_list[-1]:
-                    new_list[-1] += character
-                    if character in ["[", "{"]:
-                        in_brackets.append(character)
-                    if character == "]" and in_brackets[-1] == "[":
-                        in_brackets.pop(-1)
-                    if character == "}" and in_brackets[-1] == "{":
-                        in_brackets.pop(-1)
-        for i in range(len(new_list)):  # pylint: disable=consider-using-enumerate
-            while new_list[i][-1] == " " and new_list[i][-2] != "\\":
-                new_list[i] = new_list[i][:-1]
-            new_list[i] = new_list[i].replace("\\ ", " ")
-            forced = False
-            for forced_type in ["int", "float", "str", "bool", "list", "dict"]:
-                if (not forced and new_list[i].endswith(f"!{forced_type}")
-                        and new_list[i][-2 - len(forced_type)] != "\\"):
-                    forced = True
-                    new_list[i] = [new_list[i][:new_list[i].rindex("!")], forced_type]
-                    while new_list[i][0][-1] == " " and new_list[0][-2] != "\\":
-                        new_list[i][0] = new_list[i][0][:-1]
-            if not forced:
-                new_list[i] = [new_list[i], None]
-        return new_list
-
-    if value_to_adapt is None:
-        return True
-
-    if value_to_adapt.lower() in ["none", "null"] and force is None:
-        return None
-
-    scalar_parsed, force = _parse_scalar(value_to_adapt, force)
-
-    if previous_value is None and force is None:
-        if scalar_parsed.lower() not in ["none", "null"]:
-            raise TypeError(f"Type of param '{param}' cannot be inferred because its "
-                            "previous value was None.\n. To overwrite None values from "
-                            "command line, please force their type :\n\nExample : \t\t "
-                            "python main.py --none_param=0.001 !float")
-        return None
-
-    if (isinstance(previous_value, str) and force is None) or force == "str":
-        return scalar_parsed
-
-    if (isinstance(previous_value, list) and force is None) or force == "list":
-        if value_to_adapt[0] == "[" and value_to_adapt[-1] == "]":
-            value_to_adapt = value_to_adapt[1:-1]
-        value_to_adapt = (_parse_container(value_to_adapt) if value_to_adapt else [])
-        if isinstance(previous_value, list):
-            if all(isinstance(i, type(previous_value[-1])) for i in previous_value[:-1]):
-                return [adapt_to_type(previous_value[0], v[0], v[1], param) for v in value_to_adapt]
-            if len(previous_value) == len(value_to_adapt):
-                return [
-                    adapt_to_type(previous_value[index], value_to_adapt[index][0], value_to_adapt[index][1], param,
-                                  ) for index in range(len(value_to_adapt))
-                ]
-            if all(v[1] is not None or v[0].lower() in ["none", "null"] for v in value_to_adapt):
-                return [adapt_to_type(None, v[0], v[1], param) for v in value_to_adapt]
-            raise TypeError(f"New value for list in '{param}' is inconsistent with "
-                            f"old value '{previous_value}'. If the new value is "
-                            "correct, please force the type of the elements in the "
-                            "list so type inference can be done.")
-        if all(v[1] is not None or v[0].lower() in ["none", "null"] for v in value_to_adapt):
-            return [adapt_to_type(None, v[0], v[1], param) for v in value_to_adapt]
-        raise TypeError(f"Since the previous value for '{param}' was not a list, none of "
-                        "its items' values can be inferred. Please force the type of all "
-                        "elements in the new value's list.")
-
-    if (isinstance(previous_value, dict) and force is None) or force == "dict":
-        if value_to_adapt[0] == "{" and value_to_adapt[-1] == "}":
-            value_to_adapt = value_to_adapt[1:-1]
-        value_to_adapt = (_parse_container(value_to_adapt) if value_to_adapt else [])
-        if any(value_to_adapt):
-            value_to_adapt = {v[0].split(":", 1)[0]: (v[0].split(":", 1)[1], v[1]) for v in value_to_adapt}
-        else:
-            value_to_adapt = {}
-        if isinstance(previous_value, dict):
-            if all(key in previous_value or value_to_adapt[key][1] is not None
-                   or value_to_adapt[key][0].lstrip(" ").lower() in ["none", "null"] for key in value_to_adapt):
-                return {
-                    k.rstrip(" "): adapt_to_type(previous_value.get(k, None), v[0].lstrip(" "), v[1], param,
-                                                 )
-                    for k, v in value_to_adapt.items()
-                }
-            raise TypeError(f"New value for dict in '{param}' is inconsistent with old "
-                            f"value '{previous_value}'. If the new value is correct, "
-                            "please force the type of the new elements in the dict so "
-                            "type inference can be done.")
-        if all(value_to_adapt[key][1] is not None or value_to_adapt[key][0].lstrip(" ").lower() in ["none", "null"]
-               for key in value_to_adapt):
-            return {
-                k.rstrip(" "): adapt_to_type(None, v[0].lstrip(" "), v[1], param)
-                for k, v in value_to_adapt.items()
-            }
-        raise TypeError(f"Since the previous value for '{param}' was not a dict, "
-                        "none of its keys' values can be inferred. Please force the "
-                        "type of all elements in the new value's dict.")
-
-    if (isinstance(previous_value, int) and not isinstance(previous_value, bool) and force is None) or force == "int":
-        try:
-            parsed = int(scalar_parsed)
-        except ValueError:
-            parsed = float(scalar_parsed)
-        return int(parsed) if force == "int" else parsed
-
-    if (isinstance(previous_value, float) and force is None) or force == "float":
-        return float(scalar_parsed)
-
-    if (isinstance(previous_value, bool) and force is None) or force == "bool":
-        if scalar_parsed.strip(" ").lower() in ["y", "yes", "true", "1"]:
-            return True
-        if scalar_parsed.strip(" ").lower() in ["n", "no", "false", "0"]:
-            return False
-        raise ValueError("Boolean parameters can only be replaced with (non case sensitive)"
-                         " : \n"
-                         "- to get a True value : y, yes, true, 1\n"
-                         "- to get a False value : n, no, false, 0")
 
 
 def add_to_csv(csv_path: str, name: str, value: Any, step: int) -> None:
@@ -386,6 +218,41 @@ def get_config_from_argv(pattern: str, fallback: Optional[ConfigInput] = None) -
     return fallback
 
 
+def get_quasi_bash_sys_argv(string_to_convert: str) -> List[str]:
+    """
+    If a string is passed as input, process it as sys.argv would in a bash shell
+    It gives exactly what sys.argv would if the script was used in a bash terminal, except that escaped '!' in quotes
+    are properly escaped and the escape symbol is removed, contrary to bash (which would keep the escape for some
+    obscure reason).
+
+    :param string_to_convert: string to process
+    :return: the list of strings that sys.argv would give
+    """
+    converted_list = [""]
+    in_quotes = ""
+    escaped = False
+    for index, char in enumerate(string_to_convert):
+        if char == "\\" and not escaped and (not in_quotes or string_to_convert[index+1] == "!"):
+            escaped = True
+        elif char in ['"', "'"] and not escaped:
+            if not in_quotes:
+                in_quotes = char
+            elif in_quotes == char:
+                in_quotes = ""
+            else:
+                converted_list[-1] += char
+        elif char == " " and not in_quotes and converted_list[-1] and not escaped:
+            converted_list.append("")
+        elif char == "!" and not escaped:
+            raise ValueError("Bash would say 'event not found', please escape the '!' character.")
+        else:
+            escaped = False
+            converted_list[-1] += char
+    if in_quotes:
+        raise ValueError(f"Could not parse args : open quotations were left unclosed : {in_quotes}.")
+    return converted_list
+
+
 def get_order(func: Callable) -> Union[Real, 'Priority']:
     """
     If input function has an "order" attribute, returns it. Otherwise, returns Priority.INDIFFERENT.
@@ -396,49 +263,33 @@ def get_order(func: Callable) -> Union[Real, 'Priority']:
     return getattr(func, "order", Priority.INDIFFERENT)
 
 
-def get_param_as_parsable_string(param: Any, in_iterable: bool = False, ignore_unknown_types: bool = False) -> str:
+def get_param_as_parsable_string(param: Any) -> str:
     """
-    Gets given value as a string that can be parsed by
-    the Configuration.
+    Gets given value as a string that can be parsed by the Configuration. The string is formatted so as to be either
+    used as is in a bash shell (ie., python main.py --param_name string), or with merge_from_command_line (ie.,
+    config.merge_from_command_line(f"--param_name {string}")
 
-    :param param:
-    :param in_iterable: used only for bookkeeping in recursive calls
-    :param ignore_unknown_types: how to treat types that cannot be
-        parsed by the Configuration
+    :param param: parameter value to be returned as a valid string
     :raises TypeError: if the type of 'param' cannot be enforced
-    :return: string usable in the command line to reproduce the value
-        of param
+    :return: string usable in the command line to reproduce the value of param
     """
+    container_separator = ",\\ "
     if param is None:
-        return "none"
+        return "null"
     if isinstance(param, list):
-        to_ret = [get_param_as_parsable_string(i, True) for i in param]
-        return f"[{','.join(to_ret)}] !list"
+        parsable_strings = [get_param_as_parsable_string(i) for i in param]
+        return f"[{container_separator.join(parsable_strings)}]"
     if isinstance(param, dict):
-        to_ret = [f"{k}:{get_param_as_parsable_string(v, True)}" for k, v in param.items()]
-        return "{" + ",".join(to_ret) + "} !dict"
+        parsable_strings = [f"{key}:\\ {get_param_as_parsable_string(value)}" for key, value in param.items()]
+        return "{" + container_separator.join(parsable_strings) + "}"
     if isinstance(param, (int, float)) and not isinstance(param, bool):
-        type_forcing = "float"
-    elif isinstance(param, str):
-        type_forcing = "str"
-    elif isinstance(param, bool):
-        type_forcing = "bool"
-    elif ignore_unknown_types:
-        YAECS_LOGGER.warning(f"WARNING: parameter value '{param}' will not have its type enforced because it is not in "
-                             f"[int, float, str, bool].")
-        type_forcing = ""
-    else:
-        raise TypeError(f"Parameter value '{param}' will not have its type enforced "
-                        "because it is not in [int, float, str, bool]. Pass "
-                        "ignore_unknown_types=True to avoid enforcing type when type "
-                        "is unknown.")
-    value = str(param)
-    value = escape_symbols(value, ["\\"])
-    if in_iterable:
-        value = escape_symbols(value, ["{", "}", "[", "]", ","])
-        value = escape_symbols(value, ["{", "}", "[", "]", ","])
-    value = escape_symbols(value, ["'", '"', " "])
-    return value + (f" !{type_forcing}" if type_forcing else "")
+        return format(Context(prec=20).create_decimal(repr(param)), 'f')
+    if isinstance(param, str):
+        string = escape_symbols(param, ['"', "'", "!", " "])
+        return escape_symbols(f'"{string}"', ['"'])
+    if isinstance(param, bool):
+        return str(param).lower()
+    raise TypeError("Provided value's type is not YAML-compatible (None, str, bool, int, float, list and dict work).")
 
 
 def hook(hook_name: str) -> Callable[[Callable], Callable]:

@@ -31,8 +31,8 @@ import yaml
 
 from ..yaecs_utils import (YAML_EXPRESSIONS,
                            ConfigDeclarator, TypeHint,
-                           adapt_to_type, compare_string_pattern, compose, format_str, get_order, is_type_valid,
-                           parse_type, recursive_set_attribute, set_function_attribute, update_state)
+                           compare_string_pattern, compose, format_str, get_quasi_bash_sys_argv, get_order,
+                           is_type_valid, parse_type, recursive_set_attribute, set_function_attribute, update_state)
 from .config_convenience import ConfigConvenienceMixin
 from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
@@ -245,22 +245,22 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         self._manual_merge(config_path_or_dictionary=config_path_or_dictionary, do_not_pre_process=do_not_pre_process,
                            do_not_post_process=do_not_post_process)
 
-    def merge_from_command_line(self, string_to_merge: Optional[str] = None,
+    def merge_from_command_line(self, to_merge: Optional[Union[List[str], str]] = None,
                                 do_not_pre_process: bool = False, do_not_post_process: bool = False) -> None:
         """
         Formerly used to manually merge the command line arguments into the config, which is now done automatically and
         thus should no longer be done manually. Can still be used to manually merge a string emulating command line
         arguments.
 
-        :param string_to_merge: if specified, merges this string instead of the sys.argv string
+        :param to_merge: if specified, merges this string or list of strings instead of the sys.argv list of strings
         :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
         """
-        if self._verbose and string_to_merge is None:
+        if self._verbose and to_merge is None:
             YAECS_LOGGER.warning("WARNING : merge_from_command_line is now deprecated and will automatically start "
                                  "after using any constructor.\nYou can remove the 'config.merge_from_command_line()' "
                                  "line from your code now :) it's redundant.")
-        to_merge = self._gather_command_line_dict(string_to_merge)
+        to_merge = self._gather_command_line_dict(to_merge)
         if to_merge:
             self._manual_merge(to_merge, do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process,
                                source='command line')
@@ -683,29 +683,14 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         self[name].config_metadata["config_hierarchy"] += [content]
         self.set_sub_config(self[name])
 
-    def _gather_command_line_dict(self, string_to_merge: Optional[str] = None) -> Dict[str, Any]:
+    def _gather_command_line_dict(self, to_merge: Optional[Union[List[str], str]] = None) -> Dict[str, Any]:
         """ Method called automatically at the end of each constructor to gather all parameters from the command line
         into a dictionary. This dictionary is then merged. """
-        # If a string is passed as input, process it as sys.argv would
-        if string_to_merge is not None:
-            list_to_merge = [""]
-            in_quotes = []
-            escaped = False
-            for char in string_to_merge:
-                if char == "\\" and not escaped:
-                    escaped = True
-                elif char in ['"', "'"] and not escaped:
-                    if not in_quotes or in_quotes[-1] != char:
-                        in_quotes.append(char)
-                    else:
-                        in_quotes.pop(-1)
-                elif char == " " and not in_quotes and list_to_merge[-1] and not escaped:
-                    list_to_merge.append("")
-                else:
-                    escaped = False
-                    list_to_merge[-1] += char
-            if in_quotes:
-                raise ValueError(f"Could not parse args : open quotations were left unclosed : {in_quotes}.")
+
+        if to_merge is not None:
+            if isinstance(to_merge, list):
+                to_merge = " ".join(to_merge)
+            list_to_merge = get_quasi_bash_sys_argv(to_merge)
         else:
             list_to_merge = sys.argv
 
@@ -729,32 +714,25 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 for parameter in self.get_parameter_names(deep=True):
                     if compare_string_pattern(parameter, pattern):
                         in_param.append(parameter)
-                        to_merge[parameter] = [self[parameter], value, None]
+                        to_merge[parameter] = value
                 if not in_param:
                     un_matched_params.append(pattern)
             elif element.startswith("--"):
                 in_param = []
                 found_config_path = True
-            elif in_param and to_merge[in_param[0]][1] is None:
+            elif in_param and to_merge[in_param[0]] is None:
                 for parameter in in_param:
-                    to_merge[parameter][1] = element
-            elif in_param and element[0] == "!":
-                if element[1:] in ["int", "float", "str", "bool", "list", "dict"]:
-                    for parameter in in_param:
-                        to_merge[parameter][2] = element[1:]
-                    in_param = []
-                else:
-                    raise TypeError(f"Unknown type '{element[1:]}', should be in [int, float, str, bool, list, dict].")
+                    to_merge[parameter] = element
             elif in_param:
                 for parameter in in_param:
-                    to_merge[parameter][1] += f" {element}"
+                    to_merge[parameter] = f"{to_merge[parameter]} {element}"
 
         if un_matched_params and self._verbose:
             YAECS_LOGGER.warning(f"WARNING : parameters {un_matched_params}, encountered while merging params from the "
                                  f"command line, do not match any param in the config. They will not be merged.")
 
         # Infer types, then return
-        return {key: adapt_to_type(val[0], val[1], val[2], key) for key, val in to_merge.items()}
+        return {key: yaml.safe_load("true" if val is None else val) for key, val in to_merge.items()}
 
     def _post_process_modified_parameters(self) -> None:
         """ This method is called at the end of a config creation or merging operation. It applies post-processing to
