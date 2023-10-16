@@ -18,7 +18,7 @@ Copyright (C) 2022  Reactive Reality
 import importlib.util
 from typing import Any, Union
 
-from .user_utils import tqdm_file
+from ..user_utils import tqdm_file
 
 try:
     _NEW = True

@@ -151,12 +151,13 @@ class ConfigConvenienceMixin:
         """
         return deepcopy(self)
 
-    def details(self, show_only: Optional[Union[str, List[str]]] = None,
+    def details(self, shorten: int = -1, show_only: Optional[Union[str, List[str]]] = None,
                 expand_only: Optional[Union[str, List[str]]] = None, no_show: Optional[Union[str, List[str]]] = None,
                 no_expand: Optional[Union[str, List[str]]] = None) -> str:
         """
         Creates and returns a string describing all the parameters in the config and its sub-configs.
 
+        :param shorten: if > 0, params are shortened to that many characters except if logging level is under INFO.
         :param show_only: if not None, list of names referring to params. Only params in the list are displayed in the
             details.
         :param expand_only: if not None, list of names referring to sub-configs. Only sub-configs in the list are
@@ -194,13 +195,13 @@ class ConfigConvenienceMixin:
                         and (constraints["expand_only"] is None
                              or attribute in [cstr.split(".")[0] for cstr in constraints["expand_only"]])):
                     _for_sub_config_attr = partial(_for_sub_config, attribute=attribute)
-                    string_to_return += (self[attribute].details(**(dict_apply(constraints, _for_sub_config_attr)))
-                                         + "\n")
+                    string_to_return += self[attribute].details(shorten=shorten,
+                                                                **(dict_apply(constraints, _for_sub_config_attr)))
                 else:
                     string_to_return += self[attribute].get_name().upper()
-                    string_to_return += "\n"
             else:
-                string_to_return += str(self[attribute]) + "\n"
+                string_to_return += format_str(str(self[attribute]), shorten) if shorten > 0 else str(self[attribute])
+            string_to_return += "\n"
         return string_to_return
 
     def items(self, deep: bool = False) -> ItemsView:

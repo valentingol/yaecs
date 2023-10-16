@@ -196,7 +196,7 @@ def format_str(config_path_or_dictionary: ConfigDeclarator, size: int = 200) -> 
     :return: the formatted string
     """
     to_return = str(config_path_or_dictionary)
-    if YAECS_LOGGER.level >= logging.INFO:
+    if YAECS_LOGGER.getEffectiveLevel() >= logging.INFO:
         return to_return if len(to_return) < size else f"{to_return[:size//2 - 3]} [...] {to_return[-size//2 - 3:]}"
     return to_return
 
@@ -384,6 +384,10 @@ def new_print(*args, sep: str = " ", end: str = "", file: io.TextIOWrapper = Non
             if file is not None and file is not sys.stdout:
                 file.write(message)
             logging.getLogger("yaecs.print_catcher").info(message)
+
+
+class NoValue:
+    """ Used to represent a default value not modified by the user. """
 
 
 def parse_type(string_to_process: str) -> TypeHint:

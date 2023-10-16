@@ -257,6 +257,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         :param do_not_post_process: if true, post-processing is deactivated in this initialization
         """
         if self._verbose and to_merge is None:
+            # TODO handle all warnings with a function _warn that logs and stores messages for future prints
             YAECS_LOGGER.warning("WARNING : merge_from_command_line is now deprecated and will automatically start "
                                  "after using any constructor.\nYou can remove the 'config.merge_from_command_line()' "
                                  "line from your code now :) it's redundant.")
