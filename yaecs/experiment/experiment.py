@@ -26,8 +26,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from mock import patch
 
-from .config.config import Configuration
-from .yaecs_utils import add_to_csv, compare_string_pattern, lazy_import, new_print
+from .timer import TimerManager
+from ..config.config import Configuration
+from ..yaecs_utils import add_to_csv, compare_string_pattern, lazy_import, new_print, NoValue
 
 # ClearML integration, see original package : https://clear.ml
 clearml = lazy_import("clearml")  # pylint: disable=invalid-name
@@ -195,7 +196,7 @@ class Tracker:
     """ Class created by Experiment to log values. """
 
     def __init__(self, tracker_config: Dict[str, Any], experiment: Experiment, experiment_name: Optional[str] = None,
-                 run_name: Optional[str] = None, params_filter_fn: Optional[Callable] = None,
+                 run_name: Optional[str] = None, starting_step: int = 0, params_filter_fn: Optional[Callable] = None,
                  log_modified_params_only: bool = True, only_params_to_log: Optional[List[str]] = None,
                  params_not_to_log: Optional[List[str]] = None):
         """
@@ -205,6 +206,7 @@ class Tracker:
         :param experiment: passed automatically from the instance of Experiment this tracker originates from
         :param experiment_name: name for the experiment (inferred from the experiment path if not provided)
         :param run_name: name for the run (inferred from the experiment path if not provided)
+        :param starting_step: step at which to start logging scalars
         :param params_filter_fn: function to use instead of the default filter to get the list of the names of the
             parameters to log to the tracker from the config. If this is used, then 'log_modified_params_only',
             'only_params_to_log' and 'params_not_to_log' are ignored.
@@ -224,6 +226,8 @@ class Tracker:
         self.experiment = experiment
         self.experiment_name = experiment_name
         self.run_name = run_name
+        self._step = starting_step
+        self.timer = TimerManager()
         self.loggers = {k: None for k in ACCEPTED_TRACKERS}
         self.sub_loggers = [""]
         self.basic_logger = None
@@ -375,7 +379,52 @@ class Tracker:
             self.loggers["clearml"].set_comment(description)
             self.loggers["clearml"].connect(self.experiment.config.get_dict(deep=True))
 
-    def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
+    def start_timer(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
+                    verbose: Optional[int] = None) -> None:
+        """
+        Starts a timer.
+
+        :param name: name of the timer
+        :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
+        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        """
+        step = self._step if isinstance(step, NoValue) else step
+        if name in self.timer.timers and self.timer.timers[name].running:
+            self.stop_timer(name, step, verbose)
+        self.timer.start(name, step, verbose)
+
+    def stop_timer(self, name: str = "MyTimer", step: Optional[int] = None, verbose: Optional[int] = None) -> None:
+        """
+        Stops a timer.
+
+        :param name: name of the timer
+        :param step: starting step (if None, assumes step=start step + 1, timings are averages over the elapsed steps)
+        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        """
+        step = self._step if isinstance(step, NoValue) else step
+        if name in self.timer.timers and self.timer.timers[name].running:
+            start_step = self.timer.timers[name].start_times[-1][1]
+            step = step if step > start_step else start_step + 1
+        self.stop_timer(name, step, verbose)
+
+    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True) -> None:
+        """
+        Increments the step counter.
+
+        :param step: step to increment to. If None, will increment to the next step
+        :param auto_log_timers: whether to automatically log the timers at the end of the step
+        :param print_timers: whether to print the timers at the end of the step
+        """
+        if step is not None and step < self._step:
+            raise ValueError(f"Cannot go back to step {step} from step {self._step}.")
+        if auto_log_timers:
+            timers = {"timers/" + name: duration for name, duration in self.timer["last"] if duration is not None}
+            self.log_scalars(timers, step=self._step)
+        if print_timers:
+            print(self.timer.render(which_step="last"))
+        self._step = self._step + 1 if step is None else step
+
+    def log_scalar(self, name: str, value: Union[float, int], step: Union[NoValue, None, int] = NoValue(),
                    sub_logger: Optional[str] = None, description: Optional[str] = None,
                    main_process_only: bool = False) -> None:
         """
@@ -384,13 +433,15 @@ class Tracker:
 
         :param name: name for the value to be logged
         :param value: value to be logged
-        :param step: step at which the value is logged. If not provided, will default to 0 for the tensorboard tracker,
-            will default to -1 for the basic tracker and will be logged as a "single value" for the clearml tracker
+        :param step: step at which the value is logged. If set to None or a negative value, will default to 0 for the
+            tensorboard tracker, will default to -1 for the basic tracker and will be logged as a "single value" for the
+            clearml tracker. If not provided, will default to the current step of the tracker (0 by default)
         :param sub_logger: if specified, logs to corresponding sub-logger. Can be interpreted as a sub-folder for the
             scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
         :param description: only used for the tensorboard tracker, corresponds to a short description of the value
         :param main_process_only: do not try to log in pytorch-lightning sub-processes
         """
+        step = self._step if isinstance(step, NoValue) else step
         if not main_process_only or not os.getenv('NODE_RANK'):  # do not track in a pytorch-lightning spawned process
             if not self.types and self.basic_logger is None:
                 YAECS_LOGGER.warning("WARNING : no tracker configured, scalars will not be logged anywhere.")
@@ -452,7 +503,7 @@ class Tracker:
                 if description is not None:
                     YAECS_LOGGER.warning("WARNING : in log_scalar : 'description' is not used in clearml.")
 
-    def log_scalars(self, dictionary: Dict[str, Any], step: Optional[int] = None,
+    def log_scalars(self, dictionary: Dict[str, Any], step: Union[NoValue, None, int] = NoValue(),
                     sub_logger: Optional[str] = None, main_process_only: bool = False) -> None:
         """
         Logs several values contained in a dictionary, one by one using Tracker.log_scalar.

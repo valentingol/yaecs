@@ -33,7 +33,7 @@ if not _ROOT_LOGGER.hasHandlers():
 
 from .config.config import Configuration  # pylint: disable=wrong-import-position # noqa: E402
 from .config_history import ConfigHistory  # pylint: disable=wrong-import-position # noqa: E402
-from .experiment import Experiment  # pylint: disable=wrong-import-position # noqa: E402
+from .experiment.experiment import Experiment  # pylint: disable=wrong-import-position # noqa: E402
 from .user_utils import (  # pylint: disable=wrong-import-position # noqa: E402
     get_template_class,
     make_config,
