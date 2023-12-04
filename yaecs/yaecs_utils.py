@@ -305,10 +305,6 @@ class NoValue:
     """ Used to represent a default value not modified by the user. """
 
 
-class NoValue:
-    """ Used to represent a default value not modified by the user. """
-
-
 def parse_type(string_to_process: str) -> TypeHint:
     """
     Parses an input string containing the type info for a parameter into a complex type as understood by the
