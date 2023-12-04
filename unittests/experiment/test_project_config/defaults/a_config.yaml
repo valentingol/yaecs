@@ -1,0 +1,43 @@
+--- !a_config
+a: !type:bool false
+
+t:
+  s: !type:([int],int) [128, 128]
+  pp:
+    p: !type:[str] [t2, t4]
+    sp: !type:dict {}
+
+v:
+  s: !type:([int],int) [1280, 1920]
+  pp:
+    p: !type:[str] [t1, t5, t4]
+    sp: !type:dict {}
+
+te:
+  s: !type:([int],int) [1280, 1920]
+  pp:
+    p: !type:[str] [t1, t5, t4]
+    sp: !type:dict {}
+
+ts:
+
+  t1:
+    use: !type:bool true
+    t1m: !type:bool true
+
+  t2:
+    use: !type:bool true
+    t1m: !type:bool true
+
+  t3:
+    use: !type:bool true
+    t3_probability: !type:float 0.5
+    m: !type:float 0
+
+  t4:
+    use: !type:bool true
+    fr: !type:str a
+
+  t5:
+    use: !type:bool true
+    nm: !type:float 255

@@ -1,0 +1,17 @@
+--- # Default config for the unified semantic segmentation project
+
+a: false
+b: !type:experiment_path null
+c: !type:(none,str) null
+d: !type:(none,str) null  # can be 't', 'v', 'te'
+e: !type:(none,int) null
+f: !type:config_variations null
+
+a_config_file: !type:(none,str) a_config.yaml
+b_config_file: !type:(none,str) b_config.yaml
+c_config_file: !type:(none,str) c_config.yaml
+d_config_file: !type:(none,str) null
+
+tracker_config: !type:tracker_config
+  type: basic,clearml
+  project_name: "yaecs_dev_tests"
