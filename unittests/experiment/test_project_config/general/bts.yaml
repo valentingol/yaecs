@@ -1,0 +1,21 @@
+---
+d: t
+e: 1
+
+--- !a_config
+a: true
+t.s: [256, 256]
+t.pp.p: [t1, t2, t3, t5, t4]
+v.s: [320, 480]
+te.s: [320, 480]
+
+ts:
+  t3.use: false
+  t3.t3_probability: 0.4
+  t4.fr: b
+
+--- !t
+tn: 50
+
+--- !v
+vf: 5

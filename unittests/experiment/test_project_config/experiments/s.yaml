@@ -1,0 +1,12 @@
+b: "tmp/normal/test"
+c: "Try something"
+
+d_config_file: unittests/experiment/test_project_config/general/bsc
+
+a_config.t.s: 1024
+a_config.*.pp.p: [t1, t5, t4]
+a_config.t.pp.p: [t1, t2, t3, t5, t4]
+a_config.ts.t5.nm: 1
+a_config.ts.t4.fr: d
+
+b_config.atc: svb

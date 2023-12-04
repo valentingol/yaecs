@@ -15,11 +15,8 @@ Copyright (C) 2022  Reactive Reality
     You should have received a copy of the GNU Lesser General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-import importlib.util
 import logging
 import os
-import sys
-import traceback
 from contextlib import ExitStack
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -40,7 +37,6 @@ sacred = lazy_import("sacred")  # pylint: disable=invalid-name
 tensorflow = lazy_import("tensorflow")  # pylint: disable=invalid-name
 
 YAECS_LOGGER = logging.getLogger(__name__)
-ACCEPTED_TRACKERS = ["sacred", "tensorboard", "mlflow", "clearml"]
 
 
 class Experiment:
@@ -77,11 +73,6 @@ class Experiment:
         self.current_run = None
         self.format_description = self.default_formatter if description_formatter is None else description_formatter
         tracker_config = self.config.get_hook("tracker_config")
-        if not tracker_config and not self.config.get_hook("experiment_path"):
-            raise RuntimeError("Not tracker config detected, and no experiment path to use the basic tracker instead ! "
-                               "Please register a parameter of your config with the 'register_as_tracker_config' method"
-                               " as post or pre-processing if you want to set up a tracker, or with the "
-                               "'register_as_experiment_path' method if you want to use the basic tracker.")
         if len(tracker_config) > 1:
             raise RuntimeError("Several parameters were registered as tracker configs. Please register only one.")
         self.tracker = Tracker(self.config[tracker_config[0]] if tracker_config else {"type": ""},
@@ -157,6 +148,7 @@ class Experiment:
         :param kwargs: arguments to pass to the main function aside from the config and the tracker
         :return: whatever the main function returns
         """
+        # Start the run
         if os.getenv('NODE_RANK'):  # do not track if in a pytorch-lightning spawned process
             description = None
         else:
@@ -164,25 +156,12 @@ class Experiment:
                            if run_description is None else run_description)
             description = self.format_description(description)
         self.tracker.start_run(description=description)
+
+        # Function and context preparation
         main_function = partial(self.main_function, config=self.config, tracker=self.tracker, **kwargs)
         main_function.__name__ = self.main_function.__name__  # partial functions do not have names
-
-        # Prepare contexts
-        contexts = []
-        if self.tracker.basic_logger is not None:
-            contexts.append(BasicTrackerContext(self.tracker.basic_logger, self.number_of_runs, self.current_run))
-            contexts.append(patch('builtins.print', side_effect=new_print))
-        if "mlflow" in self.tracker.types:
-            contexts.append(MLFContext())
-        if "clearml" in self.tracker.types:
-            contexts.append(CMLContext(self.tracker))
-
-        # Log as sacred main function if needed
-        if "sacred" in self.tracker.types:
-            self.tracker.loggers["sacred"].main(main_function)
-            main_function = partial(self.tracker.loggers["sacred"].run,
-                                    meta_info={"comment": description})
-            main_function.__name__ = self.main_function.__name__  # partial functions do not have names
+        main_function = self.tracker.loggers.modify_main_function(main_function)
+        contexts = self.tracker.loggers.main_function_context()
 
         # Run
         with ExitStack() as stack:
@@ -215,14 +194,10 @@ class Tracker:
         :param only_params_to_log: if provided, only the parameters whose names are given will be filtered and logged
         :param params_not_to_log: if provided, parameters whose names are given will be filtered out
         """
-        # Do not track if in a pytorch-lightning spawned process.
-        self.types = [] if os.getenv('NODE_RANK') else tracker_config['type']
-        if "clearml" in self.types:
-            if not os.path.isfile(os.path.expanduser("~/clearml.conf")):
-                raise RuntimeError("No 'clearml.conf' file detected in your home directory. "
-                                   "Please run 'clearml-init' as explained in "
-                                   "https://clear.ml/docs/latest/docs/getting_started/ds/ds_first_steps.")
+        # General attributes
         self.config = {k: v for k, v in tracker_config.items() if k != "type"}
+        loggers = self.config.get("sub_loggers", [])
+        self.sub_loggers = [""] + (loggers if isinstance(loggers, list) else [loggers])
         self.experiment = experiment
         self.experiment_name = experiment_name
         self.run_name = run_name
@@ -331,31 +306,30 @@ class Tracker:
 
     def start_run(self, description: Optional[str] = None) -> None:
         """
-        Initialises the configured trackers, which most of the time means preparing their logger is self.loggers.
+        Initialises the configured loggers, which most of the time means preparing their logger in self.loggers.
         """
         experiment_name, run_name = self.extract_names()
         config = self.experiment.config
         params_to_log = {k: config[config.match_params("*" + k)[0]] for k in self.get_filtered_params(config)}
-        for tracker_type in self.types:
-            if tracker_type != "basic":
-                module = "tensorflow" if tracker_type == "tensorboard" else tracker_type
-                if module and not importlib.util.find_spec(module):
-                    raise ImportError(f"Your experiment tracking config requires {module} - "
-                                      "currently not installed!")
-        loggers = self.config.get("sub_loggers", [])
-        self.sub_loggers = [""] + (loggers if isinstance(loggers, list) else [loggers])
+        self.loggers.start_run(experiment_name, run_name, description, params_to_log)
 
-        if self.basic_logger is not None:
-            self.experiment.config.save(os.path.join(self.basic_logger, "config.yaml"))
-            with open(os.path.join(self.basic_logger, "comments.txt"), 'w') as file:
-                file.write(description)
+    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True) -> None:
+        """
+        Increments the step counter.
 
-        if "sacred" in self.types:
-            self.loggers["sacred"] = sacred.Experiment(f"{experiment_name}/{run_name}")
-            self.loggers["sacred"].observers.append(
-                sacred.observers.MongoObserver(url=self.config["db_url"], db_name=self.config["db_name"],
-                                               ))
-            self.loggers["sacred"].add_config(params_to_log)
+        :param step: step to increment to. If None, will increment to the next step
+        :param auto_log_timers: whether to automatically log the timers at the end of the step
+        :param print_timers: whether to print the timers at the end of the step
+        """
+        if step is not None and step < self._step:
+            raise ValueError(f"Cannot go back to step {step} from step {self._step}.")
+        if auto_log_timers:
+            timers = {"timers/" + name: duration for name, duration in self.timer["last"].items()
+                      if duration is not None}
+            self.log_scalars(timers, step=self._step)
+        if print_timers:
+            print(self.timer.render(which_step="last"))
+        self._step = self._step + 1 if step is None else step
 
         if "mlflow" in self.types:
             mlflow.set_tracking_uri(self.config["tracking_uri"])
@@ -443,65 +417,8 @@ class Tracker:
         """
         step = self._step if isinstance(step, NoValue) else step
         if not main_process_only or not os.getenv('NODE_RANK'):  # do not track in a pytorch-lightning spawned process
-            if not self.types and self.basic_logger is None:
-                YAECS_LOGGER.warning("WARNING : no tracker configured, scalars will not be logged anywhere.")
-                if os.getenv('NODE_RANK'):
-                    YAECS_LOGGER.warning("This is because trackers are deactivated in pytorch-lightning processes.\n"
-                                         "To suppress this message, pass 'main_process_only=True'.")
-            if self.basic_logger is not None:
-                extended_name = name
-                if sub_logger is not None:
-                    extended_name = f"{sub_logger}/{extended_name}"
-                add_to_csv(os.path.join(self.basic_logger, "logged_scalars.csv"),
-                           extended_name, value, -1 if step is None else step)
-            try:
-                value = float(value)
-            except ValueError:
-                types = [t for t in self.types if t != "basic"]
-                if types:
-                    YAECS_LOGGER.warning(f"WARNING : will not log non-float value {value} to {types} trackers.")
-                return
-            if "sacred" in self.types:
-                extended_name = name
-                if sub_logger is not None:
-                    extended_name = f"{sub_logger}/{extended_name}"
-                self.loggers["sacred"].log_scalar(name=extended_name, value=value, step=step)
-                if description is not None:
-                    YAECS_LOGGER.warning("WARNING : in log_scalar : 'description' is not used in sacred.")
-            if "mlflow" in self.types:
-                extended_name = name
-                if sub_logger is not None:
-                    extended_name = f"{sub_logger}/{extended_name}"
-                mlflow.log_metric(key=extended_name, value=value, step=step)
-                if description is not None:
-                    YAECS_LOGGER.warning("WARNING : in log_scalar : 'description' is not used in mlflow.")
-            if "tensorboard" in self.types:
-                tb_sub_logger = "" if sub_logger is None else sub_logger
-                if tb_sub_logger not in self.loggers["tensorboard"]:
-                    raise ValueError(f"Sub-logger '{tb_sub_logger}' is not defined in the tracker config. You can only "
-                                     "use tensorboard loggers that have been defined using the 'sub_loggers' key in the"
-                                     " tracker config.")
-                with self.loggers["tensorboard"][tb_sub_logger].as_default():
-                    tensorflow.summary.scalar(name=name, data=value, step=0 if step is None else step,
-                                              description=description)
-            if "clearml" in self.types:
-                if step is None:
-                    self.loggers["clearml"].logger.report_single_value(name=name, value=value)
-                else:
-                    if sub_logger is None:
-                        names_hierarchy = name.split("/")
-                        if len(names_hierarchy) > 1:
-                            title = "/".join(names_hierarchy[:-1])
-                        else:
-                            title = names_hierarchy[-1]
-                        series = names_hierarchy[-1]
-                    else:
-                        title = name
-                        series = sub_logger
-                    self.loggers["clearml"].logger.report_scalar(title=title, series=series, value=value,
-                                                                 iteration=step)
-                if description is not None:
-                    YAECS_LOGGER.warning("WARNING : in log_scalar : 'description' is not used in clearml.")
+            self._warn_if_no_logs()
+            self.loggers.log_scalar(name, value, step=step, sub_logger=sub_logger, description=description)
 
     def log_scalars(self, dictionary: Dict[str, Any], step: Union[NoValue, None, int] = NoValue(),
                     sub_logger: Optional[str] = None, main_process_only: bool = False) -> None:
@@ -516,116 +433,58 @@ class Tracker:
         :param main_process_only: do not try to log in pytorch-lightning sub-processes
         """
         if not main_process_only or not os.getenv('NODE_RANK'):  # do not track in a pytorch-lightning spawned process
-            if not self.types and self.basic_logger is None:
-                YAECS_LOGGER.warning("WARNING : no tracker configured, scalars will not be logged anywhere.")
-                if os.getenv('NODE_RANK'):
-                    YAECS_LOGGER.warning("This is because trackers are deactivated in pytorch-lightning processes.\n"
-                                         "To suppress this message, pass 'main_process_only=True'.")
+            self._warn_if_no_logs()
             for key, value in dictionary.items():
                 self.log_scalar(key, value, step=step, sub_logger=sub_logger)
 
-
-class BasicTrackerContext:
-    """ Class used to set up the context for YAECS' basic tracker """
-
-    def __init__(self, logger_path: str, runs: Optional[int], current: Optional[int]):
+    def start_timer(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
+                    verbose: Optional[int] = None) -> None:
         """
-        Initialises a context used to declare the loggers required by the basic tracker.
+        Starts a timer.
 
-        :param logger_path: path used by the basic tracker to log
-        :param runs: number of runs in the experiment
-        :param current: index of current run from 0 to runs-1
+        :param name: name of the timer
+        :param step: Step at which to log the measured duration. If not provided, uses the internal step. If None,
+            assumes step=previous stop step.
+        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
         """
-        self.runs, self.current = runs, current
-        self.logging_handlers = [logging.FileHandler(os.path.join(logger_path, "stdout.log")),
-                                 logging.StreamHandler(sys.stdout)]
-        self.logging_handlers[0].setFormatter(logging.Formatter(fmt="%(asctime)s : [TRACKER] %(message)s"))
-        self.logging_handlers[1].setFormatter(logging.Formatter(fmt="[TRACKER] %(message)s"))
-        self.config_handler = logging.FileHandler(os.path.join(logger_path, "stdout.log"))
-        self.config_handler.setFormatter(logging.Formatter(fmt="%(asctime)s : [CONFIG] %(message)s"))
-        if "pytorch_lightning" in logging.root.manager.loggerDict:
-            if not logging.getLogger("pytorch_lightning").propagate:
-                self.pytorch_handler = logging.FileHandler(
-                    os.path.join(logger_path, "stdout.log"))
-                self.pytorch_handler.setFormatter(logging.Formatter(fmt="%(asctime)s : [%(levelname)s] %(message)s"))
-        self.print_handlers = [logging.FileHandler(os.path.join(logger_path, "stdout.log")),
-                               logging.StreamHandler(sys.stdout)]
-        self.print_handlers[0].setFormatter(logging.Formatter(fmt="%(asctime)s : [%(levelname)s] %(message)s"))
+        step = self._step if isinstance(step, NoValue) else step
+        if name in self.timer.timers and self.timer.timers[name].running:
+            self.stop_timer(name, step, verbose)
+        self.timer.start(name, step, verbose)
 
-    def __enter__(self):
-        # Setting up YAECS loggers
-        for handler in self.logging_handlers:
-            logging.getLogger().addHandler(handler)
-        logging.root.setLevel(logging.INFO)
-        run_count = ("" if self.runs is None or self.current is None or self.runs == 1
-                     else f" {self.current + 1}/{self.runs}")
-        logging.root.info(f"Starting experiment{run_count}...\n")
-        y_logger = logging.getLogger("yaecs")
-        if not y_logger.propagate:
-            y_logger.addHandler(self.config_handler)
-
-        # Setting up external modules' compatibility loggers
-        if "pytorch_lightning" in logging.root.manager.loggerDict:
-            pl_logger = logging.getLogger("pytorch_lightning")
-            if not pl_logger.propagate:
-                pl_logger.addHandler(self.pytorch_handler)
-
-        # Setting up print catcher
-        print_catcher = logging.getLogger("yaecs.print_catcher")
-        print_catcher.propagate = False
-        for handler in self.print_handlers:
-            print_catcher.addHandler(handler)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        print_catcher = logging.getLogger("yaecs.print_catcher")
-
-        # Logging error
-        if exc_type is not None:
-            message_lines = traceback.format_exc().split("\n")
-            print_catcher.error("\n".join([message_lines[0]] + message_lines[3:]))
-
-        # Unsetting print catcher
-        ([h for h in print_catcher.handlers if isinstance(h, logging.FileHandler)][0]).setFormatter(
-            logging.Formatter(fmt="%(message)s"))
-        print_catcher.info("")
-        logging.root.info("Experiment has concluded !")
-        print_catcher.propagate = True
-        for handler in self.print_handlers:
-            print_catcher.removeHandler(handler)
-
-        # Unsetting YAECS loggers
-        for handler in self.logging_handlers:
-            logging.getLogger().removeHandler(handler)
-        logging.getLogger("yaecs").removeHandler(self.config_handler)
-
-        # Unsetting external modules' compatibility loggers
-        if "pytorch_lightning" in logging.root.manager.loggerDict:
-            logging.getLogger("pytorch_lightning").removeHandler(self.pytorch_handler)
-
-
-class MLFContext:
-    """ Class used to set up the context for mlflow's tracker """
-
-    def __enter__(self):
-        pass
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        mlflow.end_run()
-
-
-class CMLContext:
-    """ Class used to set up the context for ClearML's tracker """
-
-    def __init__(self, tracker: Tracker):
+    def stop_timer(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
+                   verbose: Optional[int] = None) -> None:
         """
-        Initialises a context used to close the ClearML runs when they are done.
+        Stops a timer.
 
-        :param tracker: tracker object where to find the ClearML runs
+        :param name: name of the timer
+        :param step: Step at which to log the measured duration. If not provided, uses the internal step. If None,
+            assumes step=previous start step + 1.
+        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
         """
-        self.tracker = tracker
+        step = self._step if isinstance(step, NoValue) else step
+        if name in self.timer.timers and self.timer.timers[name].running:
+            start_step = self.timer.timers[name].start_times[-1][1]
+            step = step if step > start_step else start_step + 1
+        self.stop_timer(name, step, verbose)
 
-    def __enter__(self):
-        pass
+    def measure_time(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
+                     verbose: Optional[int] = None) -> None:
+        """
+        Returns an instanciated context manager to time a block of code.
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.tracker.loggers["clearml"].close()
+        :param name: name of the timer
+        :param step: Step at which to log the measured duration. If not provided, uses the internal step. If None,
+            assumes step=previous stop step
+        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        :return: context manager to time a block of code
+        """
+        step = self._step if isinstance(step, NoValue) else step
+        return TimeInContext(timer_manager=self.timer, name=name, step=step, verbose=verbose)
+
+    def _warn_if_no_logs(self):
+        if not self.loggers.has_loggers:
+            YAECS_LOGGER.warning("WARNING : no tracker configured, scalars will not be logged anywhere.")
+            if os.getenv('NODE_RANK'):
+                YAECS_LOGGER.warning("This is because trackers are deactivated in pytorch-lightning processes.\n"
+                                     "To suppress this message, pass 'main_process_only=True'.")

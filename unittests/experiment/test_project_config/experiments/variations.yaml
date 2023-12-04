@@ -1,0 +1,8 @@
+d: v
+
+f:
+  var_1:
+    a_config.ts.t4.use: false
+  var_2:
+    a_config.ts.t4.use: true
+    a_config.ts.t4.fr: b
