@@ -21,10 +21,20 @@ from contextlib import ExitStack
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from .timer import TimerManager, TimeInContext
-from .loggers.aggregate_logger import AggregateLogger
+from mock import patch
+
+from .timer import TimerManager
 from ..config.config import Configuration
-from ..yaecs_utils import compare_string_pattern, NoValue
+from ..yaecs_utils import add_to_csv, compare_string_pattern, lazy_import, new_print, NoValue
+
+# ClearML integration, see original package : https://clear.ml
+clearml = lazy_import("clearml")  # pylint: disable=invalid-name
+# MLFlow integration, see original package : https://mlflow.org
+mlflow = lazy_import("mlflow")  # pylint: disable=invalid-name
+# Sacred integration, see original package : https://sacred.readthedocs.io/
+sacred = lazy_import("sacred")  # pylint: disable=invalid-name
+# Tensorboard integration, see original package : https://www.tensorflow.org/tensorboard
+tensorflow = lazy_import("tensorflow")  # pylint: disable=invalid-name
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -193,11 +203,14 @@ class Tracker:
         self.run_name = run_name
         self._step = starting_step
         self.timer = TimerManager()
-
-        # AggregateLogger
-        self.loggers = AggregateLogger(self, tracker_config.get("type", []))
-        self.loggers.check_install()
-        self.loggers.check_config_requirements()
+        self.loggers = {k: None for k in ACCEPTED_TRACKERS}
+        self.sub_loggers = [""]
+        self.basic_logger = None
+        if "basic" in self.types:
+            try:
+                self.basic_logger = self.experiment.config.get_experiment_path()
+            except RuntimeError:
+                self.basic_logger = self.config.get("basic_logdir", None)
 
         # Parameters filtering
         self.get_filtered_params = self.default_filter if params_filter_fn is None else params_filter_fn
@@ -313,6 +326,73 @@ class Tracker:
         if auto_log_timers:
             timers = {"timers/" + name: duration for name, duration in self.timer["last"].items()
                       if duration is not None}
+            self.log_scalars(timers, step=self._step)
+        if print_timers:
+            print(self.timer.render(which_step="last"))
+        self._step = self._step + 1 if step is None else step
+
+        if "mlflow" in self.types:
+            mlflow.set_tracking_uri(self.config["tracking_uri"])
+            mlflow.set_experiment(experiment_name)
+            self.loggers["mlflow"] = mlflow.start_run(run_name=run_name, description=description)
+            mlflow.log_params(params_to_log)
+
+        if "tensorboard" in self.types:
+            if "%e" not in self.config["logdir"]:
+                writer_path = os.path.join(self.config["logdir"], experiment_name, run_name)
+            else:
+                writer_path = self.config["logdir"].replace("%e", self.experiment.config.get_experiment_path())
+            self.loggers["tensorboard"] = {
+                sub_logger: tensorflow.summary.create_file_writer(os.path.join(writer_path, sub_logger))
+                for sub_logger in self.sub_loggers}
+
+        if "clearml" in self.types:
+            self.loggers["clearml"] = clearml.Task.init(project_name=self.config["project_name"],
+                                                        task_name=f"{experiment_name}/{run_name}",
+                                                        continue_last_task=bool(os.getenv("PICKUP")))
+            self.loggers["clearml"].set_comment(description)
+            self.loggers["clearml"].connect(self.experiment.config.get_dict(deep=True))
+
+    def start_timer(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
+                    verbose: Optional[int] = None) -> None:
+        """
+        Starts a timer.
+
+        :param name: name of the timer
+        :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
+        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        """
+        step = self._step if isinstance(step, NoValue) else step
+        if name in self.timer.timers and self.timer.timers[name].running:
+            self.stop_timer(name, step, verbose)
+        self.timer.start(name, step, verbose)
+
+    def stop_timer(self, name: str = "MyTimer", step: Optional[int] = None, verbose: Optional[int] = None) -> None:
+        """
+        Stops a timer.
+
+        :param name: name of the timer
+        :param step: starting step (if None, assumes step=start step + 1, timings are averages over the elapsed steps)
+        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        """
+        step = self._step if isinstance(step, NoValue) else step
+        if name in self.timer.timers and self.timer.timers[name].running:
+            start_step = self.timer.timers[name].start_times[-1][1]
+            step = step if step > start_step else start_step + 1
+        self.stop_timer(name, step, verbose)
+
+    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True) -> None:
+        """
+        Increments the step counter.
+
+        :param step: step to increment to. If None, will increment to the next step
+        :param auto_log_timers: whether to automatically log the timers at the end of the step
+        :param print_timers: whether to print the timers at the end of the step
+        """
+        if step is not None and step < self._step:
+            raise ValueError(f"Cannot go back to step {step} from step {self._step}.")
+        if auto_log_timers:
+            timers = {"timers/" + name: duration for name, duration in self.timer["last"] if duration is not None}
             self.log_scalars(timers, step=self._step)
         if print_timers:
             print(self.timer.render(which_step="last"))

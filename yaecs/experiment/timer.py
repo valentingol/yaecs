@@ -9,8 +9,7 @@ YAECS_LOGGER = logging.getLogger(__name__)
 
 class Timer:
     """ This class is a timer. It has a name to know what it records, and start and stop times. """
-    def __init__(self, name: str = "MyTimer", verbose: Optional[int] = 1, start: bool = False,
-                 step: Optional[int] = None):
+    def __init__(self, name: str = "MyTimer", verbose: int = 1, start: bool = False, step: Optional[int] = None):
         """
         Creates a timer.
 
@@ -22,7 +21,7 @@ class Timer:
         self.name: str = name
         self.start_times: List[Tuple[Union[float, int]]] = []
         self.stop_times: List[Tuple[Union[float, int]]] = []
-        self.verbose: int = 1 if verbose is None else verbose
+        self.verbose: int = verbose
         if start:
             self.start(step=step)
 
@@ -93,16 +92,14 @@ class Timer:
 
         return _aggregate(self.stop_times[which][0] - self.start_times[which][0], self.get_number_of_steps(which))
 
-    def get_at_step(self, step: Optional[Union[int, str]] = None) -> Optional[float]:
+    def get_at_step(self, step: Optional[int] = None) -> Optional[float]:
         """
         Gets the duration of given step, or None if given step was not recorded. Similar to 'get' except it takes steps
-        instead of timing indices. Also accepts 'last' and 'first' as steps.
+        instead of timing indices.
 
         :param step: if None last step, else step to get
         :return: the duration if it was recorded, otherwise None
         """
-        if isinstance(step, str):
-            return self.get(which=step, step_aggregation="average")
         index = None
         for i, stop_time in enumerate(self.stop_times):
             if stop_time[1] > step:
@@ -239,11 +236,6 @@ class Timer:
 
         return rendered_string
 
-    def reset(self) -> None:
-        """ Resets the timer, removing all recorded timings. """
-        self.start_times = []
-        self.stop_times = []
-
     def start(self, step: Optional[int] = None) -> float:
         """
         Automatically stops any previously started timer, and starts a new one.
@@ -337,7 +329,7 @@ class TimerManager:
     @property
     def first_step(self) -> int:
         """ Gets the first step of the timer manager (assuming it is the first step of all its timers). """
-        return min(timer.start_times[0][1] for timer in self.timers.values())
+        return min(timer.start_times[-1][1] for timer in self.timers.values())
 
     @property
     def last_step(self) -> int:
@@ -357,7 +349,6 @@ class TimerManager:
         rendered_string = ""
         which_step = self._process_which(which_step)
         durations = self[which_step]
-        verbose = self.verbose if verbose is None else verbose
 
         # Set header
         if which_step == "current":
@@ -369,10 +360,10 @@ class TimerManager:
         else:
             which_string = f"(at step {which_step}) "
         if verbose == 2:
-            rendered_string += f"\n---- Reporting on {len(self.timers)} timers {which_string}----\n"
+            rendered_string += f"---- Reporting on {len(self.timers)} timers {which_string}----\n"
             header_size = len(rendered_string)
         if verbose == 1:
-            rendered_string += f"\n{len(self.timers)} timers {which_string}: \n"
+            rendered_string += f"{len(self.timers)} timers {which_string}: \n"
         if verbose == 0:
             rendered_string += "{"
 
@@ -389,8 +380,6 @@ class TimerManager:
                 rendered_string += f" - {name} : {format_duration(duration)}\n"
             if verbose == 0:
                 rendered_string += f"{name}:{format_duration(duration)} ; "
-                if name == list(durations.keys())[-1]:
-                    rendered_string = rendered_string[:-3]
 
         # Set footer
         if verbose in [1, 2]:
@@ -406,10 +395,6 @@ class TimerManager:
             rendered_string += "}"
 
         return rendered_string
-
-    def reset(self) -> None:
-        """ Resets the manager, deleting all timers. """
-        self.timers = {}
 
     def start(self, name: str = "MyTimer", step: Optional[int] = None, verbose: Optional[int] = None) -> None:
         """
@@ -436,29 +421,6 @@ class TimerManager:
         with TemporaryVerbose(self.timers[name], verbose):
             self.timers[name].stop(step=step)
 
-    def update(self, start: Union[None, str, List[str]] = None, stop: Union[None, str, List[str]] = None,
-               step: Optional[int] = None, verbose: Optional[int] = None) -> None:
-        """
-        Automatically starts and stops timers.
-
-        :param start: names of the timers to start
-        :param stop: names of the timers to stop
-        :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
-        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
-        """
-        if start is None:
-            start = []
-        if isinstance(start, str):
-            start = [start]
-        if stop is None:
-            stop = []
-        if isinstance(stop, str):
-            stop = [stop]
-        for name in stop:
-            self.stop(name=name, step=step, verbose=verbose)
-        for name in start:
-            self.start(name=name, step=step, verbose=verbose)
-
     def _process_which(self, which: Union[int, str]) -> Union[int, str]:
         """
         Processes 'which' arguments.
@@ -467,15 +429,16 @@ class TimerManager:
         :raises IndexError: if which is an int and is out of range
         :return: the processed which
         """
-        if isinstance(which, int) and which > self.last_step:
-            raise IndexError(f"Unknown step {which} : the last recorded timing in on step {self.last_step}.")
+        if isinstance(which, int) and which >= len(self.stop_times):
+            raise IndexError(f"Index {which} is out of range for timer {self.name} with {len(self.stop_times)} "
+                             "recorded timings.")
         possible_strings = ["current", "last", "first", "average", "total"]
         if not isinstance(which, int) and which not in possible_strings:
             raise ValueError(f"Invalid value for 'which' : {which}. Can be an int or in {possible_strings}.")
         if which == "last":
-            which = self.last_step
+            which = len(self.stop_times) - 1
         elif which == "first":
-            which = self.first_step
+            which = 0
         return which
 
 
@@ -502,32 +465,6 @@ class TemporaryVerbose:
         """ Resets the verbosity level of the timer. """
         if self.old_verbose is not None:
             self.timer.verbose = self.old_verbose
-
-
-class TimeInContext:
-    """ This Context starts a Timer in given TimerManager at the start of the context and stops it at the end. """
-    def __init__(self, timer_manager: TimerManager, name: str = "MyTimer", step: Optional[int] = None,
-                 verbose: Optional[int] = None):
-        """
-        Creates a context to start a timer in a timer manager.
-
-        :param timer_manager: timer manager to start the timer in
-        :param name: name of the timer
-        :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
-        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
-        """
-        self.timer_manager: TimerManager = timer_manager
-        self.name: str = name
-        self.step: Optional[int] = step
-        self.verbose: Optional[int] = verbose
-
-    def __enter__(self) -> None:
-        """ Starts the timer in the timer manager. """
-        self.timer_manager.start(name=self.name, step=self.step, verbose=self.verbose)
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """ Stops the timer in the timer manager. """
-        self.timer_manager.stop(name=self.name, verbose=self.verbose)
 
 
 def format_duration(duration: float, precision: int = 2, human_readable: bool = True) -> str:
