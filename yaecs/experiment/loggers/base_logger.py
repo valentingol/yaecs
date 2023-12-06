@@ -40,6 +40,11 @@ class Logger:
         """ Logs a scalar value using the logger. """
         raise NotImplementedError
 
+    def log_image(self, name: str, image, step: Optional[int] = None, sub_logger: Optional[str] = None) -> None:
+        """ Logs an image using the logger. The image could be a path to a saved image, matplotlib or plotly figure, a
+        PIL.Image, or a n*n*3 numpy array. """
+        raise NotImplementedError
+
 
 class NoContext:
     """ A context manager that does nothing. """

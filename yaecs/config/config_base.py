@@ -582,7 +582,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             if isinstance(old_value, _ConfigurationBase):
                 if isinstance(value, _ConfigurationBase):
                     self.unset_sub_config(value)
-                    old_value.init_from_config(value.get_dict(deep=False))
+                    old_value.init_from_config(value.get_dict(deep=False, pre_post_processing_values=False))
                 elif isinstance(value, dict):
                     old_value.init_from_config(value)
                 else:
@@ -594,7 +594,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     self.unset_sub_config(value)
                     for sub_config in value.get_all_linked_sub_configs():
                         self.unset_sub_config(sub_config)
-                    value = value.get_dict(deep=True)
+                    value = value.get_dict(deep=True, pre_post_processing_values=False)
                 if self._verbose:
                     YAECS_LOGGER.debug(f"Setting '{key}' : \nold : '{old_value}' \n"
                                        f"new : '{value}'.")

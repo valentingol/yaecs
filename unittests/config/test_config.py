@@ -133,6 +133,9 @@ def test_get_dict(yaml_default):
     assert config['save'] == 'test'
     assert isinstance(config['subconfig1'], Configuration)
     assert isinstance(config['subconfig2'], Configuration)
+    config = make_config({"a": 1}, post_processing_dict={"a": lambda x: x + 1})
+    assert config.get_dict(pre_post_processing_values=True) == {"a": 1}
+    assert config.get_dict(pre_post_processing_values=False) == {"a": 2}
 
 
 def test_iter(yaml_default):

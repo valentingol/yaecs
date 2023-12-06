@@ -6,6 +6,7 @@ from typing import Any, Optional, Union
 
 from .base_logger import Logger
 from .logger_utils import lazy_import, value_to_float
+from ..experiment_utils import format_mode
 
 # ClearML integration, see original package : https://clear.ml
 clearml = lazy_import("clearml")  # pylint: disable=invalid-name
@@ -45,9 +46,10 @@ class ClearMLLogger(Logger):
     def start_run(self, experiment_name: str, run_name: str, description: str, params: dict) -> None:
         self.task = clearml.Task.init(project_name=self.project_name,
                                       task_name=f"{experiment_name}/{run_name}",
+                                      task_type=self._get_tast_type(),
                                       continue_last_task=bool(os.getenv("PICKUP")))
         self.task.set_comment(description)
-        self.task.connect(self.tracker.experiment.config.get_dict(deep=True))
+        self.task.connect(params)
 
     def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
                    sub_logger: Optional[str] = None, description: Optional[str] = None) -> None:
@@ -71,6 +73,49 @@ class ClearMLLogger(Logger):
             self.task.logger.report_scalar(title=title, series=series, value=value, iteration=step)
         if description is not None:
             YAECS_LOGGER.warning("WARNING : in log_scalar : 'description' is not used in clearml.")
+
+    def log_image(self, name: str, image, step: Optional[int] = None, sub_logger: Optional[str] = None) -> None:
+        # Support for matplotlib figures logging, see original package : https://matplotlib.org/
+        matplotlib = lazy_import("matplotlib")  # pylint: disable=invalid-name
+        # Support to save numpy arrays as images, see original package : https://numpy.org/
+        np = lazy_import("numpy")  # pylint: disable=invalid-name
+        # Support to save numpy arrays as images, see original package : https://pypi.org/project/Pillow/
+        Image = lazy_import("PIL.Image")  # pylint: disable=invalid-name
+        # Support for plotly figures, see original package : https://plotly.com/python/
+        plotly = lazy_import("plotly")  # pylint: disable=invalid-name
+        if isinstance(image, str):
+            self.task.logger.report_image(title=name, series=sub_logger, local_path=image, iteration=step)
+        elif isinstance(image, np.ndarray):
+            self.task.logger.report_image(title=name, series=sub_logger, image=image.astype(np.uint8), iteration=step)
+        elif isinstance(image, Image):
+            self.task.logger.report_image(title=name, series=sub_logger, image=np.array(image, dtype=np.uint8),
+                                          iteration=step)
+        elif isinstance(image, matplotlib.figure.Figure):
+            self.task.logger.report_matplotlib(title=name, series=sub_logger, iteration=step, figure=image)
+        elif isinstance(image, plotly.graph_objects.Figure):
+            self.task.logger.report_plotly(title=name, series=sub_logger, iteration=step, figure=image)
+        else:
+            self.task.logger.report_image(title=name, series=sub_logger, image=np.array(image, dtype=np.uint8),
+                                          iteration=step)
+
+    def _get_tast_type(self):
+        """ Returns the task type for the ClearML task, inferred from the experiment mode if there is one. """
+        task_types = {
+            "TRAINING": clearml.Task.TaskTypes.training,
+            "TESTING": clearml.Task.TaskTypes.testing,
+            "VALIDATION": clearml.Task.TaskTypes.testing,
+            "INFERENCE": clearml.Task.TaskTypes.inference,
+            "DATA PROCESSING": clearml.Task.TaskTypes.data_processing,
+            "DEBUG": clearml.Task.TaskTypes.training,
+        }
+        mode_param = self.tracker.experiment.config.get_hook("mode")
+        mode = format_mode(self.tracker.experiment.config[mode_param[0]]) if mode_param else "TRAINING"
+        task_type = clearml.Task.TaskTypes.custom
+        for key, value in task_types.items():
+            if key in mode:
+                task_type = value
+                break
+        return task_type
 
 
 class CMLContext:

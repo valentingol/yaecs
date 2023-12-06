@@ -109,18 +109,23 @@ class ConfigGettersMixin:
 
         return " ".join(to_return) if do_return_string else to_return
 
-    def get_dict(self, deep: bool = True) -> dict:
+    def get_dict(self, deep: bool = True, pre_post_processing_values: bool = False) -> dict:
         """
         Returns a dictionary corresponding to the config.
 
         :param deep: whether to recursively turn sub-configs into dicts or keep them as sub-configs
+        :param pre_post_processing_values: whether to return the values before the post-processing step
         :return: dictionary corresponding to the config
         """
-        return {
-            key: (self[key] if not deep or not isinstance(self[key], ConfigGettersMixin)
-                  else self[key].get_dict())
-            for key in self._get_user_defined_attributes()
-        }
+        to_return = {}
+        for key in self._get_user_defined_attributes():
+            if deep and isinstance(self[key], ConfigGettersMixin):
+                to_return[key] = self[key].get_dict(deep=True, pre_post_processing_values=pre_post_processing_values)
+            else:
+                full_name = self._get_full_path(key)
+                to_return[key] = (self.get_main_config().get_pre_post_processing_values().get(full_name, self[key])
+                                  if pre_post_processing_values else self[key])
+        return to_return
 
     def get_main_config(self) -> 'Configuration':
         """

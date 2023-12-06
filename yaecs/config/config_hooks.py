@@ -217,6 +217,24 @@ class ConfigHooksMixin:
                             f"{list_to_register}")
         return list_to_register
 
+    @hook("mode")
+    @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
+    @assign_yaml_tag("mode", "pre", "(str,[str])")
+    def register_as_mode(self, mode: str) -> str:  # pylint: disable=no-self-use
+        """
+        Pre-processing function used to register the corresponding parameter as the mode for the current experiment. The
+        mode is a string that can be used to differentiate between different experiments with the same config. Usual
+        modes can include 'train', 'test', 'eval', 'debug'... It can also be a list of strings if several successive
+        modes are to be used. It does not actually do anything, the only effect is the registration, so that the mode
+        can then be accessed using "config[config.get_hook('mode')[0]]".
+        Priority : INDIFFERENT (0)
+        YAML tag : mode
+
+        :param mode: string or list of strings corresponding to the mode(s)
+        :return: the same string or list of strings
+        """
+        return mode
+
     @hook("tracker_config")
     @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
     @assign_yaml_tag("tracker_config", "pre", "dict")
