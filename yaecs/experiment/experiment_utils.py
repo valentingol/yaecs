@@ -2,7 +2,7 @@
 from typing import List, Union
 
 
-def format_mode(mode: Union[str, List[str]]) -> str:
+def format_mode(mode: Union[None, str, List[str]]) -> str:
     """ Formats the experiment mode for the purpose of the experiment comment. """
     modes = {
         "TRAINING": ["train", "learn", "fit"],
@@ -12,6 +12,8 @@ def format_mode(mode: Union[str, List[str]]) -> str:
         "DATA PROCESSING": ["process", "preprocess", "data"],
         "DEBUG": ["debug", "inspect"],
     }
+    if mode is None:
+        return "None"
     if isinstance(mode, str):
         mode = [mode]
     formatted = []
