@@ -54,6 +54,7 @@ class ClearMLLogger(Logger):
 
     def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
                    sub_logger: Optional[str] = None, description: Optional[str] = None) -> None:
+        self._warn_function_argument("log_scalar", "description", description, None)
         value = value_to_float(value, self.name)
         if value == "":
             return
@@ -72,10 +73,10 @@ class ClearMLLogger(Logger):
                 title = name
                 series = sub_logger
             self.task.logger.report_scalar(title=title, series=series, value=value, iteration=step)
-        if description is not None:
-            YAECS_LOGGER.warning("WARNING : in log_scalar : 'description' is not used in clearml.")
 
-    def log_image(self, name: str, image, step: Optional[int] = None, sub_logger: Optional[str] = None) -> None:
+    def log_image(self, name: str, image: Any, step: Optional[int] = None, sub_logger: Optional[str] = None,
+                  extension: str = "png") -> None:
+        self._warn_function_argument("log_image", "extension", extension, "png")
         # Support for matplotlib figures logging, see original package : https://matplotlib.org/
         matplotlib = lazy_import("matplotlib")  # pylint: disable=invalid-name
         # Support to save numpy arrays as images, see original package : https://numpy.org/

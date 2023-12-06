@@ -48,13 +48,16 @@ class BasicLogger(Logger):
 
     def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
                    sub_logger: Optional[str] = None, description: Optional[str] = None) -> None:
+        self._warn_function_argument("log_scalar", "description", description, None)
         extended_name = name
         if sub_logger is not None:
             extended_name = f"{sub_logger}/{extended_name}"
         add_to_csv(os.path.join(self.path, "logged_scalars.csv"),
                    extended_name, value, -1 if step is None else step)
 
-    def log_image(self, name: str, image, step: Optional[int] = None, sub_logger: Optional[str] = None) -> None:
+    def log_image(self, name: str, image: Any, step: Optional[int] = None, sub_logger: Optional[str] = None,
+                  extension: str = "png") -> None:
+        # Image-logging specific imports
         # Support for matplotlib figures logging, see original package : https://matplotlib.org/
         matplotlib = lazy_import("matplotlib")  # pylint: disable=invalid-name
         # Support to save numpy arrays as images, see original package : https://numpy.org/
@@ -63,18 +66,29 @@ class BasicLogger(Logger):
         from PIL import Image  # pylint: disable=import-outside-toplevel,import-error
         # Support for plotly figures, see original package : https://plotly.com/python/
         plotly = lazy_import("plotly")  # pylint: disable=invalid-name
-        os.makedirs(image_path := os.path.join(self.path, "images"), exist_ok=True)
-        image_name = "" if step is None else f"{step}_"
-        image_name += "" if sub_logger is None else f"{sub_logger}_"
-        image_name += f"{name}.png"
+
+        # Paths and names
+        directory = [self.path, "images", os.path.dirname(name)]
+        if step is not None:
+            directory.append(f"step_{step}")
+        os.makedirs(image_path := os.path.join(*directory), exist_ok=True)
+        base_name = os.path.basename(name).rstrip("_")
+        if sub_logger is not None:
+            separator = "_"
+            sub_logger = sub_logger.lstrip("_")
+            while separator in f"{base_name}{sub_logger}":
+                separator += "_"
+            base_name += separator + sub_logger
+        image_name = f"{base_name}.{extension}"
         output_path = os.path.join(image_path, image_name)
 
+        # Logging
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', category=UserWarning)
             if isinstance(image, str):
                 if not os.path.isfile(image):
                     raise FileNotFoundError(f"Cannot log image '{image}' : path does not exist !")
-                copyfile(image, output_path[:-3] + image.split(".")[-1])
+                copyfile(image, output_path[:-len(extension)] + image.split(".")[-1])
             elif isinstance(image, np.ndarray):
                 Image.fromarray(image.astype(np.uint8)).save(output_path)
             elif isinstance(image, Image.Image):

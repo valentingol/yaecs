@@ -44,6 +44,7 @@ class MLFlowLogger(Logger):
 
     def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
                    sub_logger: Optional[str] = None, description: Optional[str] = None) -> None:
+        self._warn_function_argument("log_scalar", "description", description, None)
         value = value_to_float(value, self.name)
         if value == "":
             return
@@ -52,8 +53,6 @@ class MLFlowLogger(Logger):
         if sub_logger is not None:
             extended_name = f"{sub_logger}/{extended_name}"
         mlflow.log_metric(key=extended_name, value=value, step=step)
-        if description is not None:
-            YAECS_LOGGER.warning("WARNING : in log_scalar : 'description' is not used in mlflow.")
 
 
 class MLFContext:
