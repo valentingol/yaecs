@@ -178,9 +178,10 @@ class Tracker:
             print(self.timer.render(which_step="last"))
         self._step = self._step + 1 if step is None else step
 
-    def log_image(self, name: str, image, step: Optional[int] = None, sub_logger: Optional[str] = None,
-                  maximum: Optional[int] = None, maximum_per_step: Optional[int] = None,
-                  main_process_only: bool = False) -> None:
+    def log_image(self, name: str, image: Any, step: Optional[int] = None, sub_logger: Optional[str] = None,
+                  extension: str = "png", maximum: Optional[int] = None, maximum_per_step: Optional[int] = None,
+                  main_process_only: bool = False, only_loggers: Union[None, str, List[str]] = None,
+                  except_loggers: Union[None, str, List[str]] = None) -> None:
         """
         Logs an image using the logger. The image could be a path to a saved image, matplotlib or plotly figure, a
         PIL.Image, or a n*n*3 numpy array.
@@ -193,21 +194,26 @@ class Tracker:
             clearml tracker. If not provided, will default to the current step of the tracker (0 by default)
         :param sub_logger: if specified, logs to corresponding sub-logger. Can be interpreted as a sub-folder for the
             scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
+        :param extension: extension of the image file to be saved
         :param maximum: maximum number of images to log. The logger stops logging images once this number is reached.
             If None or negative value, no maximum is set.
         :param maximum_per_step: maximum number of images to log per step. The logger stops logging images once this
             number is reached for a given step. If None or negative value, no maximum is set.
         :param main_process_only: do not try to log in pytorch-lightning sub-processes
+        :param only_loggers: if provided, only the loggers whose names are given can log the image
+        :param except_loggers: if provided, loggers whose names are given will not log the image
         """
         step = self._step if isinstance(step, NoValue) else step
         if not main_process_only or not os.getenv('NODE_RANK'):  # do not track in a pytorch-lightning spawned process
             self._warn_if_no_logs()
-            self.loggers.log_image(name=name, image=image, step=step, sub_logger=sub_logger, maximum=maximum,
-                                   maximum_per_step=maximum_per_step)
+            self.loggers.log_image(name=name, image=image, step=step, sub_logger=sub_logger, extension=extension,
+                                   maximum=maximum, maximum_per_step=maximum_per_step, only_loggers=only_loggers,
+                                   except_loggers=except_loggers)
 
     def log_scalar(self, name: str, value: Union[float, int], step: Union[NoValue, None, int] = NoValue(),
                    sub_logger: Optional[str] = None, description: Optional[str] = None,
-                   main_process_only: bool = False) -> None:
+                   main_process_only: bool = False, only_loggers: Union[None, str, List[str]] = None,
+                   except_loggers: Union[None, str, List[str]] = None) -> None:
         """
         Logs the given value under the given name at given step in the configured trackers. The description is optional
         and can only be used if the tracker is tensorboard.
@@ -221,14 +227,19 @@ class Tracker:
             scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
         :param description: only used for the tensorboard tracker, corresponds to a short description of the value
         :param main_process_only: do not try to log in pytorch-lightning sub-processes
+        :param only_loggers: if provided, only the loggers whose names are given can log the scalar
+        :param except_loggers: if provided, loggers whose names are given will not log the scalar
         """
         step = self._step if isinstance(step, NoValue) else step
         if not main_process_only or not os.getenv('NODE_RANK'):  # do not track in a pytorch-lightning spawned process
             self._warn_if_no_logs()
-            self.loggers.log_scalar(name, value, step=step, sub_logger=sub_logger, description=description)
+            self.loggers.log_scalar(name, value, step=step, sub_logger=sub_logger, description=description,
+                                    only_loggers=only_loggers, except_loggers=except_loggers)
 
     def log_scalars(self, dictionary: Dict[str, Any], step: Union[NoValue, None, int] = NoValue(),
-                    sub_logger: Optional[str] = None, main_process_only: bool = False) -> None:
+                    sub_logger: Optional[str] = None, main_process_only: bool = False,
+                    only_loggers: Union[None, str, List[str]] = None,
+                    except_loggers: Union[None, str, List[str]] = None) -> None:
         """
         Logs several values contained in a dictionary, one by one using Tracker.log_scalar.
 
@@ -238,11 +249,14 @@ class Tracker:
         :param sub_logger: if specified, logs to corresponding sub-logger. Can be interpreted as a sub-folder for the
             scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
         :param main_process_only: do not try to log in pytorch-lightning sub-processes
+        :param only_loggers: if provided, only the loggers whose names are given can log the scalars
+        :param except_loggers: if provided, loggers whose names are given will not log the scalars
         """
         if not main_process_only or not os.getenv('NODE_RANK'):  # do not track in a pytorch-lightning spawned process
             self._warn_if_no_logs()
             for key, value in dictionary.items():
-                self.log_scalar(key, value, step=step, sub_logger=sub_logger)
+                self.log_scalar(key, value, step=step, sub_logger=sub_logger, only_loggers=only_loggers,
+                                except_loggers=except_loggers)
 
     def start_timer(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
                     verbose: Optional[int] = None) -> None:

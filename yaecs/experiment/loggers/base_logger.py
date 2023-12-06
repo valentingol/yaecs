@@ -1,5 +1,8 @@
 """ This file defines the base class for all loggers, as well as the LoggerList class to compose loggers. """
+import logging
 from typing import Any, Optional, Union
+
+YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class Logger:
@@ -8,6 +11,7 @@ class Logger:
     def __init__(self, name: str, tracker):
         self.name = name
         self.tracker = tracker
+        self.argument_warnings = set()
 
     def check_config_requirements(self) -> str:
         """ This returns an empty string if the tracker config and general config satisfy the logger's requirements,
@@ -40,10 +44,21 @@ class Logger:
         """ Logs a scalar value using the logger. """
         raise NotImplementedError
 
-    def log_image(self, name: str, image, step: Optional[int] = None, sub_logger: Optional[str] = None) -> None:
+    def log_image(self, name: str, image: Any, step: Optional[int] = None, sub_logger: Optional[str] = None,
+                  extension: str = "png") -> None:
         """ Logs an image using the logger. The image could be a path to a saved image, matplotlib or plotly figure, a
         PIL.Image, or a n*n*3 numpy array. """
         raise NotImplementedError
+
+    def _warn_function_argument(self, function_name: str, argument_name: str, argument_value: Any, default_value: Any):
+        """ If the user changed the default value, warns the user that a certain argument is not supported by given
+        logger, then stores it to avoid repeating the warning. """
+        if argument_value != default_value:
+            index = function_name + argument_name
+            if index not in self.argument_warnings:
+                YAECS_LOGGER.warning(f"WARNING : in {function_name} : '{argument_name}' is not used in Logger "
+                                     f"{self.name}.")
+                self.argument_warnings.add(index)
 
 
 class NoContext:

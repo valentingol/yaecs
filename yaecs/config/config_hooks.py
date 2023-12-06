@@ -273,22 +273,22 @@ class ConfigHooksMixin:
             raise ValueError(f"{tracker_config} is not a valid tracker config : 'type' should be None, a string or a"
                              " list of strings.")
         if isinstance(tracker_config["type"], str):
-            tracker_list = [t.strip(" ") for t in tracker_config["type"].split(",")]
+            logger_list = [t.strip(" ") for t in tracker_config["type"].split(",")]
         elif tracker_config["type"] is not None:
-            tracker_list = []
+            logger_list = []
             for string in tracker_config["type"]:
-                tracker_list += [t.strip(" ") for t in string.split(",")]
+                logger_list += [t.strip(" ") for t in string.split(",")]
         else:
-            tracker_list = []
-        if any(tracker not in required_keys for tracker in tracker_list):
-            raise ValueError(f"Unknown tracker among {tracker_list}. "
+            logger_list = []
+        if any(tracker not in required_keys for tracker in logger_list):
+            raise ValueError(f"Unknown logger among {logger_list}. "
                              f"Accepted values are {list(required_keys.keys())}.")
-        for tracker in tracker_list:
-            for key in required_keys[tracker]:
+        for logger in logger_list:
+            for key in required_keys[logger]:
                 if key not in tracker_config:
-                    raise ValueError(f"Missing key in {tracker}-type tracker config : '{key}'.")
+                    raise ValueError(f"Missing key in {logger}-type tracker config : '{key}'.")
         for key in tracker_config:
             if not any(key in key_list for key_list in possible_keys):
                 YAECS_LOGGER.warning(f"WARNING : Unknown key '{key}' in tracker config. It might be ignored.")
-        tracker_config["type"] = tracker_list
+        tracker_config["type"] = logger_list
         return tracker_config
