@@ -1,5 +1,6 @@
 """ This module defines the AggregateLogger class. """
 import os
+import logging
 from typing import Any, Optional, Union
 
 from .logger_basic import BasicLogger
@@ -15,6 +16,7 @@ LOGGERS = {
     "sacred": SacredLogger,
     "tensorboard": TensorBoardLogger,
 }
+YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class AggregateLogger:
@@ -27,6 +29,7 @@ class AggregateLogger:
         # Do not track if in a pytorch-lightning spawned process.
         self.types = [] if os.getenv('NODE_RANK') else tracker_list
         self.tracker_list = {name: LOGGERS[name](tracker) for name in tracker_list}
+        self.logged_artifacts = {}
 
     def __getitem__(self, item: str) -> Any:
         try:
@@ -90,3 +93,36 @@ class AggregateLogger:
         """ Logs a scalar value using the logger. """
         for logger in self.tracker_list.values():
             logger.log_scalar(name, value, step, sub_logger, description)
+
+    def log_image(self, name: str, image, step: Optional[int] = None, sub_logger: Optional[str] = None,
+                  maximum: Optional[int] = None, maximum_per_step: Optional[int] = None) -> None:
+        """ Logs an image using the logger. The image could be a path to a saved image, matplotlib or plotly figure, a
+        PIL.Image, or a n*n*3 numpy array. """
+        if self._check_maximums(name, step, maximum, maximum_per_step):
+            for logger in self.tracker_list.values():
+                logger.log_image(name, image, step, sub_logger)
+            self._add_logged_artifact(name, step)
+        else:
+            YAECS_LOGGER.debug(f"Image {name} at step {step} was not logged to sub_logger {sub_logger} because the "
+                               f"maximum number of images was reached.")
+
+    def _add_logged_artifact(self, artifact_name, step):
+        """ Adds an artifact to the logged artifacts. """
+        if artifact_name not in self.logged_artifacts:
+            self.logged_artifacts[artifact_name] = {step: 1}
+        else:
+            if step not in self.logged_artifacts[artifact_name]:
+                self.logged_artifacts[artifact_name][step] = 1
+            else:
+                self.logged_artifacts[artifact_name][step] += 1
+
+    def _check_maximums(self, artifact_name, step, maximum, maximum_per_step):
+        """ Checks if the maximums have been reached for the given artifact. """
+        number = sum(self.logged_artifacts[artifact_name].values()) if artifact_name in self.logged_artifacts else 0
+        number_at_step = (0 if number == 0 or step not in self.logged_artifacts[artifact_name]
+                          else self.logged_artifacts[artifact_name][step])
+        if maximum is not None and number >= maximum >= 0:
+            return False
+        if maximum_per_step is not None and number_at_step >= maximum_per_step >= 0:
+            return False
+        return True

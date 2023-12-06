@@ -6,6 +6,7 @@ c: !type:(none,str) null
 d: !type:(none,str) null  # can be 't', 'v', 'te'
 e: !type:(none,int) null
 f: !type:config_variations null
+mode: !type:mode infer
 
 a_config_file: !type:(none,str) a_config.yaml
 b_config_file: !type:(none,str) b_config.yaml

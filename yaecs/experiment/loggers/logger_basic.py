@@ -1,6 +1,7 @@
 """ This file defines the class for the basic logger. """
 import logging
 import os
+from shutil import copyfile
 import sys
 import traceback
 from typing import Any, Optional, Union
@@ -8,7 +9,9 @@ from typing import Any, Optional, Union
 from mock import patch
 
 from .base_logger import Logger
-from .logger_utils import add_to_csv, new_print
+from .logger_utils import add_to_csv, lazy_import, new_print
+
+YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class BasicLogger(Logger):
@@ -49,6 +52,38 @@ class BasicLogger(Logger):
             extended_name = f"{sub_logger}/{extended_name}"
         add_to_csv(os.path.join(self.path, "logged_scalars.csv"),
                    extended_name, value, -1 if step is None else step)
+
+    def log_image(self, name: str, image, step: Optional[int] = None, sub_logger: Optional[str] = None) -> None:
+        # Support for matplotlib figures logging, see original package : https://matplotlib.org/
+        matplotlib = lazy_import("matplotlib")  # pylint: disable=invalid-name
+        # Support to save numpy arrays as images, see original package : https://numpy.org/
+        np = lazy_import("numpy")  # pylint: disable=invalid-name
+        # Support to save numpy arrays as images, see original package : https://pypi.org/project/Pillow/
+        Image = lazy_import("PIL.Image")  # pylint: disable=invalid-name
+        # Support for plotly figures, see original package : https://plotly.com/python/
+        plotly = lazy_import("plotly")  # pylint: disable=invalid-name
+        os.makedirs(image_path := os.path.join(self.path, "images"), exist_ok=True)
+        image_name = "" if step is None else f"{step}_"
+        image_name += "" if sub_logger is None else f"{sub_logger}_"
+        image_name += f"{name}.png"
+        output_path = os.path.join(image_path, image_name)
+
+        if isinstance(image, str):
+            if not os.path.isfile(image):
+                raise FileNotFoundError(f"Cannot log image '{image}' : path does not exist !")
+            copyfile(image, output_path[:-3] + image.split(".")[-1])
+        elif isinstance(image, np.ndarray):
+            print(output_path)
+            Image.fromarray(image.astype(np.uint8)).save(output_path)
+        elif isinstance(image, Image):
+            image.save(output_path)
+        elif isinstance(image, matplotlib.figure.Figure):
+            image.savefig(output_path)
+        elif isinstance(image, plotly.graph_objs.Figure):
+            plotly.io.write_image(image, output_path)
+        else:
+            YAECS_LOGGER.warning(f"WARNING : image {name} at step {step} was not logged to sub_logger {sub_logger} : "
+                                 f"unrecognised type {type(image)}.")
 
 
 class BasicTrackerContext:

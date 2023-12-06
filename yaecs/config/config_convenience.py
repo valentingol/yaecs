@@ -74,7 +74,7 @@ class ConfigConvenienceMixin:
         return True
 
     def __hash__(self) -> int:
-        return hash(repr(self.get_dict(True)))
+        return hash(repr(self.get_dict(deep=True, pre_post_processing_values=False)))
 
     def __repr__(self) -> str:
         return "<Configuration:" + self.get_name() + ">"
@@ -204,16 +204,19 @@ class ConfigConvenienceMixin:
             string_to_return += "\n"
         return string_to_return
 
-    def items(self, deep: bool = False) -> ItemsView:
+    def items(self, deep: bool = False, pre_post_processing_values: bool = False) -> ItemsView:
         """
         Behaves as dict.items(). If deep is False, sub-configs remain sub-configs in the items. Otherwise, they are
-        converted to dict.
+        converted to dict. If pre_post_processing_values is True, the values are returned in the state they had before
+        the post-processing step.
 
         :param deep: how to return sub-configs that would appear among the items. If False, do not convert them, else
             recursively convert them to dict
+        :param pre_post_processing_values: whether to return the values in the state they had before the post-processing
+            step
         :return: the items of the config as in dict.items()
         """
-        return self.get_dict(deep).items()
+        return self.get_dict(deep=deep, pre_post_processing_values=pre_post_processing_values).items()
 
     def keys(self) -> KeysView:
         """
@@ -221,7 +224,7 @@ class ConfigConvenienceMixin:
 
         :return: the keys if the config as in dict.keys()
         """
-        return self.get_dict(False).keys()
+        return self.get_dict(deep=False, pre_post_processing_values=False).keys()
 
     def match_params(self, *patterns: Optional[Union[str, List[str]]]) -> Optional[List[str]]:
         """
@@ -279,16 +282,19 @@ class ConfigConvenienceMixin:
         if self._verbose:
             YAECS_LOGGER.info(f"Configuration saved in : {format_str(os.path.abspath(config_dump_path))}.")
 
-    def values(self, deep: bool = False) -> ValuesView:
+    def values(self, deep: bool = False, pre_post_processing_values: bool = False) -> ValuesView:
         """
         Behaves as dict.values(). If deep is False, sub-configs remain sub-configs in the values. Otherwise, they are
-        converted to dict.
+        converted to dict. If pre_post_processing_values is True, the values are returned in the state they had before
+        the post-processing step.
 
         :param deep: how to return sub-configs that would appear among the values. If False, do not convert them, else
             recursively convert them to dict
+        :param pre_post_processing_values: whether to return the values in the state they had before the post-processing
+            step
         :return: the values of the config as in dict.values()
         """
-        return self.get_dict(deep).values()
+        return self.get_dict(deep=deep, pre_post_processing_values=pre_post_processing_values).values()
 
     @staticmethod
     def _are_same_sub_configs(first: Any, second: Any) -> bool:
