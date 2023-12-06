@@ -219,7 +219,7 @@ class ConfigHooksMixin:
 
     @hook("mode")
     @assign_order(Priority.INDIFFERENT)  # does not depend on or change parameter value, only processes parameter name
-    @assign_yaml_tag("mode", "pre", "(str,[str])")
+    @assign_yaml_tag("mode", "pre", "(none,str,[str])")
     def register_as_mode(self, mode: str) -> str:  # pylint: disable=no-self-use
         """
         Pre-processing function used to register the corresponding parameter as the mode for the current experiment. The

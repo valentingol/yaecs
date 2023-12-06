@@ -98,10 +98,10 @@ class AggregateLogger:
                   maximum: Optional[int] = None, maximum_per_step: Optional[int] = None) -> None:
         """ Logs an image using the logger. The image could be a path to a saved image, matplotlib or plotly figure, a
         PIL.Image, or a n*n*3 numpy array. """
-        if self._check_maximums(name, step, maximum, maximum_per_step):
+        if self._check_maximums("logged_images", step, maximum, maximum_per_step):
             for logger in self.tracker_list.values():
                 logger.log_image(name, image, step, sub_logger)
-            self._add_logged_artifact(name, step)
+            self._add_logged_artifact("logged_images", step)
         else:
             YAECS_LOGGER.debug(f"Image {name} at step {step} was not logged to sub_logger {sub_logger} because the "
                                f"maximum number of images was reached.")

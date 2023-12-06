@@ -105,7 +105,7 @@ class Experiment:
             description = description.replace("%v", str(self.config.get_variation_name()))
 
         # Header
-        header = "Run" + "" if experiment_path is None else f" in {experiment_path}"
+        header = "Run" + ("" if experiment_path is None else f" in {experiment_path}")
         if mode != "unspecified mode":
             header = f"{mode} r{header[1:]}"
         if "%h" in description:
@@ -143,6 +143,7 @@ class Experiment:
         returns = []
         for run_number, variation in enumerate(variations):
             self.current_run = 0
+            variation_description = description
             if variation is not self.config:
                 filter_fn = (None if self.tracker.get_filtered_params is self.tracker.default_filter
                              else self.tracker.get_filtered_params)
