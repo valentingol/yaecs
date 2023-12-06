@@ -7,7 +7,7 @@ def format_mode(mode: Union[str, List[str]]) -> str:
     modes = {
         "TRAINING": ["train", "learn", "fit"],
         "TESTING": ["test", "evaluate", "benchmark"],
-        "VALIDATION": ["validat"],
+        "VALIDATION": ["val"],
         "INFERENCE": ["infer", "predict", "forecast", "apply"],
         "DATA PROCESSING": ["process", "preprocess", "data"],
         "DEBUG": ["debug", "inspect"],
