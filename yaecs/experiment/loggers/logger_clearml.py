@@ -85,24 +85,24 @@ class ClearMLLogger(Logger):
         Image = lazy_import("PIL.Image")  # pylint: disable=invalid-name
         # Support for plotly figures, see original package : https://plotly.com/python/
         plotly = lazy_import("plotly")  # pylint: disable=invalid-name
-        sub_logger = "" if sub_logger is None else sub_logger
+        sub_logger = "logged_images" if sub_logger is None else sub_logger
 
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore', category=UserWarning)
             if isinstance(image, str):
-                self.task.logger.report_image(title=name, series=sub_logger, local_path=image, iteration=step)
+                self.task.logger.report_image(title=sub_logger, series=name, local_path=image, iteration=step)
             elif isinstance(image, np.ndarray):
-                self.task.logger.report_image(title=name, series=sub_logger, image=image.astype(np.uint8),
+                self.task.logger.report_image(title=sub_logger, series=name, image=image.astype(np.uint8),
                                               iteration=step)
             elif isinstance(image, Image):
-                self.task.logger.report_image(title=name, series=sub_logger, image=np.array(image, dtype=np.uint8),
+                self.task.logger.report_image(title=sub_logger, series=name, image=np.array(image, dtype=np.uint8),
                                               iteration=step)
             elif isinstance(image, matplotlib.figure.Figure):
-                self.task.logger.report_matplotlib(title=name, series=sub_logger, iteration=step, figure=image)
+                self.task.logger.report_matplotlib(title=sub_logger, series=name, iteration=step, figure=image)
             elif isinstance(image, plotly.graph_objects.Figure):
-                self.task.logger.report_plotly(title=name, series=sub_logger, iteration=step, figure=image)
+                self.task.logger.report_plotly(title=sub_logger, series=name, iteration=step, figure=image)
             else:
-                self.task.logger.report_image(title=name, series=sub_logger, image=np.array(image, dtype=np.uint8),
+                self.task.logger.report_image(title=sub_logger, series=name, image=np.array(image, dtype=np.uint8),
                                               iteration=step)
 
     def _get_tast_type(self):
