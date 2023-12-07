@@ -68,19 +68,15 @@ class BasicLogger(Logger):
         plotly = lazy_import("plotly")  # pylint: disable=invalid-name
 
         # Paths and names
-        directory = [self.path, "images", os.path.dirname(name)]
+        directory = [self.path, "images"]
+        if sub_logger:
+            directory.append(sub_logger)
+        if os.path.dirname(name):
+            directory.append(os.path.dirname(name))
         if step is not None:
             directory.append(f"step_{step}")
         os.makedirs(image_path := os.path.join(*directory), exist_ok=True)
-        base_name = os.path.basename(name).rstrip("_")
-        if sub_logger is not None:
-            separator = "_"
-            sub_logger = sub_logger.lstrip("_")
-            while separator in f"{base_name}{sub_logger}":
-                separator += "_"
-            base_name += separator + sub_logger
-        image_name = f"{base_name}.{extension}"
-        output_path = os.path.join(image_path, image_name)
+        output_path = os.path.join(image_path, f"{os.path.basename(name)}.{extension}")
 
         # Logging
         with warnings.catch_warnings():

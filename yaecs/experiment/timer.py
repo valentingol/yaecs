@@ -10,7 +10,7 @@ YAECS_LOGGER = logging.getLogger(__name__)
 class Timer:
     """ This class is a timer. It has a name to know what it records, and start and stop times. """
     def __init__(self, name: str = "MyTimer", verbose: Optional[int] = 1, start: bool = False,
-                 step: Optional[int] = None):
+                 step: Optional[int] = None, start_time: Optional[float] = None):
         """
         Creates a timer.
 
@@ -18,13 +18,15 @@ class Timer:
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
         :param start: whether to start the timer immediately
         :param step: starting step if start is True (if None, assumes step=0, timings are averages over elapsed steps)
+        :param start_time: optional time to start the timer at if start is True (if None, uses current time)
         """
+        current_time = time.time() if start_time is None else start_time
         self.name: str = name
         self.start_times: List[Tuple[Union[float, int]]] = []
         self.stop_times: List[Tuple[Union[float, int]]] = []
         self.verbose: int = 1 if verbose is None else verbose
         if start:
-            self.start(step=step)
+            self.start(step=step, start_time=current_time)
 
     def __str__(self) -> str:
         return self.render("current") if self.running else self.render("last")
@@ -43,6 +45,20 @@ class Timer:
         return len(self.start_times) > len(self.stop_times)
 
     @property
+    def steps(self) -> List[int]:
+        """ Returns the steps on which the timer was recorded. """
+        steps = set()
+        for i in self.timings:
+            for j in range(self.start_times[i][1], self.stop_times[i][1] + 1):
+                steps.add(j)
+        return sorted(steps)
+
+    @property
+    def timings(self) -> List[int]:
+        """ Returns the timings recorded by the timer. """
+        return list(range(len(self.stop_times)))
+
+    @property
     def verbose(self) -> int:
         """ Returns the verbosity level of the timer. """
         return self._verbose
@@ -54,7 +70,8 @@ class Timer:
             raise ValueError(f"Invalid value for 'verbose' : {verbose}. Can be 0, 1 or 2.")
         self._verbose = verbose
 
-    def get(self, which: Union[int, str] = "last", step_aggregation: str = "average") -> Optional[float]:
+    def get(self, which: Union[int, str] = "last", step_aggregation: str = "average",
+            current_step: Optional[int] = None) -> Optional[float]:
         """
         Gets a specified recorded timing (the last one by default). A recorded timing needs a start and a stop.
 
@@ -63,6 +80,7 @@ class Timer:
             'total' (sum of all recorded timings) or 'current' (current timing)
         :param step_aggregation: whether to return each timing as an average over the steps it was recorded on or as a
             total. Can be 'average' or 'total'
+        :param current_step: current step used to compute the current timing if which is 'current'
         :raises ValueError: if which is not an int or in ['last', 'first', 'average', 'total']
         :raises IndexError: if which is an int and is out of range
         :return: the timing
@@ -75,22 +93,29 @@ class Timer:
             raise ValueError(f"Invalid value for 'step_aggregation' : {step_aggregation}. Can be 'average' or 'total'.")
         which = self._process_which(which, possible_strings=["last", "first", "average", "total", "current"])
 
+        # When which is "current", return the current timing as though the timer was stopped at current_time
         if which == "current":
-            return current_time - self.start_times[-1][0] if self.running else None
+            if self.running:
+                return _aggregate(current_time - self.start_times[-1][0],
+                                  self.get_number_of_steps("current", current_step=current_step))
+            return None
 
         if self.empty:
             return 0 if which == "total" else None
 
+        # When which is "average", behave differently depending on step_aggregation
         if which == "average":
-            step_divider = sum(self.get_number_of_steps(i) for i in range(len(self.stop_times)))
-            divider = step_divider if step_aggregation == "total" else len(self.stop_times)
-            return sum(_aggregate(self.stop_times[i][0] - self.start_times[i][0], self.get_number_of_steps(i))
-                       for i in range(len(self.stop_times))) / divider
+            if step_aggregation == "average":
+                # If step_aggregation is "average", return the average of recorded steps
+                return sum(self.get_at_step(i) for i in self.steps)/len(self.steps)
+            # If step_aggregation is "total", return the average of recorded timing
+            return sum(self.get(which=i, step_aggregation="total") for i in self.timings)/len(self.timings)
 
+        # When which is "total", always return the total recorded duration regardless of step_aggregation
         if which == "total":
-            return sum(_aggregate(self.stop_times[i][0] - self.start_times[i][0], self.get_number_of_steps(i))
-                       for i in range(len(self.stop_times)))
+            return sum(self.get(which=i, step_aggregation="total") for i in self.timings)
 
+        # When which is an int, return the timing at the given index
         return _aggregate(self.stop_times[which][0] - self.start_times[which][0], self.get_number_of_steps(which))
 
     def get_at_step(self, step: Optional[Union[int, str]] = None) -> Optional[float]:
@@ -101,35 +126,43 @@ class Timer:
         :param step: if None last step, else step to get
         :return: the duration if it was recorded, otherwise None
         """
-        if isinstance(step, str):
-            return self.get(which=step, step_aggregation="average")
-        index = None
-        for i, stop_time in enumerate(self.stop_times):
-            if stop_time[1] > step:
-                index = i
-                break
-        if self.start_times[index][1] > step or index is None:
+        if step == "first":
+            step = self.start_times[0][1]
+        if step == "last":
+            step = self.stop_times[-1][1]
+        if step not in self.steps:
             return None
-        return self.get(which=index, step_aggregation="average")
+        step_duration = 0
+        for timing in self.timings:
+            if self.start_times[timing][1] <= step <= self.stop_times[timing][1]:
+                step_duration += self.get(which=timing, step_aggregation="average")
+        return step_duration
 
-    def get_number_of_steps(self, which: Union[int, str] = "last") -> Optional[int]:
+    def get_number_of_steps(self, which: Union[int, str] = "last", current_step: Optional[int] = None) -> Optional[int]:
         """
         Gets the number of steps of a specified recorded timing (the last one by default).
 
         :param which: which timing to get. Can be an int (index of the timing in the list of recorded timings), or
-            'last' (last recorded timing), 'first' (first recorded timing), 'average' (average of all recorded timings)
-            or 'total' (sum of all recorded timings)
+            'last' (last recorded timing), 'first' (first recorded timing), 'average' (average of all recorded timings),
+            'total' (sum of all recorded timings) or 'current' (current timing)
+        :param current_step: current step used to compute the current timing if which is 'current'
         :return: the number of steps
         """
-        which = self._process_which(which, possible_strings=["last", "first", "average", "total"])
+        which = self._process_which(which, possible_strings=["last", "first", "average", "total", "current"])
+        if which == "current":
+            if not self.running:
+                return None
+            if current_step is None:
+                return 1
+            return 1 + current_step - self.start_times[-1][1]
         if self.empty:
             return 0 if which == "total" else None
         if which in ["average", "total"]:
             return self.stop_times[-1][1] - self.start_times[0][1]
-        return self.stop_times[which][1] - self.start_times[which][1]
+        return 1 + self.stop_times[which][1] - self.start_times[which][1]
 
     def render(self, which: Union[int, str] = "current", step_aggregation: str = "average",
-               verbose: Optional[int] = None) -> str:
+               current_step: Optional[int] = None, verbose: Optional[int] = None) -> str:
         """
         Renders a string to display all or part of the timer's internal state.
 
@@ -138,13 +171,14 @@ class Timer:
             (average of all recorded timings), 'total' (sum of all recorded timings) or 'all' (all recorded timings)
         :param step_aggregation: whether to return each timing as an average over the steps it was recorded on or as a
             total. Can be 'average' or 'total'
+        :param current_step: current step used to compute the current timing if which is 'current'
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
         :raises ValueError: if verbose is not in [0, 1, 2]
         :return: the rendered string
         """
-        def _render_duration(which, step_aggregation, verbose):
+        def _render_duration(which, step_aggregation, current_step, verbose):
             rendered = ""
-            duration = self.get(which=which, step_aggregation=step_aggregation)
+            duration = self.get(which=which, step_aggregation=step_aggregation, current_step=current_step)
             if duration is None:
                 if verbose == 2:
                     rendered += "no timing recorded so far"
@@ -206,7 +240,7 @@ class Timer:
             if verbose == 0:
                 rendered_string += f"{duration}"
         elif which != "all":
-            duration = _render_duration(which, step_aggregation, verbose)
+            duration = _render_duration(which, step_aggregation, current_step, verbose)
             if verbose == 2:
                 rendered_string += f"{duration.capitalize()}.\n"
             else:
@@ -222,11 +256,11 @@ class Timer:
             else:
                 if verbose == 2:
                     rendered_string += "All recorded timings :\n - "
-                    rendered_string += " ;\n - ".join([_render_duration(i, step_aggregation, verbose)
+                    rendered_string += " ;\n - ".join([_render_duration(i, step_aggregation, current_step, verbose)
                                                        for i in range(len(self.stop_times))])
                     rendered_string += ".\n"
                 else:
-                    rendered_string += " ; ".join([_render_duration(i, step_aggregation, verbose)
+                    rendered_string += " ; ".join([_render_duration(i, step_aggregation, current_step, verbose)
                                                   for i in range(len(self.stop_times))])
 
         # Set footer
@@ -244,16 +278,19 @@ class Timer:
         self.start_times = []
         self.stop_times = []
 
-    def start(self, step: Optional[int] = None) -> float:
+    def start(self, step: Optional[int] = None, start_time: Optional[float] = None) -> float:
         """
         Automatically stops any previously started timer, and starts a new one.
 
         :param step: starting step (if none, assumes step=last stop step, timings are averages over the elapsed steps)
+        :param start_time: optional time to start the timer at (if None, uses current time)
         :raises ValueError: if step is less than the previous stopping step
         :return: the starting timestamp
         """
-        current_time = time.time()
-        self.stop(step=step, _time=current_time)
+        current_time = time.time() if start_time is None else start_time
+        if self.stop_times and current_time < self.stop_times[-1][0]:
+            raise ValueError(f"Invalid value for 'time' : {current_time}. Must be later than the last stopping time.")
+        self.stop(step=step, stop_time=current_time)
         previous_step = 0
         if not self.empty:
             previous_step = self.stop_times[-1][1]
@@ -267,27 +304,30 @@ class Timer:
                               f"{time.asctime(time.localtime(current_time))}.")
         return current_time
 
-    def stop(self, step: Optional[int] = None, _time: Optional[float] = None) -> Optional[float]:
+    def stop(self, step: Optional[int] = None, stop_time: Optional[float] = None) -> Optional[float]:
         """
         Stops any previously started timer, or does nothing if no timer is running.
 
         :param step: starting step (if none assumes step=starting step + 1, timings are averages over the elapsed steps)
+        :param stop_time: optional time to stop the timer at (if None, uses current time)
         :raises ValueError: if step is less than or equal to the previous starting step
         :return: the duration of the timer
         """
-        current_time = time.time() if _time is None else _time
+        current_time = time.time() if stop_time is None else stop_time
         if not self.running:
             return None
+        if current_time < self.start_times[-1][0]:
+            raise ValueError(f"Invalid value for 'time' : {current_time}. Must be later than the starting time.")
         previous_step = self.start_times[-1][1]
-        step = previous_step + 1 if step is None else step
-        if step <= previous_step:
+        step = previous_step if step is None else step
+        if step < previous_step:
             raise ValueError(f"Invalid value for 'step' : {step}. Must be greater than the previous starting step.")
         self.stop_times.append((current_time, step))
         ellapsed = current_time - self.start_times[-1][0]
         if self.verbose == 2:
             YAECS_LOGGER.info(f"Timer '{self.name}' stopped at step {step} : ellapsed time "
                               f"{format_duration(ellapsed)} (on average "
-                              f"{format_duration(ellapsed/(step-previous_step))} per step).")
+                              f"{format_duration(ellapsed/self.get_number_of_steps('last'))} per step).")
         return ellapsed
 
     def _process_which(self, which: Union[int, str], possible_strings: List[str]) -> Union[int, str]:
@@ -304,9 +344,9 @@ class Timer:
         if not isinstance(which, int) and which not in possible_strings:
             raise ValueError(f"Invalid value for 'which' : {which}. Can be an int or in {possible_strings}.")
         if which == "last":
-            which = len(self.stop_times) - 1
+            which = self.timings[-1]
         elif which == "first":
-            which = 0
+            which = self.timings[0]
         return which
 
 
@@ -329,20 +369,29 @@ class TimerManager:
         if item == "current":
             return {name: timer.get("current") for name, timer in self.timers.items()}
         if item == "average":
-            return {name: timer.get("average", step_aggregation="total") for name, timer in self.timers.items()}
+            return {name: timer.get("average", step_aggregation="average") for name, timer in self.timers.items()}
         if item == "total":
-            return {name: timer.get("total", step_aggregation="total") for name, timer in self.timers.items()}
+            return {name: timer.get("total") for name, timer in self.timers.items()}
         return {name: timer.get_at_step(item) for name, timer in self.timers.items()}
 
     @property
     def first_step(self) -> int:
         """ Gets the first step of the timer manager (assuming it is the first step of all its timers). """
-        return min(timer.start_times[0][1] for timer in self.timers.values())
+        if not self.steps:
+            return 0
+        return min(self.steps)
 
     @property
     def last_step(self) -> int:
         """ Gets the last or current step of the timer manager (assuming it is the latest step of all its timers). """
-        return max(timer.start_times[-1][1] for timer in self.timers.values())
+        if not self.steps:
+            return 0
+        return max(self.steps)
+
+    @property
+    def steps(self) -> List[int]:
+        """ Gets the steps of the timer manager (assuming it is the steps of all its timers). """
+        return sorted(set(step for timer in self.timers.values() for step in timer.steps))
 
     def render(self, which_step: Union[int, str] = "current", verbose: Optional[int] = None) -> str:
         """
@@ -411,41 +460,52 @@ class TimerManager:
         """ Resets the manager, deleting all timers. """
         self.timers = {}
 
-    def start(self, name: str = "MyTimer", step: Optional[int] = None, verbose: Optional[int] = None) -> None:
+    def start(self, name: str = "MyTimer", step: Optional[int] = None, start_time: Optional[float] = None,
+              verbose: Optional[int] = None) -> None:
         """
         Starts a timer.
 
         :param name: name of the timer
         :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
+        :param start_time: optional time to start the timer at (if None, uses current time)
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
         """
+        current_time = time.time() if start_time is None else start_time
         try:
             with TemporaryVerbose(self.timers[name], verbose):
-                self.timers[name].start(step=step)
+                self.timers[name].start(step=step, start_time=current_time)
         except KeyError:
-            self.timers[name] = Timer(name=name, start=True, step=step, verbose=verbose)
+            self.timers[name] = Timer(name=name, start=True, step=step, start_time=current_time, verbose=verbose)
 
-    def stop(self, name: str = "MyTimer", step: Optional[int] = None, verbose: Optional[int] = None) -> None:
+    def stop(self, name: str = "MyTimer", step: Optional[int] = None, stop_time: Optional[float] = None,
+             verbose: Optional[int] = None) -> Optional[float]:
         """
         Stops a timer.
 
         :param name: name of the timer
-        :param step: starting step (if None, assumes step=start step + 1, timings are averages over the elapsed steps)
+        :param step: starting step (if None, assumes step=start step, timings are averages over the elapsed steps)
+        :param stop_time: optional time to stop the timer at (if None, uses current time)
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        :return: the duration of the timer if it was running, otherwise None
         """
+        current_time = time.time() if stop_time is None else stop_time
         with TemporaryVerbose(self.timers[name], verbose):
-            self.timers[name].stop(step=step)
+            return self.timers[name].stop(step=step, stop_time=current_time)
 
     def update(self, start: Union[None, str, List[str]] = None, stop: Union[None, str, List[str]] = None,
-               step: Optional[int] = None, verbose: Optional[int] = None) -> None:
+               step: Optional[int] = None, update_time: Optional[float] = None,
+               verbose: Optional[int] = None) -> List[Optional[float]]:
         """
         Automatically starts and stops timers.
 
         :param start: names of the timers to start
         :param stop: names of the timers to stop
         :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
+        :param update_time: optional time to update the timers at (if None, uses current time)
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        :return: the durations of the stopped timers if any
         """
+        current_time = time.time() if update_time is None else update_time
         if start is None:
             start = []
         if isinstance(start, str):
@@ -454,10 +514,10 @@ class TimerManager:
             stop = []
         if isinstance(stop, str):
             stop = [stop]
-        for name in stop:
-            self.stop(name=name, step=step, verbose=verbose)
+        timings = [self.stop(name=name, step=step, stop_time=current_time, verbose=verbose) for name in stop]
         for name in start:
-            self.start(name=name, step=step, verbose=verbose)
+            self.start(name=name, step=step, start_time=current_time, verbose=verbose)
+        return timings
 
     def _process_which(self, which: Union[int, str]) -> Union[int, str]:
         """
@@ -527,7 +587,7 @@ class TimeInContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """ Stops the timer in the timer manager. """
-        self.timer_manager.stop(name=self.name, verbose=self.verbose)
+        self.timer_manager.stop(name=self.name, step=self.step, verbose=self.verbose)
 
 
 def format_duration(duration: float, precision: int = 2, human_readable: bool = True) -> str:

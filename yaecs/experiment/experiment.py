@@ -66,7 +66,7 @@ class Experiment:
         if len(tracker_config) > 1:
             raise RuntimeError("Several parameters were registered as tracker configs. Please register only one.")
         self.tracker = Tracker(self.config[tracker_config[0]] if tracker_config else {"type": ""},
-                               self, experiment_name=experiment_name, run_name=run_name,
+                               self, experiment_name=experiment_name, run_name=run_name, starting_step=0,
                                params_filter_fn=params_filter_fn, log_modified_params_only=log_modified_params_only,
                                do_not_log_hooks=do_not_log_hooks, only_params_to_log=only_params_to_log,
                                params_not_to_log=params_not_to_log)

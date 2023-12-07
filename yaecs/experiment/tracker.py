@@ -2,6 +2,7 @@
 activities. """
 import logging
 import os
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .timer import TimerManager, TimeInContext
@@ -170,17 +171,19 @@ class Tracker:
         """
         if step is not None and step < self._step:
             raise ValueError(f"Cannot go back to step {step} from step {self._step}.")
-        if auto_log_timers:
-            timers = {"timers/" + name: duration for name, duration in self.timer["last"].items()
-                      if duration is not None}
-            self.log_scalars(timers, step=self._step)
-        if print_timers:
-            print(self.timer.render(which_step="last"))
+        if self._step in self.timer.steps:
+            if auto_log_timers:
+                timers = {"timers/" + name: duration for name, duration in self.timer[self._step].items()
+                          if duration is not None}
+                self.log_scalars(timers, step=self._step)
+            if print_timers:
+                print(self.timer.render(which_step=self._step))
         self._step = self._step + 1 if step is None else step
 
-    def log_image(self, name: str, image: Any, step: Optional[int] = None, sub_logger: Optional[str] = None,
-                  extension: str = "png", maximum: Optional[int] = None, maximum_per_step: Optional[int] = None,
-                  main_process_only: bool = False, only_loggers: Union[None, str, List[str]] = None,
+    def log_image(self, name: str, image: Any, step: Union[NoValue, None, int] = NoValue(),
+                  sub_logger: Optional[str] = None, extension: str = "png", maximum: Optional[int] = None,
+                  maximum_per_step: Optional[int] = None, main_process_only: bool = False,
+                  only_loggers: Union[None, str, List[str]] = None,
                   except_loggers: Union[None, str, List[str]] = None) -> None:
         """
         Logs an image using the logger. The image could be a path to a saved image, matplotlib or plotly figure, a
@@ -259,35 +262,66 @@ class Tracker:
                                 except_loggers=except_loggers)
 
     def start_timer(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
-                    verbose: Optional[int] = None) -> None:
+                    start_time: Optional[float] = None, verbose: Optional[int] = None) -> None:
         """
         Starts a timer.
 
         :param name: name of the timer
         :param step: Step at which to log the measured duration. If not provided, uses the internal step. If None,
             assumes step=previous stop step.
+        :param start_time: time at which to start the timer. If not provided, uses the current time.
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
         """
+        current_time = time.time() if start_time is None else start_time
         step = self._step if isinstance(step, NoValue) else step
         if name in self.timer.timers and self.timer.timers[name].running:
-            self.stop_timer(name, step, verbose)
-        self.timer.start(name, step, verbose)
+            self.stop_timer(name=name, step=step, stop_time=current_time, verbose=verbose)
+        self.timer.start(name=name, step=step, start_time=current_time, verbose=verbose)
 
     def stop_timer(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
-                   verbose: Optional[int] = None) -> None:
+                   stop_time: Optional[float] = None, verbose: Optional[int] = None) -> Optional[float]:
         """
         Stops a timer.
 
         :param name: name of the timer
         :param step: Step at which to log the measured duration. If not provided, uses the internal step. If None,
-            assumes step=previous start step + 1.
+            assumes step=previous start step.
+        :param stop_time: time at which to stop the timer. If not provided, uses the current time.
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        :return: the duration of the timer if it was running, None otherwise
         """
+        current_time = time.time() if stop_time is None else stop_time
         step = self._step if isinstance(step, NoValue) else step
         if name in self.timer.timers and self.timer.timers[name].running:
             start_step = self.timer.timers[name].start_times[-1][1]
-            step = step if step > start_step else start_step + 1
-        self.stop_timer(name, step, verbose)
+            step = step if step >= start_step else start_step
+        return self.timer.stop(name=name, step=step, stop_time=current_time, verbose=verbose)
+
+    def update_timers(self, start: Union[None, str, List[str]] = None, stop: Union[None, str, List[str]] = None,
+                      step: Union[NoValue, None, int] = None, update_time: Optional[float] = None,
+                      verbose: Optional[int] = None) -> None:
+        """
+        Automatically starts and stops timers.
+
+        :param start: names of the timers to start
+        :param stop: names of the timers to stop
+        :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
+        :param update_time: optional time to update the timers at (if None, uses current time)
+        :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
+        """
+        current_time = time.time() if update_time is None else update_time
+        if start is None:
+            start = []
+        if isinstance(start, str):
+            start = [start]
+        if stop is None:
+            stop = []
+        if isinstance(stop, str):
+            stop = [stop]
+        timings = [self.stop_timer(name=name, step=step, stop_time=current_time, verbose=verbose) for name in stop]
+        for name in start:
+            self.start_timer(name=name, step=step, start_time=current_time, verbose=verbose)
+        return timings
 
     def measure_time(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
                      verbose: Optional[int] = None) -> None:
