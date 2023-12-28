@@ -16,7 +16,7 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 from ..yaecs_utils import TypeHint
 
@@ -155,6 +155,17 @@ class ConfigSettersMixin:
         :param value: value to set the pre-processing to
         """
         object.__setattr__(self._main_config, "_pre_process_master_switch", value)
+
+    def set_variation_name(self, value: Optional[str]) -> None:
+        """
+        Sets the variation name across the entire config object. Calling this for a sub-config will also affect the main
+        config and all other sub-configs.
+
+        :param value: value of the new variation name
+        """
+        object.__setattr__(self._main_config, "_variation_name", value)
+        for subconfig in self._main_config.get_all_linked_sub_configs():
+            object.__setattr__(subconfig, "_variation_name", value)
 
     def unset_sub_config(self, sub_config: 'Configuration') -> None:
         """

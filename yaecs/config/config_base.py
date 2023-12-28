@@ -384,12 +384,17 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     raise RuntimeError("Type-hinting is only allowed in the default config.")
                 name = yaml_loader.constructed_objects[list(yaml_loader.constructed_objects.keys())[-1]]
                 name = self._get_full_path(name)
-                type_hint = tag[6:]
-                if type_hint in self._assigned_as_yaml_tags:
-                    _, processor_type, new_type_hint = self._assigned_as_yaml_tags[type_hint]
-                    if self.get_variation_name() is None:
-                        self.add_processing_function_all(name, f"_tagged_method_{type_hint}", processor_type)
-                    type_hint = new_type_hint
+                methods = tag[6:]
+                type_hint = methods
+                if all(method in self._assigned_as_yaml_tags for method in methods.split(",")):
+                    lowest_priority = min(getattr(self._assigned_as_yaml_tags[method][0], "order", 0)
+                                          for method in methods.split(","))
+                    for method in methods.split(","):
+                        function, processor_type, new_type_hint = self._assigned_as_yaml_tags[method]
+                        if self.get_variation_name() is None:
+                            self.add_processing_function_all(name, f"_tagged_method_{method}", processor_type)
+                        if type_hint == methods and getattr(function, "order", 0) == lowest_priority:
+                            type_hint = new_type_hint
                 self._main_config.add_type_hint(name, parse_type(type_hint))
                 if isinstance(node, yaml.ScalarNode):
                     if node.value == "":
@@ -421,8 +426,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 if tag[1:].lower() != "type:config":
                     YAECS_LOGGER.warning(f"WARNING : Naming sub-configs is deprecated. Tag '{tag}' will be ignored and "
                                          "should be removed. They might be used for a different purpose in a future "
-                                         "release."
-                                         "\nSince now YAML dicts are implicitly considered sub-configs, be sure to tag "
+                                         "release.\n"
+                                         "Since YAML dicts are now implicitly considered sub-configs, be sure to tag "
                                          "with '!type:dict' if you want to use a dict.")
             else:
                 if tag[1:].lower() == "type:config":
@@ -505,22 +510,10 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         # the merge as "loading a saved file"... (which will deactivate
         # the parameter pre-processing for this merge)
         if key == "config_metadata":
-            pattern = "Saving time : * (*) ; Regime : *"
-            if not isinstance(value, str) or not compare_string_pattern(value, pattern):
-                raise RuntimeError("'config_metadata' is a special parameter. "
-                                   "Please do not edit or set it.")
-
-            regime = value.split(" : ")[-1]
-            if regime == "unsafe" and self._verbose:
-                YAECS_LOGGER.warning("WARNING : YOU ARE LOADING AN UNSAFE CONFIG FILE. Reproducibility with "
-                                     "corresponding experiment is not ensured.")
-            elif regime not in ["auto-save", "locked"]:
-                raise ValueError("'overwriting_regime' is a special parameter. "
-                                 "It can only be set to 'auto-save'(default), "
-                                 "'locked' or 'unsafe'.")
+            former_saving_time, regime, variation = self._parse_metadata(value)
+            self._former_saving_time = former_saving_time
             self.config_metadata["overwriting_regime"] = regime
-
-            self._former_saving_time = float(value.split("(")[-1].split(")")[0])
+            self.set_variation_name(variation)
             self.set_pre_processing(False)
             return
 
@@ -654,8 +647,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                         type_hints: Optional[Dict[str, TypeHint]] = None):
         """ Method called by _add_item to add a sub-config to a config. First an empty config is created, then its
         values are added with its init_from_config method. """
-        # This has to be performed in two steps, otherwise
-        # the param inside the new sub-config does not get
+        # This has to be performed in two steps, otherwise the param inside the new sub-config does not get
         # pre-processed.
         object.__setattr__(
             self, name_in_config,
@@ -667,8 +659,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 main_config=self._main_config, verbose=self._verbose
             ),
         )
-        # Now, outside the nested "setup" state during __init__,
-        # pre-processing is active
+        # Now, outside the nested "setup" state during __init__, pre-processing is active
         type_hints_to_transfer = []
         prefix = self._get_full_path(name) + "."
         for type_hint in self._main_config.get_type_hints():
@@ -819,11 +810,9 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     YAECS_LOGGER.error(f"ERROR while {processing_type}-processing param '{total_name}' :")
                     raise
             if processing_type == "pre" and not is_type_valid(parameter, _ConfigurationBase):
-                raise RuntimeError(f"ERROR while pre-processing param '{total_name}' : "
-                                   "pre-processing functions that change the type of a "
-                                   "param to a non-native YAML type are forbidden because "
-                                   "they cannot be saved. Please use a parameter "
-                                   "post-processing instead.")
+                raise RuntimeError(f"ERROR while pre-processing param '{total_name}' : pre-processing functions that "
+                                   "change the type of a param to a non-native YAML type are forbidden because they "
+                                   "cannot be saved. Please use a parameter post-processing instead.")
             if processing_type == "post" and was_processed:
                 main.save_value_before_postprocessing(self._get_full_path(name), old_value)
         elif processing_type == "pre":
@@ -832,6 +821,27 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     for hook_name in processor.__name__.split("__")[1].split(","):
                         self.add_currently_processed_param_as_hook(hook_name)
         return parameter
+
+    def _parse_metadata(self, metadata: str) -> Tuple[str, str]:
+        """ Parses metadata string to get the saving time, regime and variation name if there is one. """
+        pattern = "Saving time : * (*) ; Regime : *"
+        if not isinstance(metadata, str) or not compare_string_pattern(metadata, pattern):
+            raise RuntimeError("'config_metadata' is a special parameter. Please do not edit or set it.")
+        if metadata.count(";") == 1:
+            time_chunk, regime_chunk = metadata.split(";")
+            variation_chunk = None
+        else:
+            time_chunk, regime_chunk, variation_chunk = metadata.split(";")
+        former_saving_time = float(time_chunk.split("(")[-1].split(")")[0].strip())
+        regime = regime_chunk.split(":")[1].strip()
+        if regime == "unsafe" and self._verbose:
+            YAECS_LOGGER.warning("WARNING : YOU ARE LOADING AN UNSAFE CONFIG FILE. Reproducibility with "
+                                 "corresponding experiment is not ensured.")
+        elif regime not in ["auto-save", "locked"]:
+            raise ValueError("'overwriting_regime' is a special parameter. It can only be set to 'auto-save'"
+                             "(default), 'locked' or 'unsafe'.")
+        variation = None if variation_chunk is None else variation_chunk.split(":")[1].strip()
+        return former_saving_time, regime, variation
 
     @staticmethod
     def _superficial_dict_cleanup(dictionary: dict) -> dict:

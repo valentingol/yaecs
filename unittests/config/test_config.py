@@ -788,7 +788,7 @@ def test_errors(caplog, yaml_default_unlinked, yaml_default_sub_variations,
         with pytest.raises(
                 Exception, match="'overwriting_regime' is a "
                                  "special parameter.*"):
-            metadata = ("Saving time : <date> (<in_seconds>) ; Regime : "
+            metadata = ("Saving time : 0 (0) ; Regime : "
                         "something_incorrect")
             make_config({"config_metadata": metadata})
         with pytest.raises(Exception, match="Failed to set parameter.*"):

@@ -32,6 +32,144 @@ ConfigInput = Union[List[ConfigDeclarator], ConfigDeclarator]
 Hooks = Union[Dict[str, List[str]], List[str]]
 TypeHint = Union[type, tuple, list, dict, set, int]
 VariationDeclarator = Union[List[ConfigDeclarator], Dict[str, ConfigDeclarator]]
+YAML_EXPRESSIONS = {
+    "null": re.compile(r'''^(?: ~
+                    |null|Null|NULL
+                    | )$''', re.X),
+    "bool": re.compile(r'''^(?:yes|Yes|YES|no|No|NO
+                    |true|True|TRUE|false|False|FALSE
+                    |on|On|ON|off|Off|OFF)$''', re.X),
+    "int": re.compile(r'''^(?:[-+]?0b[0-1_]+
+                    |[-+]?0[0-7_]+
+                    |[-+]?(?:0|[1-9][0-9_]*)
+                    |[-+]?0x[0-9a-fA-F_]+
+                    |[-+]?[1-9][0-9_]*(?::[0-5]?[0-9])+)$''', re.X),
+    "float": re.compile(r'''^(?:[-+]?(?:[0-9][0-9_]*)\.[0-9_]*(?:[eE][-+][0-9]+)?
+                    |\.[0-9][0-9_]*(?:[eE][-+][0-9]+)?
+                    |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*
+                    |[-+]?\.(?:inf|Inf|INF)
+                    |\.(?:nan|NaN|NAN))$''', re.X)
+}
+
+
+class NoValue:
+    """ Used to represent a default value not modified by the user. """
+
+
+class Priority(Enum):
+    """ Define priority levels which can be used to qualify when a processing function should be performed. """
+    ALWAYS_FIRST = -20
+    OFTEN_FIRST = -10
+    INDIFFERENT = 0
+    SITUATIONAL = 0
+    OFTEN_LAST = 10
+    ALWAYS_LAST = 20
+
+    def __hash__(self):
+        return hash(self.value)
+
+    def __gt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value > other.value
+        if isinstance(other, Real):
+            return self.value > other
+        if isinstance(other, str):
+            return self.value > getattr(self.__class__, other)
+        return NotImplemented
+
+    def __rgt__(self, other):
+        return self < other
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        if isinstance(other, Real):
+            return self.value < other
+        if isinstance(other, str):
+            return self.value < getattr(self.__class__, other)
+        return NotImplemented
+
+    def __rlt__(self, other):
+        return self > other
+
+    def __ge__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value >= other.value
+        if isinstance(other, Real):
+            return self.value >= other
+        if isinstance(other, str):
+            return self.value >= getattr(self.__class__, other)
+        return NotImplemented
+
+    def __rge__(self, other):
+        return self <= other
+
+    def __le__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value <= other.value
+        if isinstance(other, Real):
+            return self.value <= other
+        if isinstance(other, str):
+            return self.value <= getattr(self.__class__, other)
+        return NotImplemented
+
+    def __rle__(self, other):
+        return self >= other
+
+    def __eq__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value == other.value
+        if isinstance(other, Real):
+            return self.value == other
+        if isinstance(other, str):
+            return self.name == other
+        return NotImplemented
+
+    def __req__(self, other):
+        return self == other
+
+
+class TqdmLogFormatter:
+    """
+    Context setting formatters used in logging handlers for tqdm bars. See https://github.com/tqdm/tqdm/issues/313
+    """
+
+    def __init__(self, logger):
+        self._logger = logger
+        self.__original_formatters = None
+
+    def __enter__(self):
+        self.__original_formatters = list()
+
+        for handler in self._logger.handlers:
+            self.__original_formatters.append(handler.formatter)
+
+            handler.terminator = ''
+            formatter = logging.Formatter('%(message)s')
+            handler.setFormatter(formatter)
+
+        return self._logger
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        for handler, formatter in zip(self._logger.handlers, self.__original_formatters):
+            handler.terminator = '\n'
+            handler.setFormatter(formatter)
+
+
+class TqdmLogger(io.StringIO):
+    """File to use in tqdm to make it log its bars to a logger. See https://github.com/tqdm/tqdm/issues/313"""
+
+    def __init__(self, logger):
+        super().__init__()
+
+        self._logger = logger
+
+    def write(self, buffer):
+        with TqdmLogFormatter(self._logger) as logger:
+            logger.info(buffer)
+
+    def flush(self):
+        pass
 
 
 def assign_order(order: Union[Real, 'Priority'] = 0) -> Callable[[Callable], Callable]:
@@ -101,18 +239,16 @@ def compose(*functions: Callable) -> Callable:
     def compose_2(function_1, function_2):
         def composed(*args, **kwargs):
             return function_2(function_1(*args, **kwargs))
-        orders = []
-        for func in [function_1, function_2]:
-            if hasattr(func, "order"):
-                orders.append(func.order)
+        orders = [get_order(function_1, default=None), get_order(function_2, default=None)]
+        orders = [order for order in orders if order is not None]
         if orders:
             set_function_attribute(composed, "order", max(orders))
         hooks = []
         for func in [function_1, function_2]:
-            if func.__name__.startswith("yaecs_config_hook__"):
+            if hasattr(func, "__name__") and func.__name__.startswith("yaecs_config_hook__"):
                 hooks += func.__name__.split("__")[1].split(",")
         if hooks:
-            composed.__name__ = f"yaecs_config_hook__{','.join(list(set(hooks)))}__composed"
+            set_function_attribute(composed, "__name__", f"yaecs_config_hook__{','.join(list(set(hooks)))}__composed")
         return composed
     return functools.reduce(compose_2, functions, lambda x: x)
 
@@ -211,14 +347,16 @@ def get_quasi_bash_sys_argv(string_to_convert: str) -> List[str]:
     return converted_list
 
 
-def get_order(func: Callable) -> Union[Real, 'Priority']:
+def get_order(func: Callable, default: Union[None, Real, 'Priority'] = Priority.INDIFFERENT
+              ) -> Union[None, Real, 'Priority']:
     """
-    If input function has an "order" attribute, returns it. Otherwise, returns Priority.INDIFFERENT.
+    If input function has an "order" attribute, returns it. Otherwise, returns the specified "default" value.
 
     :param func: function to get the order of
+    :param default: default value to return if no order is found
     :return: the order value
     """
-    return getattr(func, "order", Priority.INDIFFERENT)
+    return getattr(func, "order", default)
 
 
 def get_param_as_parsable_string(param: Any) -> str:
@@ -268,7 +406,7 @@ def hook(hook_name: str) -> Callable[[Callable], Callable]:
         else:
             hook_name_in_func_name = hook_name
             original_name = func.__name__
-        func.__name__ = f"yaecs_config_hook__{hook_name_in_func_name}__{original_name}"
+        set_function_attribute(func, "__name__", f"yaecs_config_hook__{hook_name_in_func_name}__{original_name}")
 
         @functools.wraps(func)
         def wrapper_hook(self, *args, **kwargs):
@@ -299,10 +437,6 @@ def is_type_valid(value: Any, config_class: type) -> bool:
     if isinstance(value, (Mapping, config_class)):
         return all(is_type_valid(i, config_class) for i in value.values())
     return isinstance(value, (int, float, str)) or value is None
-
-
-class NoValue:
-    """ Used to represent a default value not modified by the user. """
 
 
 def parse_type(string_to_process: str) -> TypeHint:
@@ -402,79 +536,6 @@ def parse_type(string_to_process: str) -> TypeHint:
     return _struc_to_type(to_return)
 
 
-class Priority(Enum):
-    """ Define priority levels which can be used to qualify when a processing function should be performed. """
-    ALWAYS_FIRST = -20
-    OFTEN_FIRST = -10
-    INDIFFERENT = 0
-    SITUATIONAL = 0
-    OFTEN_LAST = 10
-    ALWAYS_LAST = 20
-
-    def __hash__(self):
-        return hash(self.value)
-
-    def __gt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value > other.value
-        if isinstance(other, Real):
-            return self.value > other
-        if isinstance(other, str):
-            return self.value > getattr(self.__class__, other)
-        return NotImplemented
-
-    def __rgt__(self, other):
-        return self < other
-
-    def __lt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value < other.value
-        if isinstance(other, Real):
-            return self.value < other
-        if isinstance(other, str):
-            return self.value < getattr(self.__class__, other)
-        return NotImplemented
-
-    def __rlt__(self, other):
-        return self > other
-
-    def __ge__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value >= other.value
-        if isinstance(other, Real):
-            return self.value >= other
-        if isinstance(other, str):
-            return self.value >= getattr(self.__class__, other)
-        return NotImplemented
-
-    def __rge__(self, other):
-        return self <= other
-
-    def __le__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value <= other.value
-        if isinstance(other, Real):
-            return self.value <= other
-        if isinstance(other, str):
-            return self.value <= getattr(self.__class__, other)
-        return NotImplemented
-
-    def __rle__(self, other):
-        return self >= other
-
-    def __eq__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value == other.value
-        if isinstance(other, Real):
-            return self.value == other
-        if isinstance(other, str):
-            return self.name == other
-        return NotImplemented
-
-    def __req__(self, other):
-        return self == other
-
-
 def recursive_set_attribute(obj: Any, key: str, value: Any) -> None:
     """
     Recursively gets attributes of 'obj' until object.__setattr__
@@ -493,19 +554,16 @@ def recursive_set_attribute(obj: Any, key: str, value: Any) -> None:
 
 def set_function_attribute(func: Callable, attribute_name: str, value: Any) -> None:
     """
-    Adds an attribute to a function object.
+    Adds an attribute to a function or method object.
 
     :param func: function to add the attribute to
     :param attribute_name: name of the attribute to add
     :param value: value of the attribute
     """
-    if attribute_name == "__name__":
-        func.__name__ = value
-    else:
-        try:
-            func.__dict__[attribute_name] = value
-        except AttributeError:
-            setattr(func, attribute_name, value)
+    try:
+        setattr(func, attribute_name, value)
+    except AttributeError:  # used if func is a method, to modify the underlying function
+        setattr(func.__func__, attribute_name, value)
 
 
 def update_state(state_descriptor: str) -> Callable[[Callable], Callable]:
@@ -536,66 +594,3 @@ def update_state(state_descriptor: str) -> Callable[[Callable], Callable]:
         return wrapper_update_state
 
     return decorator_update_state
-
-
-class TqdmLogFormatter:
-    """
-    Context setting formatters used in logging handlers for tqdm bars. See https://github.com/tqdm/tqdm/issues/313
-    """
-
-    def __init__(self, logger):
-        self._logger = logger
-        self.__original_formatters = None
-
-    def __enter__(self):
-        self.__original_formatters = list()
-
-        for handler in self._logger.handlers:
-            self.__original_formatters.append(handler.formatter)
-
-            handler.terminator = ''
-            formatter = logging.Formatter('%(message)s')
-            handler.setFormatter(formatter)
-
-        return self._logger
-
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        for handler, formatter in zip(self._logger.handlers, self.__original_formatters):
-            handler.terminator = '\n'
-            handler.setFormatter(formatter)
-
-
-class TqdmLogger(io.StringIO):
-    """File to use in tqdm to make it log its bars to a logger. See https://github.com/tqdm/tqdm/issues/313"""
-
-    def __init__(self, logger):
-        super().__init__()
-
-        self._logger = logger
-
-    def write(self, buffer):
-        with TqdmLogFormatter(self._logger) as logger:
-            logger.info(buffer)
-
-    def flush(self):
-        pass
-
-
-YAML_EXPRESSIONS = {
-    "null": re.compile(r'''^(?: ~
-                    |null|Null|NULL
-                    | )$''', re.X),
-    "bool": re.compile(r'''^(?:yes|Yes|YES|no|No|NO
-                    |true|True|TRUE|false|False|FALSE
-                    |on|On|ON|off|Off|OFF)$''', re.X),
-    "int": re.compile(r'''^(?:[-+]?0b[0-1_]+
-                    |[-+]?0[0-7_]+
-                    |[-+]?(?:0|[1-9][0-9_]*)
-                    |[-+]?0x[0-9a-fA-F_]+
-                    |[-+]?[1-9][0-9_]*(?::[0-5]?[0-9])+)$''', re.X),
-    "float": re.compile(r'''^(?:[-+]?(?:[0-9][0-9_]*)\.[0-9_]*(?:[eE][-+][0-9]+)?
-                    |\.[0-9][0-9_]*(?:[eE][-+][0-9]+)?
-                    |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*
-                    |[-+]?\.(?:inf|Inf|INF)
-                    |\.(?:nan|NaN|NAN))$''', re.X)
-}

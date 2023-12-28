@@ -164,7 +164,12 @@ class Experiment:
                                              f"{description.split('%h')[1]}")
                 else:
                     variation_description = f"%m run in %p (variation %v) :%h{description}"
-            returns.append(self.run_single(variation_description, **kwargs))
+            try:
+                to_return = self.run_single(variation_description, **kwargs)
+            except Exception as exception:  # pylint: disable=broad-except
+                YAECS_LOGGER.error(f"Run {run_number + 1} failed with the following error : {exception}")
+                to_return = None
+            returns.append(to_return)
         return returns
 
     def run_single(self, run_description: Optional[str] = None, **kwargs) -> Any:

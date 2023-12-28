@@ -74,8 +74,7 @@ class ConfigGettersMixin:
         for i in self._get_user_defined_attributes():
             object_to_scan = getattr(self, "___" + i if i in self._methods else i)
             if isinstance(object_to_scan, ConfigGettersMixin):
-                all_linked_configs = (all_linked_configs + [object_to_scan]
-                                      + object_to_scan.get_all_linked_sub_configs())
+                all_linked_configs = all_linked_configs + [object_to_scan] + object_to_scan.get_all_linked_sub_configs()
         return all_linked_configs
 
     def get_all_sub_configs(self) -> List['Configuration']:

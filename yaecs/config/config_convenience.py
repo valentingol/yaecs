@@ -337,7 +337,8 @@ class ConfigConvenienceMixin:
         """ Used to format the metadata for saving or printing. """
         return (f"Saving time : {time.ctime(self.config_metadata['saving_time'])} "
                 f"({self.config_metadata['saving_time']}) ; "
-                f"Regime : {self.config_metadata['overwriting_regime']}")
+                f"Regime : {self.config_metadata['overwriting_regime']}"
+                f"{'' if self.get_variation_name() is None else f' ; Variation : {self.get_variation_name()}'}")
 
     def _get_yaml_dumper(self) -> Type[yaml.Dumper]:
         """ Used to get a custom YAML dumper capable of writing config tags. """

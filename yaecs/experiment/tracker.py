@@ -18,7 +18,7 @@ class Tracker:
 
     def __init__(self, tracker_config: Dict[str, Any], experiment, experiment_name: Optional[str] = None,
                  run_name: Optional[str] = None, starting_step: int = 0, params_filter_fn: Optional[Callable] = None,
-                 log_modified_params_only: bool = False, do_not_log_hooks: bool = False, 
+                 log_modified_params_only: bool = False, do_not_log_hooks: bool = False,
                  only_params_to_log: Optional[List[str]] = None, params_not_to_log: Optional[List[str]] = None):
         """
         Reads the tracker config from the general config to create a Tracker object used for logging during the run.
@@ -161,7 +161,7 @@ class Tracker:
             params_to_log[pattern] = config.get_pre_post_processing_values().get(param_name, config[param_name])
         self.loggers.start_run(experiment_name, run_name, description, params_to_log)
 
-    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True) -> None:
+    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True) -> int:
         """
         Increments the step counter.
 
@@ -179,6 +179,7 @@ class Tracker:
             if print_timers:
                 print(self.timer.render(which_step=self._step))
         self._step = self._step + 1 if step is None else step
+        return self._step
 
     def log_image(self, name: str, image: Any, step: Union[NoValue, None, int] = NoValue(),
                   sub_logger: Optional[str] = None, extension: str = "png", maximum: Optional[int] = None,
@@ -298,7 +299,7 @@ class Tracker:
         return self.timer.stop(name=name, step=step, stop_time=current_time, verbose=verbose)
 
     def update_timers(self, start: Union[None, str, List[str]] = None, stop: Union[None, str, List[str]] = None,
-                      step: Union[NoValue, None, int] = None, update_time: Optional[float] = None,
+                      step: Union[NoValue, None, int] = NoValue(), update_time: Optional[float] = None,
                       verbose: Optional[int] = None) -> None:
         """
         Automatically starts and stops timers.
