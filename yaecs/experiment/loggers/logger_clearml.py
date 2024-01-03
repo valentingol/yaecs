@@ -6,11 +6,29 @@ from typing import Any, Optional, Union
 import warnings
 
 from .base_logger import Logger
-from .logger_utils import lazy_import, value_to_float
+from .logger_utils import NotImportedModule, value_to_float
 from ..experiment_utils import format_mode
 
-# ClearML integration, see original package : https://clear.ml
-clearml = lazy_import("clearml")  # pylint: disable=invalid-name
+try:  # ClearML integration, see original package : https://clear.ml
+    import clearml
+except ImportError:
+    clearml = NotImportedModule("clearml")
+try:  # Support for matplotlib figures logging, see original package : https://matplotlib.org/
+    import matplotlib
+except ImportError:
+    matplotlib = NotImportedModule("matplotlib")
+try:  # Support to save numpy arrays as images, see original package : https://numpy.org/
+    import numpy as np
+except ImportError:
+    np = NotImportedModule("numpy")
+try:  # Support to save numpy arrays as images, see original package : https://pypi.org/project/Pillow/
+    from PIL import Image
+except ImportError:
+    Image = NotImportedModule("PIL")
+try:  # Support for plotly figures, see original package : https://plotly.com/python/
+    import plotly
+except ImportError:
+    plotly = NotImportedModule("plotly")
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -77,14 +95,6 @@ class ClearMLLogger(Logger):
     def log_image(self, name: str, image: Any, step: Optional[int] = None, sub_logger: Optional[str] = None,
                   extension: str = "png") -> None:
         self._warn_function_argument("log_image", "extension", extension, "png")
-        # Support for matplotlib figures logging, see original package : https://matplotlib.org/
-        matplotlib = lazy_import("matplotlib")  # pylint: disable=invalid-name
-        # Support to save numpy arrays as images, see original package : https://numpy.org/
-        np = lazy_import("numpy")  # pylint: disable=invalid-name
-        # Support to save numpy arrays as images, see original package : https://pypi.org/project/Pillow/
-        Image = lazy_import("PIL.Image")  # pylint: disable=invalid-name
-        # Support for plotly figures, see original package : https://plotly.com/python/
-        plotly = lazy_import("plotly")  # pylint: disable=invalid-name
         sub_logger = "logged_images" if sub_logger is None else sub_logger
 
         with warnings.catch_warnings():

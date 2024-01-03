@@ -5,10 +5,12 @@ import logging
 from typing import Any, Optional, Union
 
 from .base_logger import Logger
-from .logger_utils import lazy_import, value_to_float
+from .logger_utils import NotImportedModule, value_to_float
 
-# Sacred integration, see original package : https://sacred.readthedocs.io/
-sacred = lazy_import("sacred")  # pylint: disable=invalid-name
+try:  # Sacred integration, see original package : https://sacred.readthedocs.io/
+    import sacred
+except ImportError:
+    sacred = NotImportedModule("sacred")
 
 YAECS_LOGGER = logging.getLogger(__name__)
 

@@ -4,7 +4,21 @@ import logging
 import time
 from typing import Dict, List, Optional, Tuple, Union
 
+from ..yaecs_utils import compare_string_pattern
+
 YAECS_LOGGER = logging.getLogger(__name__)
+
+
+class WildCardDict(dict):
+    """ This class is a dict where getitem also supports None, lists of items and wildcards ('*'). """
+    def __getitem__(self, item: Union[None, str, List[str]]):
+        if item is None:
+            return self
+        if isinstance(item, str) and "*" not in item:
+            return super().__getitem__(item)
+        if isinstance(item, str):
+            return {key: super().__getitem__(key) for key in self.keys() if compare_string_pattern(key, item)}
+        return [self.__getitem__(pattern) for pattern in item]
 
 
 class Timer:
@@ -21,6 +35,9 @@ class Timer:
         :param start_time: optional time to start the timer at if start is True (if None, uses current time)
         """
         current_time = time.time() if start_time is None else start_time
+        if "*" in name:
+            raise ValueError(f"Invalid name for Timer : '{name}'."
+                             "The special character '*' cannot be used in Timer names.")
         self.name: str = name
         self.start_times: List[Tuple[Union[float, int]]] = []
         self.stop_times: List[Tuple[Union[float, int]]] = []
@@ -364,15 +381,16 @@ class TimerManager:
         verbose = level_verbose if verbose is None else verbose
         self.verbose: int = verbose
 
-    def __getitem__(self, item: Union[int, str]) -> Dict[str, Optional[float]]:
+    def __getitem__(self, item: Union[int, str]) -> WildCardDict:
         item = self._process_which(item)
         if item == "current":
-            return {name: timer.get("current") for name, timer in self.timers.items()}
+            return WildCardDict({name: timer.get("current") for name, timer in self.timers.items()})
         if item == "average":
-            return {name: timer.get("average", step_aggregation="average") for name, timer in self.timers.items()}
+            return WildCardDict({name: timer.get("average", step_aggregation="average")
+                                 for name, timer in self.timers.items()})
         if item == "total":
-            return {name: timer.get("total") for name, timer in self.timers.items()}
-        return {name: timer.get_at_step(item) for name, timer in self.timers.items()}
+            return WildCardDict({name: timer.get("total") for name, timer in self.timers.items()})
+        return WildCardDict({name: timer.get_at_step(item) for name, timer in self.timers.items()})
 
     @property
     def first_step(self) -> int:
@@ -390,22 +408,48 @@ class TimerManager:
 
     @property
     def steps(self) -> List[int]:
-        """ Gets the steps of the timer manager (assuming it is the steps of all its timers). """
+        """ Gets the sorted steps of the timer manager (ie, the union of the steps of all its timers). """
         return sorted(set(step for timer in self.timers.values() for step in timer.steps))
 
-    def render(self, which_step: Union[int, str] = "current", verbose: Optional[int] = None) -> str:
+    def get_timer_names(self, timer: Union[None, str, List[str]] = None) -> List[str]:
+        """
+        Returns the list of existing timer names corresponding to given name(s). Accepts names with wildcards ('*'). If
+        no timer name is matched, sends a warning.
+
+        :param timer: if None (default), returns the names of all timers. Otherwise, returns the names of all timers
+            matching the given pattern or at least one of the given patterns
+        :return: the list of matched timer names
+        """
+        matches = []
+        all_names = list(self.timers.keys())
+        if timer is None:
+            return all_names
+        if isinstance(timer, str):
+            timer = [timer]
+        for name in all_names:
+            if any(compare_string_pattern(name, pattern) for pattern in timer):
+                matches.append(name)
+        if not matches:
+            YAECS_LOGGER.warning(f"WARNING : No existing timer for patterns '{timer}'.")
+        return matches
+
+    def render(self, which_step: Union[int, str] = "last", which_timer: Union[None, str, List[str]] = None,
+               verbose: Optional[int] = None) -> str:
         """
         Renders a string to display some properties of the timers.
 
         :param which_step: which timing to get from the timers. Can be an int (index of the step), or 'current'
             (currently running timers), 'last' (last recorded step), 'first' (first recorded step),
             'average' (average of all recorded steps) or 'total' (sum of all recorded steps)
+        :param which_timer: which timers to render. Can be None (by default, means all of them), or a timer name or list
+            thereof which may contain wildcards ('*')
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail. If None, uses each timer's verbose
         :return: the rendered string
         """
         rendered_string = ""
         which_step = self._process_which(which_step)
-        durations = self[which_step]
+        which_timer = self.get_timer_names(timer=which_timer)
+        durations = {name: duration for name, duration in self[which_step].items() if name in which_timer}
         verbose = self.verbose if verbose is None else verbose
 
         # Set header
@@ -460,37 +504,51 @@ class TimerManager:
         """ Resets the manager, deleting all timers. """
         self.timers = {}
 
-    def start(self, name: str = "MyTimer", step: Optional[int] = None, start_time: Optional[float] = None,
-              verbose: Optional[int] = None) -> None:
+    def start(self, name: Union[None, str, List[str]] = "MyTimer", step: Optional[int] = None,
+              start_time: Optional[float] = None, verbose: Optional[int] = None) -> None:
         """
         Starts a timer.
 
-        :param name: name of the timer
+        :param name: name or list of names of the timers to start, accepts wildcards ('*'). If None, starts all existing
+            timers. For names containing a wildcard, starts all existing matching timers.
         :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
         :param start_time: optional time to start the timer at (if None, uses current time)
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
         """
         current_time = time.time() if start_time is None else start_time
-        try:
-            with TemporaryVerbose(self.timers[name], verbose):
-                self.timers[name].start(step=step, start_time=current_time)
-        except KeyError:
-            self.timers[name] = Timer(name=name, start=True, step=step, start_time=current_time, verbose=verbose)
+        if isinstance(name, str):
+            name = [name]
+        to_start = [] if name is None else [n for n in name if "*" not in n]
+        if name is None or any("*" in n for n in name):
+            to_start += [n for n in self.get_timer_names(name) if n not in to_start]
+        for timer_name in to_start:
+            try:
+                with TemporaryVerbose(self.timers[timer_name], verbose):
+                    self.timers[timer_name].start(step=step, start_time=current_time)
+            except KeyError:
+                self.timers[timer_name] = Timer(name=timer_name, start=True, step=step, start_time=current_time,
+                                                verbose=verbose)
 
-    def stop(self, name: str = "MyTimer", step: Optional[int] = None, stop_time: Optional[float] = None,
-             verbose: Optional[int] = None) -> Optional[float]:
+    def stop(self, name: Union[None, str, List[str]] = "MyTimer", step: Optional[int] = None,
+             stop_time: Optional[float] = None, verbose: Optional[int] = None) -> Union[None, float, List[float]]:
         """
         Stops a timer.
 
-        :param name: name of the timer
+        :param name: name of the timer or list of timers to stop, accepts wildcards ('*'). None to stop all timers.
         :param step: starting step (if None, assumes step=start step, timings are averages over the elapsed steps)
         :param stop_time: optional time to stop the timer at (if None, uses current time)
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail
         :return: the duration of the timer if it was running, otherwise None
         """
         current_time = time.time() if stop_time is None else stop_time
-        with TemporaryVerbose(self.timers[name], verbose):
-            return self.timers[name].stop(step=step, stop_time=current_time)
+        names = self.get_timer_names(name)
+        to_return = []
+        for timer_name in names:
+            with TemporaryVerbose(self.timers[timer_name], verbose):
+                to_return.append(self.timers[timer_name].stop(step=step, stop_time=current_time))
+        if not to_return:
+            return None if (isinstance(name, str) and "*" not in name) else []
+        return to_return[0] if (isinstance(name, str) and "*" not in name) else to_return
 
     def update(self, start: Union[None, str, List[str]] = None, stop: Union[None, str, List[str]] = None,
                step: Optional[int] = None, update_time: Optional[float] = None,
@@ -498,8 +556,8 @@ class TimerManager:
         """
         Automatically starts and stops timers.
 
-        :param start: names of the timers to start
-        :param stop: names of the timers to stop
+        :param start: names of the timers to start, accepts wildcards ('*')
+        :param stop: names of the timers to stop, accepts wildcards ('*')
         :param step: starting step (if None, assumes step=last stop step, timings are averages over the elapsed steps)
         :param update_time: optional time to update the timers at (if None, uses current time)
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail

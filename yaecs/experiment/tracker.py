@@ -18,7 +18,7 @@ class Tracker:
 
     def __init__(self, tracker_config: Dict[str, Any], experiment, experiment_name: Optional[str] = None,
                  run_name: Optional[str] = None, starting_step: int = 0, params_filter_fn: Optional[Callable] = None,
-                 log_modified_params_only: bool = False, do_not_log_hooks: bool = False, 
+                 log_modified_params_only: bool = False, do_not_log_hooks: bool = False,
                  only_params_to_log: Optional[List[str]] = None, params_not_to_log: Optional[List[str]] = None):
         """
         Reads the tracker config from the general config to create a Tracker object used for logging during the run.
@@ -161,7 +161,7 @@ class Tracker:
             params_to_log[pattern] = config.get_pre_post_processing_values().get(param_name, config[param_name])
         self.loggers.start_run(experiment_name, run_name, description, params_to_log)
 
-    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True) -> None:
+    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True) -> int:
         """
         Increments the step counter.
 
@@ -173,12 +173,11 @@ class Tracker:
             raise ValueError(f"Cannot go back to step {step} from step {self._step}.")
         if self._step in self.timer.steps:
             if auto_log_timers:
-                timers = {"timers/" + name: duration for name, duration in self.timer[self._step].items()
-                          if duration is not None}
-                self.log_scalars(timers, step=self._step)
+                self.log_timer(name="timers/")
             if print_timers:
                 print(self.timer.render(which_step=self._step))
         self._step = self._step + 1 if step is None else step
+        return self._step
 
     def log_image(self, name: str, image: Any, step: Union[NoValue, None, int] = NoValue(),
                   sub_logger: Optional[str] = None, extension: str = "png", maximum: Optional[int] = None,
@@ -261,6 +260,51 @@ class Tracker:
                 self.log_scalar(key, value, step=step, sub_logger=sub_logger, only_loggers=only_loggers,
                                 except_loggers=except_loggers)
 
+    def log_timer(self, timer: Union[None, str, List[str]] = None, name: Union[None, str, list] = None,
+                  value: Union[None, str, int] = None, step: Union[NoValue, None, int] = NoValue(),
+                  sub_logger: Optional[str] = None, main_process_only: bool = False,
+                  only_loggers: Union[None, str, List[str]] = None, except_loggers: Union[None, str, List[str]] = None
+                  ) -> None:
+        """
+        Logs the given timer under the given name at given step in the configured trackers. The description is optional
+        and can only be used if the tracker is tensorboard.
+
+        :param timer: name of the timer to log, or list of names, or None to log all timers
+        :param name: custom name to use instead of the name of the timer. If one custom name is associated to several
+            timers, uses it as a header instead
+        :param value: value to use to query the timer manager. If None, uses the logged step.
+        :param step: step at which the value is logged. If set to None or a negative value, will default to 0 for the
+            tensorboard tracker, will default to -1 for the basic tracker and will be logged as a "single value" for the
+            clearml tracker. If not provided, will default to the current step of the tracker (0 by default)
+        :param sub_logger: if specified, logs to corresponding sub-logger. Can be interpreted as a sub-folder for the
+            scalar name most of the time, but in the case of tensorboard will actually use a different summary writer
+        :param main_process_only: do not try to log in pytorch-lightning sub-processes
+        :param only_loggers: if provided, only the loggers whose names are given can log the scalar
+        :param except_loggers: if provided, loggers whose names are given will not log the scalar
+        """
+        timer_manager_query = self._step if isinstance(step, NoValue) else step
+        if value is not None:
+            timer_manager_query = value
+        timer_manager_query = "last" if timer_manager_query is None else timer_manager_query
+        timers = self.timer[timer_manager_query][timer]
+        if not isinstance(timers, list):
+            timers = [timers]
+        timers = [t if isinstance(t, dict) else {(timer if isinstance(timer, str) else timer[i]): t}
+                  for i, t in enumerate(timers)]
+        if name is not None:
+            if isinstance(name, str):
+                if not name.endswith("/") and len(timers) == 1:
+                    name += "/"
+                name = [name] * len(timers)
+            if len(name) != len(timers):
+                raise ValueError("When providing a list of custom timer names, its length must match that of the list "
+                                 "of logged timers.")
+            names = [f"{n}/" if (len(t.keys()) != 1 and not n.endswith("/")) else n for n, t in zip(name, timers)]
+            timers = [{((n + k) if n.endswith("/") else n): v for k, v in t.items()} for n, t in zip(names, timers)]
+        for t in timers:
+            self.log_scalars(t, step=step, sub_logger=sub_logger, main_process_only=main_process_only,
+                             only_loggers=only_loggers, except_loggers=except_loggers)
+
     def start_timer(self, name: str = "MyTimer", step: Union[NoValue, None, int] = NoValue(),
                     start_time: Optional[float] = None, verbose: Optional[int] = None) -> None:
         """
@@ -298,7 +342,7 @@ class Tracker:
         return self.timer.stop(name=name, step=step, stop_time=current_time, verbose=verbose)
 
     def update_timers(self, start: Union[None, str, List[str]] = None, stop: Union[None, str, List[str]] = None,
-                      step: Union[NoValue, None, int] = None, update_time: Optional[float] = None,
+                      step: Union[NoValue, None, int] = NoValue(), update_time: Optional[float] = None,
                       verbose: Optional[int] = None) -> None:
         """
         Automatically starts and stops timers.

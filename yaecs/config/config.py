@@ -244,6 +244,9 @@ class Configuration(_ConfigurationBase):
         :raises TypeError: if grid dimension is empty or not registered
         :return: the list of configs corresponding to the tracked variations
         """
+        if self._variation_name is not None:
+            return [self]  # if this config is already a variation, it should not create further variations
+
         variations_names_to_use = [i[0] for i in self._configuration_variations]
         variations_names_to_use_changing = [i[0] for i in self._configuration_variations]
         variations_to_use = [i[1] for i in self._configuration_variations]
@@ -298,6 +301,8 @@ class Configuration(_ConfigurationBase):
                         variations_names.append(name + "_" + var_name[1][variation_index])
 
         # Creating configs
+        if not variations:
+            return [self]
         variation_configs = []
         for variation_index, variation in enumerate(variations):
             variation_configs.append(
@@ -307,9 +312,7 @@ class Configuration(_ConfigurationBase):
                                            do_not_merge_command_line=True, variation=variations_names[variation_index],
                                            verbose=False))
             variation_configs[-1].set_variation_name(variations_names[variation_index], deep=True)
-        if not variation_configs:
-            variation_configs = [self]
-        elif self._verbose:
+        if self._verbose:
             YAECS_LOGGER.info(f"Created {len(variation_configs)} variation{'s' if len(variation_configs) > 1 else ''} "
                               f"from registered variation parameters.")
         return variation_configs

@@ -4,11 +4,12 @@ import os
 from typing import Any, Optional, Union
 
 from .base_logger import Logger
-from .logger_utils import lazy_import, value_to_float
+from .logger_utils import NotImportedModule, value_to_float
 
-# Tensorboard integration, see original package : https://www.tensorflow.org/tensorboard
-tensorflow = lazy_import("tensorflow")  # pylint: disable=invalid-name
-
+try:  # Tensorboard integration, see original package : https://www.tensorflow.org/tensorboard
+    import tensorflow
+except ImportError:
+    tensorflow = NotImportedModule("tensorflow")
 
 class TensorBoardLogger(Logger):
     """ TensorBoard Logger. This logger logs things to a logging directory (logdir). """
