@@ -158,3 +158,4 @@ yaecs/_version.py
 # private_tests
 unittests/config/test_project_config/
 unittests/config/test_config_project.py
+tmp/

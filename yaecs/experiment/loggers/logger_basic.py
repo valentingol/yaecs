@@ -10,7 +10,24 @@ import warnings
 from mock import patch
 
 from .base_logger import Logger
-from .logger_utils import add_to_csv, lazy_import, new_print
+from .logger_utils import NotImportedModule, add_to_csv, new_print
+
+try:
+    import matplotlib
+except ImportError:
+    matplotlib = NotImportedModule("matplotlib")
+try:
+    import numpy as np
+except ImportError:
+    np = NotImportedModule("numpy")
+try:
+    from PIL import Image
+except ImportError:
+    Image = NotImportedModule("PIL")
+try:
+    import plotly
+except ImportError:
+    plotly = NotImportedModule("plotly")
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -57,16 +74,6 @@ class BasicLogger(Logger):
 
     def log_image(self, name: str, image: Any, step: Optional[int] = None, sub_logger: Optional[str] = None,
                   extension: str = "png") -> None:
-        # Image-logging specific imports
-        # Support for matplotlib figures logging, see original package : https://matplotlib.org/
-        matplotlib = lazy_import("matplotlib")  # pylint: disable=invalid-name
-        # Support to save numpy arrays as images, see original package : https://numpy.org/
-        np = lazy_import("numpy")  # pylint: disable=invalid-name
-        # Support to save numpy arrays as images, see original package : https://pypi.org/project/Pillow/
-        from PIL import Image  # pylint: disable=import-outside-toplevel,import-error
-        # Support for plotly figures, see original package : https://plotly.com/python/
-        plotly = lazy_import("plotly")  # pylint: disable=invalid-name
-
         # Paths and names
         directory = [self.path, "images"]
         if sub_logger:

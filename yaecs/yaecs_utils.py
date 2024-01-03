@@ -208,8 +208,7 @@ def assign_yaml_tag(processor_tag: str, processor_type: str,
 
 def compare_string_pattern(name: str, pattern: str) -> bool:
     """
-    Returns True when string 'name' matches string 'pattern',
-    with the '*' character matching any number of characters.
+    Returns True when string 'name' matches string 'pattern', with the '*' character matching any number of characters.
 
     :param name: name to compare
     :param pattern: pattern to match

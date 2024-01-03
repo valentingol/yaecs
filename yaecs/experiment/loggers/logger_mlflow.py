@@ -4,10 +4,12 @@ import logging
 from typing import Any, Optional, Union
 
 from .base_logger import Logger
-from .logger_utils import lazy_import, value_to_float
+from .logger_utils import NotImportedModule, value_to_float
 
-# MLFlow integration, see original package : https://mlflow.org
-mlflow = lazy_import("mlflow")  # pylint: disable=invalid-name
+try:  # MLFlow integration, see original package : https://mlflow.org
+    import mlflow
+except ImportError:
+    mlflow = NotImportedModule("mlflow")
 
 YAECS_LOGGER = logging.getLogger(__name__)
 

@@ -1,14 +1,27 @@
 """ Defines common functions for logger objects. """
 from bisect import bisect
-import importlib.util
 import io
 import logging
 import os
 import sys
-from types import ModuleType
 from typing import Any
 
 YAECS_LOGGER = logging.getLogger(__name__)
+
+
+class NotImportedModule:
+    """ Class to replace a module that is not installed. When trying to access a member, raises an error. """
+    def __init__(self, name: str):
+        """
+        Initializes the class.
+
+        :param name: name of the module that is not installed
+        """
+        self.name = name
+
+    def __getattribute__(self, item):
+        raise ModuleNotFoundError(f"Module {self.name} is not installed. If you want to use this feature, please "
+                                  "install it..")
 
 
 def add_to_csv(csv_path: str, name: str, value: Any, step: int) -> None:
@@ -47,25 +60,6 @@ def add_to_csv(csv_path: str, name: str, value: Any, step: int) -> None:
         for index, step_to_log in enumerate(steps):
             data = [str(step_to_log)] + [v[index] for v in values]
             csv_file.write(",".join(data) + "\n")
-
-
-def lazy_import(name: str) -> ModuleType:
-    """
-    Imports a module in such a way that it is only loaded in memory when it is actually used.
-    Implementation from https://docs.python.org/3/library/importlib.html#implementing-lazy-imports.
-
-    :param name: name of the module to load
-    :return: the loaded module
-    """
-    spec = importlib.util.find_spec(name)
-    if not spec:
-        return None
-    loader = importlib.util.LazyLoader(spec.loader)
-    spec.loader = loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    loader.exec_module(module)
-    return module
 
 
 def new_print(*args, sep: str = " ", end: str = "", file: io.TextIOWrapper = None, **keywords) -> None:
