@@ -287,8 +287,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     found_correspondence = True
                     break
             if not found_correspondence:
-                raise RuntimeError(f"Sub-config '{i.get_name()}' is unlinked. Unlinked "
-                                   "sub-configs are not allowed.")
+                raise RuntimeError(f"Sub-config '{i.get_name()}' is unlinked. Unlinked sub-configs are not allowed.")
 
     def _find_path(self, path: str) -> str:
         """ Used to find a config from its (potentially relative) path, because it might be ambiguous relative to where
@@ -506,9 +505,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """ Method called by init_from_config to merge or add a given key, value pair. """
         key, value = item
 
-        # Process metadata. If there is metadata, treat the rest of
-        # the merge as "loading a saved file"... (which will deactivate
-        # the parameter pre-processing for this merge)
+        # Process metadata. If there is metadata, treat the rest of the merge as "loading a saved file"... (which will
+        # deactivate the parameter pre-processing for this merge).
         if key == "config_metadata":
             former_saving_time, regime, variation = self._parse_metadata(value)
             self._former_saving_time = former_saving_time
@@ -686,12 +684,11 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         else:
             list_to_merge = sys.argv
 
-        # Setting the config to operational mode in case this
-        # is called manually
+        # Setting the config to operational mode in case this is called manually
         object.__setattr__(self, "_operating_creation_or_merging", True)
 
         # Gather parameters, their values and their types
-        to_merge = {}  # {param_name: [former_value, new_value, type_forcing], ...}
+        to_merge = {}  # {param_name: new_value, ...}
         found_config_path = not bool(self._from_argv)
         in_param = []
         un_matched_params = []

@@ -11,6 +11,7 @@ try:  # Tensorboard integration, see original package : https://www.tensorflow.o
 except ImportError:
     tensorflow = NotImportedModule("tensorflow")
 
+
 class TensorBoardLogger(Logger):
     """ TensorBoard Logger. This logger logs things to a logging directory (logdir). """
     def __init__(self, tracker):
