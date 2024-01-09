@@ -103,8 +103,10 @@ class ConfigHooksMixin:
         if isinstance(path, list):
             for individual_path in path:
                 self.init_from_config(individual_path)
+                self.set_pre_processing(True)
         else:
             self.init_from_config(path)
+            self.set_pre_processing(True)
         return path
 
     @hook("config_variations")

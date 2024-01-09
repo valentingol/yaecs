@@ -110,8 +110,8 @@ be reproduced while still benefitting from new codebase improvements ;
 - and it prints warnings or raises errors as a safeguard against bad practices... because we all have those days don't
 we ;)
 
-Did we meet all our goals ? Well... that is for you to judge :) if you think we haven't, do leave us gitlab issues for
-us to do better.
+Did we meet all our goals ? Well... that is for you to judge :) if you think we haven't, do leave us issues for us to do
+better.
 We hope you enjoy your YAECS experience !
 
 ## I) Getting started
@@ -239,9 +239,10 @@ hyper-parameters, all the magic numbers, without going through dozens of source 
 a very large default config never becomes a burden for clarity. Therefore, no need to shy away from having **a lot** of
 parameters in there.
 
-YAML is a very intuitive config format. We chose it for its elegance, flexibility and the fact that it supports comments
-(which is not the case in JSON for example). If you need, you can find the YAML documentation here : TODO. Here is the
-config example we choose to use in this tutorial :
+YAML is a very intuitive config format. We chose it for its elegance, flexibility and the fact that it supports
+comments. If you need, you can find the YAML documentation here :
+[https://yaml.org/spec/1.2.2/](https://yaml.org/spec/1.2.2/). Here is the config example we choose to use in this
+tutorial :
 
 ```yaml
 ---  # Default config - configs/default.yaml
@@ -278,16 +279,15 @@ Let us save this under `configs/default.yaml`. We created this config file to gi
 like (and also to show you some nice features later), but yours will most likely be bigger. Here is what we advise you
 to store in this default config :
 
-- variables you intend to change later, or you think you might change later (for example up there `do_test`,
-`experiment_path`, `train.epochs`, ...)
+- variables you think you might change later (for example up there `do_test`, `experiment_path`, `train.epochs`, ...)
 - variables you don't necessarily want to change, but for which you might want to be able to find the value easily
 (for example `use_gpu` or `model.activation`)
-- generally any hardcoded value in your code that has an understandable meaning
+- generally any hardcoded value in your code that has an understandable meaning and can be named easily
 
 So yeah... that's gonna be a lot of parameters. Much more than in our simple example here. But fear not, don't be shy,
 put them all in. This is by far the most time-consuming part of the process, but you will not regret the time you invest
-here. Even if you decide later that YAECS is not for you after all, you will be glad to have it whichever other tool you
-decide to go for.
+here. Even if you decide later that YAECS is not for you after all, you can re-use your default config with any other 
+tool you decide to go for (if you can't, don't go for it, it's a bad tool).
 
 As for the values to use for the parameters you put in there, well, it's a default config, so use default values. Values
 which make sense in general, which will be used "by default" if the user does not specify their own. As you can see with
@@ -312,11 +312,11 @@ data:
 train.batch_size: 2
 ```
 
-In the example above, many if the characteristics of an "experiment config" can already be seen.
-In contrast to the default config, it :
+In the example above, many of the characteristics of an "experiment config" can already be seen.
+In contrast to the default config :
 
-- is short and contains only the values that are modified ;
-- cannot add new parameter, only update existing ones.
+- it is short and contains only the values that are modified ;
+- it cannot add new parameter, only update existing ones.
 In this config file, what is being done in this specific experiment is clear at a glance, regardless of the complexity
 of the default config. For now, your project's folder should look something like this :
 
@@ -387,8 +387,8 @@ defaut config. In an experiment config, you can access and modify a single param
 take their default values. When you replace the value of a dict in the experiment config, on the contrary, you have to
 write the complete dict, because dict keys have no default values.
 
-Knowing when you want a sub-config and when you want a dict can be tricky and requires experience, but most of the time
-you can't go much wrong by simply sub-configs, which is why this was chosen as the default behaviour.
+Knowing when you want a sub-config and when you want a dict can be tricky and requires experience, but 99% of the time
+you can't go much wrong by simply using sub-configs, which is why this was chosen as the default behaviour.
 
 Sub-configs allow you to organise your parameters into categories and sub-categories, which will come in handy in
 basically all your projects.
@@ -436,7 +436,7 @@ flip_probability: 0
 batch_size: 2
 ```
 
-Notice how, in this last case, you do need to tag the document to indicate the name of the create sub-configs. This tag
+Notice how, in this last case, you do need to tag the document to indicate the name of the created sub-configs. This tag
 will create a sub-config and place all parameters in the document in this sub-config. You can see this as some sort of
 scope. 
 
@@ -465,9 +465,9 @@ example to pass it to a third-party library which explicitly checks for a `dict`
 You can use `config.details()` to generate a string that describes your config. If you use `print(config.details())`
 with our previous config, here is what you get : TODO
 
-Let's discuss in more details the first thing displayed : the config hierarchy. It is a list of path and dicts which
+Let's discuss in more details the first thing displayed : the config hierarchy. It is a list of paths and dicts which
 indicates the order in which different sources were used to create this config. The first one in the list is always the
-default config. It is also the only one in the list which is allowed to set new parameters. All the other sources in the
+default config. It is also the only one in the list which is allowed to add new parameters. All the other sources in the
 list can only modify parameters which have been set by the default config. This list is quite practical to get a
 condensed gist of the idea behind your experiment. For example, if you read :
 
@@ -507,7 +507,7 @@ it simpler to achieve perfect reproductibility *without* leaving your current br
 be observed by the experimenter, which we summarise as a set of good practices which you can find here TODO.
 
 This ends the first part of our tutorial, which aimed at teaching you the basics required to integrate YAECS in a small
-project and introduce you to its most fundamental features. As of now though, nothing distinguishes it from its
+project and introduce you to its most fundamental features. As of now though, little distinguishes it from its
 alternatives like Hydra or YACS. If you want to know more, follow us into the second part of our tutorial : TODO
 
 ### Intermediate features for more scalability
@@ -561,7 +561,7 @@ class MyProjectConfig(Configuration):
 
 Because the default config can also be seen as a part of the support (because there is one and only one default config
 per project and it should be the same for all users), it is required to hard-code it in the subclass definition. There
-should never be a use case for using a different default config than this one.
+should **never** be a use case for using a different default config than this one. Contact me if you see one.
 
 The `parameters_pre_processing` and `parameters_post_processing` methods are not required, but they'll come in handy,
 though we'll leave them empty for now. You will learn more about them in a future section (TODO).
@@ -585,7 +585,7 @@ if __name__ == "__main__":
 
 This constructor takes as argument one or several paths or dictionaries, and merges them one after the other into the
 default config. Then, it merges the command line arguments (TODO), and finally, it performs post-processing operations
-(TODO).  The default config path does not need to be specified because it is hardcoded into the subclass.
+(TODO). The default config path does not need to be specified because it is hardcoded into the subclass.
 
 The fact that the default config path is not clearly written in the `main.py` can be seen as unclear. In particular, if
 a user unfamiliar with YAECS reviews the project, they might not expect the default values to be initialised based on a
@@ -653,9 +653,11 @@ flexible, and supports expressions such as `--name value`, `--name=value`, the "
 several params at once (although in shells it needs to be escaped) and of course the dot-convention to access params of
 sub-configs.
 
-Most of the time, changing parameters from the CLI is just that simple. It only gets a bit more tricky if you want to
-change the type of a parameter (ie. replace a param that was a float with a string for instance), or replace entire
-lists or dicts from the CLI. For those operations, please refer to our dedicated section : TODO.
+You might wonder how YAECS knows the type of a value passed as a string through the command line. For example, if you
+pass something like `--data.flip_probability 0.5`, how does YAECS know that the value should be a float and not a 
+string ? Well, YAECS doesn't know. It simply uses the same parser as YAML. Therefore, as in YAML, if you want to replace
+data.flip_probability with a string, you need to write it in quotations : `--data.flip_probability \"0.5\"`. Don't
+forget, those quotation marks need to be escaped in shells, otherwise python will never see them ;).
 
 *Note :* if you want to replace a param with the boolean value `True`, you don't need to write it explicitly. If you
 don't provide a new value, the CLI parser will assume you want to set the parameter to `True`. For example, to perform
@@ -667,11 +669,11 @@ python main.py --do_test
 
 #### 3) Parameter processing is awesome
 
-Here we present what we believe to be one of YAECS' main improvement over its competitors : parameters processing.  The
+Here we present what we believe to be one of YAECS' main improvements over its competitors : parameters processing. The
 idea is quite simple : most of the time, it is really useful to be able to perform some kind of processing on your
 parameters before using them, and it only makes sense that these operations should be performed by the config system.
 Here is why. The config should be prepared such that the code can access it in a simple, reliable and well-organised
-well. But at the same time, the config should be prepared by a human in a clear interface using the YAML language. In
+manner. But at the same time, the config should be prepared by a human in a clear interface using the YAML language. In
 many cases, those two conditions do not fully align, and therefore it makes sense that the config system should be
 tasked with translating the config as seen by the human operator into the config as used by the code.
 
@@ -788,11 +790,11 @@ inference, path to the experiment results, cpu/gpu etc.) ;
 - a file for data-related parameters (data paths, sample descriptions, processing parameters etc.) ;
 - a file for model-related parameters (architecture, layers, normalisation etc.) ;
 - a file for run-related parameters (training params such as epochs, optimiser or batch sizes ; validation params ;
-inference parms).
+inference params).
 
 Generally speaking, to build a config you only give your Configuration object one path. Therefore, how can you let your
-config system know where to look for other files for other parameters ? The answer lie in a feature we've already seen :
-parameters processing :). Let us assume the 4 following configs :
+config system know where to look for other files for other parameters ? The answer lies in a feature we've already
+seen : parameters processing :). Let us assume the 4 following configs :
 
 ```
 project_root
@@ -882,13 +884,192 @@ In this third "advanced" part we will :
 1) tell you more about parameters processing, as well as type-checking
 2) give examples to easily configure complex elements such as dataset versions or machine-specific configs
 3) present config variations, which is useful to run sweeps over values of a parameter for example
-4) showcase our WIP new feature : tracking integration
+4) showcase a very useful complement to your config : tracking integration
 
 Let us get started for this last section.
 
-#### 1) A dive into processing and type-checking
+#### 1) A (deep) dive into processing and type-checking
 
-WIP
+To start off with the advanced tutorials, we want to complete our introduction to parameters processing (TODO). As we
+have seen before, parameters processing is a versatile tool to build an interface between the user-facing config and the
+code-facing config. It can influence the way the config is built, convert parameters, check if the user made a mistake,
+and is generally an important feature for YAECS' completeness. In this section, we will go over five important
+concepts :
+- the difference between pre-processing and post-processing ;
+- how to assign processing functions from the YAML file using tags ;
+- how to type-hint a parameter with YAECS ;
+- managing ordering issues ;
+- what a 'hook' is and how to use them.
+
+That's a lot of stuff to cover, so let's get started !
+
+##### Pre-processing or post-processing ?
+
+To understand the difference between pre-processing and post-processing,, we need to understand more deeply how YAECS
+processes parameters. When you call any constructor that performs merges, such as `load_config` or `build_from_argv`,
+the config system will first add all the parameters from the default config, then successively perform all the merge
+operations scheduled by your constructor call, finish things up by merging the command line parameters, and finally
+perform **post-processing** operations. Well, we already know what post-processing is then : it happens all the way at
+the end, and if you create your config using a single constructor call, it is only called once.
+
+What about **pre-processing** then ? Well, pre-processing is applied to parameters anytime their value would enter the
+config. If a value tries to go from a YAML file or an input dictionary to the config, it is first pre-processed and the
+pre-processed value is put in the config instead. This means that pre-processing will be called for every modified
+parameter at every merge operation.
+
+There is another important difference. In YAECS philosophy, pre-processing serves as a safety net for the user and a way
+to interact with the building process of the config as it is performed. In contrast, post-processing should be seen as a
+way to prepare the parameters and the code to perform the experiment in the smoothest and clearest way possible. For
+this reason, pre-processing functions cannot return types that are incompatible with YAML, such as custom objects, but
+post-processing functions can. This implies that when you save your config, the saved state is the state **BEFORE** the
+post-processing operations, but **AFTER** the pre-processing operations. Similarly, when loading a previously saved
+config, pre-processing operations will be skipped (because they were already performed before saving), but
+post-processing operations will be performed.
+
+Then, when should you use which ? Here are general guidelines. You should use **pre-processing** when :
+- you want to check the value of a parameter and **raise an error** if it is invalid (that way, the user can know which
+merge contained the invalid value) ;
+- you want to **harmonise the format** of a parameter from several input options to a single format (that way the saved
+file will contain a harmonised format) ;
+- you want to **influence the building process** of the config, for example to register additional config files (this is
+not possible with post-processing since the building process is already over when it triggers) ;
+- you absolutely want your change to be **reflected in the saved config**.
+
+Conversely, you should use **post-processing** when :
+- you want to use a parameter to **instantiate a custom object** (which cannot be saved with YAML) ;
+- you want something to **trigger only once**, or that only cares about the **final value** of the parameter (for
+example creating a folder named according to the parmeter) ;
+- you need to use or modify the value of **other parameters** to process a given parameter (those other parameters might
+not exist yet when the pre-processing is called, or their value might not be final)
+
+##### Assigning processing functions to parameters from the YAML file
+
+Previously, we saw that you can assign processing functions to parameters by modifying some methods in your
+Configuration subclass. Although this is the most flexible way to do it, it is not always the most convenient. For
+common processing functions which belong to the YAECS library, it is possible to perform the assignment directly from
+the YAML file. This is done using YAML tags. Tags are a YAML feature that allows you to assign a type to a value using
+this syntax : `key: !tag value`.
+
+For example, we saw earlier (TODO) that it is possible to make a parameter read another file to add it to the config
+using the `register_as_additional_config_file` preprocessing function. Back then, we added the pair
+`"*_config_file": self.register_as_additional_config_file` to our `parameters_pre_processing` dict. It would also have
+been possible to assign this function directly from the YAML file, using the `!type:additional_config_file` tag, like
+below :
+
+```yaml
+---  # Base file (configs/default/base.yaml)
+
+experiment_path: "logs/overfit"
+...
+data_config_file: !type:additional_config_file data.yaml
+model_config_file: !type:additional_config_file model.yaml
+run_config_file: !type:additional_config_file run.yaml
+```
+
+You can also similarly register your own processing functions using tags. To do this, simply add your processing
+function as a method of your Configuration subclass, and decorate it with
+`@yaecs.yaecs_utils.assign_yaml_tag(<"tag">, <"pre"/"post">, <"type-hint">)`.
+
+Such assignments can only be done in the default config.
+
+##### Type-hinting parameters
+
+Type-hinting is a feature that allows you to specify the type of a parameter. Specifying the type of a parameter will
+trigger a special processing **right before the pre-processing**, which will raise an error if the type is incorrect.
+Type-hinting parameters is a good practice which serves as documentation in the default config as well as a safety net
+against unexpected values being entered by the user. It is also a shortcut to writing tons of type checks yourself in
+your processing functions. Type-hinting is done using yaml tags with the standard python syntax. YAECS also supports
+alternative syntaxes to simplify complex type hints. Here are a few examples :
+
+```yaml
+this_is_a_float: !type:float 0.5
+this_is_a_string: !type:str "hello"
+this_is_a_list_of_floats: !type:List[float] [0.5, 0.6, 0.7]
+this_is_a_list_of_strings_or_floats: !type:List[Union[float,str]] [0.5, "hello", 0.7]
+this_is_a_bool_or_none: !type:Optional[bool] null
+this_is_a_simplified_syntax_for_list_of_floats: !type:[float] [0.5, 0.6, 0.7]
+this_is_a_simplified_syntax_for_int_or_bool: !type:(int,bool) true
+this_is_a_simplified_syntax_for_list_of_floats_or_strings: !type:[(float,str)] [0.5, "hello", 0.7]
+this_is_a_simplified_syntax_for_string_or_list_of_strings: !type:(str,[str]) "hello"
+```
+
+Type-hinting should only be done in the default config.
+
+##### Handling ordering issues
+
+There are times when controling the order in which processing functions are called is important. One trivial example of
+this is if there are several processing functions assigned to the same parameter. Another more complex example is when
+the processing function X for parameter A depends on the value of parameter B, but this value should only be read after
+parameter B was processed by processing function Y. To handle these border cases, YAECS provides a way to assign an
+ordering to processing functions.
+
+Before seeing how to assign on order to a processing function, it is important to understand that ordering is not
+interpreted in the same way for pre-processing and post-processing functions. Indeed, pre-processing functions are
+called whenever a key-value pair is added to the config, while all post-processing functions are called at the end of
+the building process. Therefore :
+- for pre-processing functions, if several functions are assigned to the same parameter, their order defines in which
+order those functions should be performed ;
+- for post-processing functions, functions assigned to all parameters are called according to their assigned order.
+
+Here is an example : suppose we are creating a config from the dict `{"a": 1, "b": 2}`. `a` has two pre-processing
+functions `pre_a_1` and `pre_a_2` and two post-processing function `post_a_1` and `post_a_2`. `b` has one pre-processing
+function `pre_b_1` and one post-processing function `post_b_1`. The order of the functions is as follows :
+- pre_a_2 < pre_b_1 < pre_a_1
+- post_a_2 < post_b_1 < post_a_1
+During config building, `a` will be parsed first and processed to be added to the config. `pre_a_2` will be called
+first, then `pre_a_1`, according to the order of all the functions assigned to `a`. Then `b` will be parsed and
+processed by function `pre_b_1` to be added to the config. This concludes the merge of the dictionary. After this merge,
+assuming there is no command line parameters, the post-processing functions will be called starting with `post_a_2`,
+then `post_b_1` and finally `post_a_1`.
+
+Now that we understand how ordering works, let us see how to assign an order to a processing function. All functions are
+assumed to have an order of 0 by default. To change this, you can decorate your function with
+`@yaecs.yaecs_utils.assign_order(<order>)` or simply set it by doing `my_function.order = <order>`. You can also assign
+it per parameter when defining the `parameters_pre_processing` and `parameters_post_processing` methods in your
+Configuration subclass :
+    
+```python
+# inside your Configuration subclass
+def parameters_pre_processing(self):
+    return {
+        "a": (pre_a_1, 2),
+        "a ": (pre_a_2, 0),
+        "b": (pre_b_1, 1),
+    }
+def parameters_post_processing(self):
+    return {
+        "a": (post_a_1, 2),
+        "a ": (post_a_2, 0),
+        "b": (post_b_1, 1),
+    }
+```
+Note how you can assign several functions to the same parameter by adding a space after the name of the parameter. This
+is a bit of a hack, but hey, it works ;).
+
+YAECS also provide an Enum (`yaecs.yaecs_utils.Priority`) to help you assign orders to your functions. It has the
+following values : `ALWAYS_FIRST` = -20, `OFTEN_FIRST` = -10, `INDIFFERENT`/`SITUATIONAL` = 0, `OFTEN_LAST` = 10 and
+`ALWAYS_LAST` = 20.
+
+##### Hooks
+
+In YAECS, a 'hook' is a parameter that holds a special meaning. The config system or your code might not know which
+parameter will be the name of the experiment, but it might expect one of the parameters to be the experiment name. This
+is especially practical in the YAECS codebase, which should be project-agnostic but still provide features that adapt to
+a given config.
+
+For example, when you assign the `register_as_experiment_path` pre-processing function to a parameter, you are also
+registering it to the `experiment_path` hook. Then, if for any reason the config system wants to know where your
+experiment will be logged, it can access the list of all parameters that were registered to the "experiment_path" hook
+and access their value. You can use the same mechanics to create project templates and processing libraries that will
+adapt to each project's config.
+
+You can create your own hook and assign parameters to them by decorating one of its processing functions with the
+`@yaecs.yaecs_utils.hook(<hook_name>)` decorator. Then, calling `config.get_hook(<hook_name>)` will return a list of all
+parameter names that were assigned to this hook.
+
+You now know absolutely everything about processing functions ! Everything might not seem clear, as some of those
+explanations refer to deep YAECS technical details, but as you stumble upon those use cases in your projects, we are
+confident that you will grow more familiar with the details and reasons that justify those design choices.
 
 #### 2) Replacing entire config sections by changing one parameter
 
@@ -898,7 +1079,7 @@ WIP
 
 WIP
 
-#### 4) [WIP] Tracking integration
+#### 4) Tracking integration
 
 WIP
 
