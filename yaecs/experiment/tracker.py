@@ -176,7 +176,7 @@ class Tracker:
                 self.log_timer(name="timers/")
             if print_timers:
                 print(self.timer.render(which_step=self._step))
-        self._step = self._step + 1 if step is None else step
+        self._step = (self._step + 1) if step is None else step
         return self._step
 
     def log_image(self, name: str, image: Any, step: Union[NoValue, None, int] = NoValue(),
