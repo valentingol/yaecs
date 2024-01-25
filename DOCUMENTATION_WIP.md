@@ -965,12 +965,11 @@ data_config_file: !type:additional_config_file data.yaml
 model_config_file: !type:additional_config_file model.yaml
 run_config_file: !type:additional_config_file run.yaml
 ```
+Such assignments can only be done in the default config.
 
 You can also similarly register your own processing functions using tags. To do this, simply add your processing
 function as a method of your Configuration subclass, and decorate it with
-`@yaecs.yaecs_utils.assign_yaml_tag(<"tag">, <"pre"/"post">, <"type-hint">)`.
-
-Such assignments can only be done in the default config.
+`@yaecs.assign_yaml_tag(<"tag">, <"pre"/"post">, <"type-hint">)`.
 
 ##### Type-hinting parameters
 
@@ -1024,7 +1023,7 @@ then `post_b_1` and finally `post_a_1`.
 
 Now that we understand how ordering works, let us see how to assign an order to a processing function. All functions are
 assumed to have an order of 0 by default. To change this, you can decorate your function with
-`@yaecs.yaecs_utils.assign_order(<order>)` or simply set it by doing `my_function.order = <order>`. You can also assign
+`@yaecs.assign_order(<order>)` or simply set it by doing `my_function.order = <order>`. You can also assign
 it per parameter when defining the `parameters_pre_processing` and `parameters_post_processing` methods in your
 Configuration subclass :
     
@@ -1064,7 +1063,7 @@ and access their value. You can use the same mechanics to create project templat
 adapt to each project's config.
 
 You can create your own hook and assign parameters to them by decorating one of its processing functions with the
-`@yaecs.yaecs_utils.hook(<hook_name>)` decorator. Then, calling `config.get_hook(<hook_name>)` will return a list of all
+`@yaecs.hook(<hook_name>)` decorator. Then, calling `config.get_hook(<hook_name>)` will return a list of all
 parameter names that were assigned to this hook.
 
 You now know absolutely everything about processing functions ! Everything might not seem clear, as some of those
@@ -1073,7 +1072,16 @@ confident that you will grow more familiar with the details and reasons that jus
 
 #### 2) Replacing entire config sections by changing one parameter
 
-WIP
+YAECS offers several ways to efficiently compose config files or config sections. Put together, they can enable complex
+parameter management options that will simplify understanding and using the config, at the cost of a bit of setup and
+organisation. In this section, we will present three of those features and how they can be used in practice :
+- composing files through merging ;
+- composing files through loading additional config files ;
+- orchestrating sections through processing functions.
+
+##### Composing files through merging
+
+
 
 #### 3) Variations and Grid Searches
 

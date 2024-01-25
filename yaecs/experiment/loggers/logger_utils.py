@@ -17,10 +17,12 @@ class NotImportedModule:
 
         :param name: name of the module that is not installed
         """
-        self.name = name
+        self.__name = name
 
     def __getattribute__(self, item):
-        raise ModuleNotFoundError(f"Module {self.name} is not installed. If you want to use this feature, please "
+        if item == "_NotImportedModule__name":
+            return object.__getattribute__(self, item)
+        raise ModuleNotFoundError(f"Module {self.__name} is not installed. If you want to use this feature, please "
                                   "install it..")
 
 

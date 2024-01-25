@@ -693,7 +693,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         in_param = []
         un_matched_params = []
         for element in list_to_merge:
-            if element.startswith("--") and (found_config_path or element != self._from_argv):
+            if element.startswith("--") and (found_config_path or element.split("=", 1)[0] != self._from_argv):
                 if "=" in element:
                     pattern, value = element[2:].split("=", 1)
                     value = value if value != "" else None

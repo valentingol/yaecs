@@ -12,25 +12,16 @@
 
 ## Documentation: [here](https://yaecs.readthedocs.io/en/stable/)
 
-**DISCLAIMER: This repository is the public version of a repository that is the
-property of [Reactive Reality](https://www.reactivereality.com/). This
-repository IS NOT OFFICIAL and might not be maintained in the future. Some
-minor changes * are applied from the
-[official repository (GitLab)](https://gitlab.com/reactivereality/public/yaecs)
-(under lesser GNU license).**
+This package is a Config System which allows easy manipulation of config files for safe, clear and repeatable
+experiments. In a few words, it is:
 
-This package is a Config System which allows easy manipulation of config files
-for safe, clear and repeatable experiments. In a few words, it is:
-
-- built for Machine Learning with its constraints in mind, but also usable
-out-of-the-box for other kinds of projects;
-- built with scalability in mind and can adapt just as easily to large projects
-investigating hundreds of well-organised parameters across many experiments;
-- designed to encourage good coding practices for research purposes, and if
-used rigorously will ensure a number of highly desirable properties such that
-**maintenance-less forward-compatibility** of old configs, **easy
-reproducibility** of any experiment, and **extreme clarity** of former
-experiments for your future self or collaborators.
+- built for Machine Learning with its constraints in mind, but also usable out-of-the-box for other kinds of projects ;
+- built with scalability in mind and can adapt just as easily to large projects investigating hundreds of well-organised
+parameters across many experiments ;
+- designed to encourage good coding practices for research purposes, and if used rigorously will ensure a number of
+highly desirable properties such that **maintenance-less forward-compatibility** of old configs, **easy
+reproducibility** of any experiment, and **extreme clarity** of former experiments for your future self or
+collaborators.
 
 [LINK TO DOCUMENTATION](https://gitlab.com/reactivereality/public/yaecs/-/wikis/home)
 
@@ -44,102 +35,94 @@ pip install yaecs
 
 ## Getting started
 
-This package is adapted to a *project* where you need to run a number of
-experiments. In this setup, it can be useful to gather all the parameters in
-the project to a common location, some "config files", so you can access and
-modify them easily. This package is based on YAML, therefore your config files
-should be YAML files. One such YAML file could be :
+Getting started with using YAECS requires a single thing : creating a Configuration object containing your parameters.
+There are many ways to create this config object, but let us focus on the easiest one.
+
+```python
+from yaecs import make_config
+
+dictionary = {
+    "batch_size": 32,
+    "experiment_name": "overfit",
+    "learning_rate": 0.001
+}
+config = make_config(dictionary)
+```
+
+And there you go, you have a config. You can query it using usual dictionary or object attribute getters such as :
+
+```python
+print(config.batch_size)  # 32
+print(config["experiment_name"])  # overfit
+print(config.get("learning_rate", None))  # 0.001
+```
+
+At this point you might think that this is nothing more than a more fancy dictionary... and you'd be right, that's
+actually a very good way to think about your config. In fact, because it mostly behaves like a dictionary, it is much
+easier to integrate into existing code or libraries which expect dictionaries.
+
+Of course, in many situations, it is much more than a simple dictionary, as we demonstrate thoughout our
+documentation. In this first introduction, we will cover two more things : loading a config from a **yaml file**, and
+some basic **command line interaction**. If you want more, we encourage you to keep reading our other tutorials in
+which we give **practical tips** and **best practices** for the management of your config over the course of a project.
+
+The main purpose of using a config system is to manage your parameters more easily by **getting them out of your code**.
+So let's do just that :)
+
+We will create a file called `config.yaml` in the root of our project, next to our `main.py` :
 
 ```yaml
-gpu: true
-data_path: "./data"
-learning_rate: 0.01
+batch_size: 32
+experiment_name: overfit
+learning_rate: 0.001
 ```
 
-Those will be the default values for those three parameters, so we will keep
-them in the file `my_project/configs/default.yaml`. Then, we just need to
-subclass the Configuration class in this package so your project-specific
-subclass knows where to find the default values for your project. A minimal
-project-specific subclass looks like:
+Then, in your `main.py`, all you need to do is use the path to the file instead of the dictionary :
 
 ```python
-from yaecs import Configuration
+from yaecs import make_config
 
-class ProjectSpecific(Configuration):
-    @staticmethod
-    def get_default_config_path():
-        return "./configs/default.yaml"
+config = make_config("config.yaml")
 
-    def parameters_pre_processing(self):
-        return {}
+print(config.batch_size)
+print(config["experiment_name"])
+print(config.get("learning_rate", None))
 ```
 
-That's all there is to it! Now if we use
-`config = ProjectSpecific.load_config()`, we can then call `config.data_path`
-or `config.learning_rate` to get their values as defined in the default config.
-We don't need to specify where to get the default config because a project
-should only ever have one default config, which centralises all the parameters
-in that project. Since the location of the default config is a project
-constant, it is defined in your project-specific subclass and there is no need
-to clutter your main code with it. Now, for example, your main.py could look
-like:
+Now, if you run your script, you should see the same prints as before.
 
-```python
-from project_config import ProjectSpecific
-
-if __name__ == "__main__":
-    config = ProjectSpecific.load_config()
-    config.merge_from_command_line()
-    print(config.details())
+```bash
+$ python main.py
+[CONFIG] Building config from default : config
+32
+overfit
+0.001
 ```
 
-Then, calling `python main.py --learning_rate=0.001`, the call to
-`merge_from_command_line` would parse the command line and find the
-pre-existing parameter learning_rate, then change its value to 0.001.
-Thus, the printed result would yield:
+One way the YAECS config system provides to manage parameters is to edit them from the command line, which is performed
+automatically when you create your config. See for yourself :
 
-```script
-MAIN CONFIG :
-Configuration hierarchy :
-> ./configs/default.yaml
-
- - gpu : true
- - data_path : ./data
- - learning_rate : 0.001
+```bash
+$ python main.py --batch_size 16
+[CONFIG] Building config from default : config
+[CONFIG] Merging from command line : {'batch_size': 16}
+16
+overfit
+0.001
+$ python main.py --experiment_name=production --batch_size=16
+[CONFIG] Building config from default : config
+[CONFIG] Merging from command line : {'experiment_name': 'production', 'batch_size': 16}
+16
+production
+0.001
 ```
 
-The Configuration hierarchy tells you about the creation history of the config,
-in this case only the default config was used. Then, all parameters are
-displayed. There are of course many other features in this package which you
-can use to organise your parameters, hierarchise your experiments etc. The
-idea being that once the bare minimum presented above is set up, scaling up
-is just as simple.
+The YAECS command line parser, one of YAECS' many ways of **preparing your experiment's config**, is very flexible and
+fast when you want to change only a handful of parameters.
 
-You can learn more about all these features in our
-[DOCUMENTATION](https://gitlab.com/reactivereality/public/yaecs/-/wikis/home).
+This is as far as we go for this short introduction. If you're already used to config systems and managing config files,
+this might be enough to get you started. However, if you've always just used hardcoded values in your code, and maybe
+argparse, you might not really know where to start. We advise you to look at our tutorial (in DOCUMENTATION_WIP.md), which will walk you
+through config management using YAECS from early set-up to advanced usage.
 
-## config_history
-
-The Config History is a side-feature of the main Config System. It can be
-configured for any project which uses the Config System and provides a
-flexible framework to easily build graphs representing past experiments. In
-these graphs, each node represents an experiment, and vertices are drawn
-between your experiments to visualise easily which parameters changed from one
-node to another.
-
-The graph can be coloured to show your most successful experiments, or grouped
-by parameters to see how well they have been explored in your experiment
-history. This makes it very useful to review your past work, share it with
-colleagues or make unexpected correlations appear.
-
-Please refer to our [DOCUMENTATION](https://gitlab.com/reactivereality/public/yaecs/-/wikis/home)
-to learn more about its setup and usage.
-
-Requirements (**will not** be installed automatically by pip to keep this
-lightweight):
-
-- `python>=3.7`
-- `pygraphviz==1.7`
-- `scipy`
-- `numpy`
-- `sudo apt install graphviz`
+Happy experimenting !

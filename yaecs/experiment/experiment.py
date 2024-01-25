@@ -19,6 +19,7 @@ import logging
 import os
 from contextlib import ExitStack
 from functools import partial
+import traceback
 from typing import Any, Callable, List, Optional
 
 from .experiment_utils import format_mode
@@ -168,6 +169,7 @@ class Experiment:
                 to_return = self.run_single(variation_description, **kwargs)
             except Exception as exception:  # pylint: disable=broad-except
                 YAECS_LOGGER.error(f"Run {run_number + 1} failed with the following error : {exception}")
+                YAECS_LOGGER.error(traceback.format_exc())
                 to_return = None
             returns.append(to_return)
         return returns
