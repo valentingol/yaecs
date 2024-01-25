@@ -42,6 +42,7 @@ from .user_utils import (  # pylint: disable=wrong-import-position # noqa: E402
 from .yaecs_utils import (  # pylint: disable=wrong-import-position # noqa: E402
     assign_order,
     assign_yaml_tag,
+    hook,
     Priority,
 )
 
@@ -53,4 +54,4 @@ except ImportError:
     version_tuple = (0, 0, "unknown_version")
 
 __all__ = ['__version__', 'assign_order', 'assign_yaml_tag', 'ConfigHistory', 'Configuration', 'Experiment',
-           'get_template_class', 'make_config', 'Priority', 'tqdm_file', 'version_tuple']
+           'get_template_class', 'hook', 'make_config', 'Priority', 'tqdm_file', 'version_tuple']

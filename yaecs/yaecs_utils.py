@@ -296,19 +296,31 @@ def format_str(config_path_or_dictionary: ConfigDeclarator, size: int = 200) -> 
 
 def get_config_from_argv(pattern: str, fallback: Optional[ConfigInput] = None) -> List[str]:
     """
-    Get a configuration from the command line arguments.
+    Get paths to config files from the command line arguments.
 
     :param pattern: pattern to detect in sys.argv
     :param fallback: fallback value if pattern is not detected in sys.argv
     :return: the configuration
     """
-    if pattern not in sys.argv and fallback is None:
+    pattern_index = None
+    for index, element in enumerate(sys.argv):
+        if element.split("=", 1) == pattern:
+            pattern_index = index
+    if pattern_index is None and fallback is None:
         raise TypeError(f"The pattern '{pattern}' was not detected in sys.argv.")
-    if pattern in sys.argv:
-        fallback = [cfg.strip(" ") for cfg in sys.argv[sys.argv.index(pattern) + 1].strip("[]").split(",")]
+    if pattern_index is not None:
+        # Aggregate all CLI chunks until the next flag
+        configs = []
+        if "=" in sys.argv[pattern_index]:
+            configs.append(sys.argv[pattern_index].split("=", 1)[1])
+        for element in sys.argv[pattern_index + 1:]:
+            if element.startswith("--"):
+                break
+            configs.append(element)
+        fallback = [cfg.strip(" ") for cfg in " ".join(configs).strip().strip("[]").split(",")]
     if not isinstance(fallback, list):
         fallback = [fallback]
-    return fallback
+    return [cfg for cfg in fallback if cfg]
 
 
 def get_quasi_bash_sys_argv(string_to_convert: str) -> List[str]:
