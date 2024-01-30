@@ -291,6 +291,7 @@ class Tracker:
             timers = [timers]
         timers = [t if isinstance(t, dict) else {(timer if isinstance(timer, str) else timer[i]): t}
                   for i, t in enumerate(timers)]
+        timers = [{k: v for k, v in t.items() if v is not None} for t in timers]  # None values cannot be logged
         if name is not None:
             if isinstance(name, str):
                 if not name.endswith("/") and len(timers) == 1:

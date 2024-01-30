@@ -17,7 +17,8 @@ class WildCardDict(dict):
         if isinstance(item, str) and "*" not in item:
             return super().__getitem__(item)
         if isinstance(item, str):
-            return {key: super().__getitem__(key) for key in self.keys() if compare_string_pattern(key, item)}
+            return WildCardDict({key: super().__getitem__(key) for key in self.keys()
+                                 if compare_string_pattern(key, item)})
         return [self.__getitem__(pattern) for pattern in item]
 
 
