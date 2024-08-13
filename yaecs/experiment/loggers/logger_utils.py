@@ -88,11 +88,14 @@ def new_print(*args, sep: str = " ", end: str = "", file: io.TextIOWrapper = Non
             logging.getLogger("yaecs.print_catcher").info(message)
 
 
-def value_to_float(value: Any, logger_name: str) -> str:
+def value_to_float(value: Any, logger_name: str, value_name: str) -> str:
     """ Converts a value to a float if possible, otherwise raises a warning and returns an empty string. """
     try:
         value = float(value)
     except ValueError:
-        YAECS_LOGGER.warning(f"WARNING : will not log non-float value {value} to {logger_name} logger.")
+        YAECS_LOGGER.warning(f"WARNING : will not log non-float value '{value_name}': {value} to {logger_name} logger.")
         return ""
+    if not isinstance(value, (float, int)):
+        YAECS_LOGGER.warning(f"WARNING : logging non-float value '{value_name}': {value} to {logger_name} logger.\name"
+                             "Logging non-float values can cause unexpected time or space complexity in some loggers.")
     return value
