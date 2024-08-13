@@ -383,7 +383,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     raise RuntimeError("Type-hinting is only allowed in the default config.")
                 name = yaml_loader.constructed_objects[list(yaml_loader.constructed_objects.keys())[-1]]
                 name = self._get_full_path(name)
-                methods = tag[6:]
+                methods = tag[len("!type:"):]
                 type_hint = methods
                 if all(method in self._assigned_as_yaml_tags for method in methods.split(",")):
                     lowest_priority = min(getattr(self._assigned_as_yaml_tags[method][0], "order", 0)
