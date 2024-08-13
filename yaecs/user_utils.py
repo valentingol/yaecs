@@ -16,11 +16,10 @@ Copyright (C) 2022  Reactive Reality
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import logging
-import sys
 from typing import Callable, Dict, List, Optional, Type, Union
 
 from .config.config import Configuration
-from .yaecs_utils import ConfigInput, ConfigDeclarator, TqdmLogger, get_config_from_argv
+from .yaecs_utils import ConfigInput, ConfigDeclarator, TqdmLogger, get_config_from_argv, is_config_in_argv
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -179,7 +178,7 @@ def make_config(*configs: Union[ConfigDeclarator, List[ConfigDeclarator]],
 
     # Get configs from argv
     configs_from_argv = get_config_from_argv(pattern=pattern, fallback={} if fallback == "{}" else fallback)
-    class_building_kwargs["from_argv"] = pattern if pattern in sys.argv else ""
+    class_building_kwargs["from_argv"] = pattern if is_config_in_argv(pattern=pattern) else ""
     if all(c == {} for c in configs_from_argv):
         configs_from_argv = []
         class_building_kwargs["from_argv"] = ""

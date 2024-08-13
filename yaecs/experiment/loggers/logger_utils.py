@@ -23,7 +23,7 @@ class NotImportedModule:
         if item == "_NotImportedModule__name":
             return object.__getattribute__(self, item)
         raise ModuleNotFoundError(f"Module {self.__name} is not installed. If you want to use this feature, please "
-                                  "install it..")
+                                  "install it.")
 
 
 def add_to_csv(csv_path: str, name: str, value: Any, step: int) -> None:

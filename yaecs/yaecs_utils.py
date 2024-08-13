@@ -304,10 +304,8 @@ def get_config_from_argv(pattern: str, fallback: Optional[ConfigInput] = None) -
     """
     pattern_index = None
     for index, element in enumerate(sys.argv):
-        if element.split("=", 1) == pattern:
+        if element.split("=", 1)[0] == pattern:
             pattern_index = index
-    if pattern_index is None and fallback is None:
-        raise TypeError(f"The pattern '{pattern}' was not detected in sys.argv.")
     if pattern_index is not None:
         # Aggregate all CLI chunks until the next flag
         configs = []
@@ -318,6 +316,8 @@ def get_config_from_argv(pattern: str, fallback: Optional[ConfigInput] = None) -
                 break
             configs.append(element)
         fallback = [cfg.strip(" ") for cfg in " ".join(configs).strip().strip("[]").split(",")]
+    if fallback is None:
+        raise TypeError(f"The pattern '{pattern}' was not detected in sys.argv.")
     if not isinstance(fallback, list):
         fallback = [fallback]
     return [cfg for cfg in fallback if cfg]
@@ -448,6 +448,20 @@ def is_type_valid(value: Any, config_class: type) -> bool:
     if isinstance(value, (Mapping, config_class)):
         return all(is_type_valid(i, config_class) for i in value.values())
     return isinstance(value, (int, float, str)) or value is None
+
+
+def is_config_in_argv(pattern: str) -> bool:
+    """
+    Returns True if the pattern is found in sys.argv.
+
+    :param pattern: pattern to detect in sys.argv
+    :return: result of the test
+    """
+    try:
+        _ = get_config_from_argv(pattern)
+        return True
+    except TypeError:
+        return False
 
 
 def parse_type(string_to_process: str) -> TypeHint:

@@ -1,6 +1,5 @@
 # YAECS (Yet Another Experiment Config System)
 
-[![Offial repo](https://img.shields.io/badge/official%20repo-YAECS-%23ff9626?logo=gitlab)](https://gitlab.com/reactivereality/public/yaecs)
 [![License](https://img.shields.io/badge/license-LGPLV3%2B-%23c4c2c2)](https://www.gnu.org/licenses/)
 
 ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/valentingol/yaecs/main)
@@ -23,7 +22,7 @@ highly desirable properties such that **maintenance-less forward-compatibility**
 reproducibility** of any experiment, and **extreme clarity** of former experiments for your future self or
 collaborators.
 
-[LINK TO DOCUMENTATION](https://gitlab.com/reactivereality/public/yaecs/-/wikis/home)
+[LINK TO DOCUMENTATION](https://github.com/valentingol/yaecs/blob/main/DOCUMENTATION_WIP.md)
 
 ## Installation
 
