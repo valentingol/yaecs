@@ -276,7 +276,7 @@ class ConfigConvenienceMixin:
             hierarchy_dump_path = f"{file_path}_hierarchy{file_extension}"
             to_dump = {"config_hierarchy": self.config_metadata["config_hierarchy"]}
             with open(hierarchy_dump_path, "w", encoding='utf-8') as fil:
-                yaml.dump(to_dump, fil, Dumper=self._get_yaml_dumper(), width=1000)
+                yaml.dump(to_dump, fil, Dumper=self._get_yaml_dumper(dict_behaviour="default"), width=1000)
 
         object.__setattr__(self, "_was_last_saved_as", config_dump_path)
         if self._verbose:
@@ -340,7 +340,7 @@ class ConfigConvenienceMixin:
                 f"Regime : {self.config_metadata['overwriting_regime']}"
                 f"{'' if self.get_variation_name() is None else f' ; Variation : {self.get_variation_name()}'}")
 
-    def _get_yaml_dumper(self) -> Type[yaml.Dumper]:
+    def _get_yaml_dumper(self, dict_behaviour: str = "custom") -> Type[yaml.Dumper]:
         """ Used to get a custom YAML dumper capable of writing config tags. """
 
         def config_representer(yaml_dumper, class_instance):
@@ -358,6 +358,12 @@ class ConfigConvenienceMixin:
                 },
             )
 
+        def dict_representer(yaml_dumper, data):
+            if yaml_dumper.represented_objects and dict_behaviour == "custom":
+                return yaml_dumper.represent_mapping('!type:dict', data)
+            return yaml_dumper.represent_mapping('tag:yaml.org,2002:map', data)
+
         dumper = yaml.Dumper
+        dumper.add_representer(dict, dict_representer)
         dumper.add_representer(self.__class__, config_representer)
         return dumper

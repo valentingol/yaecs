@@ -24,13 +24,11 @@ from collections.abc import Iterable
 from functools import partial
 from numbers import Real
 from pathlib import Path
-from typing import (TYPE_CHECKING,
-                    Any, Callable, Dict, List, Optional, Tuple, Type, Union)
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import yaml
 
-from ..yaecs_utils import (YAML_EXPRESSIONS,
-                           ConfigDeclarator, TypeHint,
+from ..yaecs_utils import (ConfigDeclarator, TypeHint,
                            compare_string_pattern, compose, format_str, get_quasi_bash_sys_argv, get_order,
                            is_type_valid, parse_type, recursive_set_attribute, set_function_attribute, update_state)
 from .config_convenience import ConfigConvenienceMixin
@@ -38,6 +36,7 @@ from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
 from .config_processing_functions import ConfigProcessingFunctionsMixin
 from .config_setters import ConfigSettersMixin
+from .yaml_scanner import YAMLScanner
 
 if TYPE_CHECKING:
     from .config import Configuration
@@ -223,15 +222,13 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
         :param config_path_or_dict: path or dictionary for the config to merge
         """
-        if config_path_or_dict is not None:
-            if isinstance(config_path_or_dict, str):
-                with open(self._find_path(config_path_or_dict), encoding='utf-8') as yaml_file:
-                    for dictionary_to_add in yaml.load_all(yaml_file, Loader=self._get_yaml_loader()):
-                        for item in self._superficial_dict_cleanup(dictionary_to_add).items():
-                            self._process_item_to_merge_or_add(item)
-            else:
-                for item in config_path_or_dict.items():
-                    self._process_item_to_merge_or_add(item)
+        if config_path_or_dict is None:
+            config_path_or_dict = {}
+        if isinstance(config_path_or_dict, str):
+            config_path_or_dict = self._scan_yaml_files(config_path_or_dict)
+
+        for item in config_path_or_dict.items():
+            self._process_item_to_merge_or_add(item)
 
     def merge(self, config_path_or_dictionary: ConfigDeclarator, do_not_pre_process: bool = False,
               do_not_post_process: bool = False) -> None:
@@ -368,94 +365,6 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
         raise FileNotFoundError(f"ERROR : path not found ({path}).")
 
-    def _get_yaml_loader(self) -> Type[yaml.FullLoader]:
-        """ Used to get a custom YAML loader capable of parsing config tags. """
-
-        def generic_constructor(yaml_loader, tag, node):
-
-            is_param_tag = bool(yaml_loader.constructed_objects)
-
-            # If type tag, handle type-hinting or processing assignment.
-            if tag[1:].lower().startswith("type:") and tag[1:].lower() != "type:config":
-                if not is_param_tag:
-                    raise RuntimeError(f"'{tag[1:]}' is not a valid sub-config name.")
-                if not any(state.startswith("setup") for state in self._state):
-                    raise RuntimeError("Type-hinting is only allowed in the default config.")
-                name = yaml_loader.constructed_objects[list(yaml_loader.constructed_objects.keys())[-1]]
-                name = self._get_full_path(name)
-                methods = tag[len("!type:"):]
-                type_hint = methods
-                if all(method in self._assigned_as_yaml_tags for method in methods.split(",")):
-                    lowest_priority = min(getattr(self._assigned_as_yaml_tags[method][0], "order", 0)
-                                          for method in methods.split(","))
-                    for method in methods.split(","):
-                        function, processor_type, new_type_hint = self._assigned_as_yaml_tags[method]
-                        if self.get_variation_name() is None:
-                            self.add_processing_function_all(name, f"_tagged_method_{method}", processor_type)
-                        if type_hint == methods and getattr(function, "order", 0) == lowest_priority:
-                            type_hint = new_type_hint
-                self._main_config.add_type_hint(name, parse_type(type_hint))
-                if isinstance(node, yaml.ScalarNode):
-                    if node.value == "":
-                        def _can_be_str(parsed_type):
-                            if parsed_type is str:
-                                return True
-                            if isinstance(parsed_type, tuple):
-                                if str in parsed_type:
-                                    return True
-                                return any(_can_be_str(t) for t in parsed_type)
-                            return False
-                        if _can_be_str(parse_type(tag[6:])):
-                            return yaml_loader.yaml_constructors["tag:yaml.org,2002:str"](yaml_loader, node)
-                    for key, value in YAML_EXPRESSIONS.items():
-                        if value.match(node.value):
-                            return yaml_loader.yaml_constructors[f"tag:yaml.org,2002:{key}"](yaml_loader, node)
-                    return yaml_loader.construct_scalar(node)
-                if isinstance(node, yaml.SequenceNode):
-                    return yaml_loader.construct_sequence(node, deep=True)
-                if isinstance(node, yaml.MappingNode):
-                    return yaml_loader.construct_mapping(node, deep=True)
-
-            # Otherwise, assume sub-config tag
-            if is_param_tag:
-                # Case 1 : not root of the YAML file > infer name from parameter name
-                sub_configs_names = list(yaml_loader.constructed_objects.keys())[-1].value.split(".")
-                sub_config = sub_configs_names[0]
-                apply_to_node = ".".join(sub_configs_names[1:])
-                if tag[1:].lower() != "type:config":
-                    YAECS_LOGGER.warning(f"WARNING : Naming sub-configs is deprecated. Tag '{tag}' will be ignored and "
-                                         "should be removed. They might be used for a different purpose in a future "
-                                         "release.\n"
-                                         "Since YAML dicts are now implicitly considered sub-configs, be sure to tag "
-                                         "with '!type:dict' if you want to use a dict.")
-            else:
-                if tag[1:].lower() == "type:config":
-                    # Case 2 : name not provided and root of the YAML file > assume dict
-                    return yaml_loader.construct_mapping(node, deep=True)
-                # Case 3 : name provided and root of the YAML file > use first part as config name
-                sub_configs_names = tag[1:].split(".")
-                sub_config = sub_configs_names[0]
-                apply_to_node = ".".join(sub_configs_names[1:])
-
-            if apply_to_node:
-                # Add prefix to all sub-config parameters
-                for i in range(len(node.value)):  # pylint: disable=consider-using-enumerate
-                    node.value[i][0].value = apply_to_node + "." + node.value[i][0].value
-            self._nesting_hierarchy.append(sub_config)  # needs to be set temporarily (potential recursive call)
-            to_convert = yaml_loader.construct_mapping(node)
-            new_config = self._get_instance(name=sub_config,
-                                            config_path_or_dictionary=self._superficial_dict_cleanup(to_convert),
-                                            nesting_hierarchy=self._nesting_hierarchy, state=self._state,
-                                            main_config=self._main_config, verbose=self._verbose)
-            self.set_sub_config(new_config)
-            self._nesting_hierarchy.pop(-1)
-            return new_config if is_param_tag else {sub_config: new_config}
-
-        loader = yaml.FullLoader
-        loader.DEFAULT_MAPPING_TAG = "!type:config"
-        yaml.add_multi_constructor("", generic_constructor, Loader=loader)
-        return loader
-
     def _manual_merge(self, config_path_or_dictionary: ConfigDeclarator, do_not_pre_process: bool = False,
                       do_not_post_process: bool = False, source: str = 'config',
                       ) -> None:
@@ -485,20 +394,16 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             self.set_pre_processing(True)
             self._operating_creation_or_merging = False
         else:
-            dicts_to_merge = []
             if isinstance(config_path_or_dictionary, str):
-                with open(self._find_path(config_path_or_dictionary), encoding='utf-8') as yaml_file:
-                    for dictionary_to_add in yaml.load_all(yaml_file, Loader=self._get_yaml_loader()):
-                        dicts_to_merge.append(self._superficial_dict_cleanup(dictionary_to_add))
-                    yaml_file.close()
-            else:
-                dicts_to_merge.append(config_path_or_dictionary)
-            for dictionary in dicts_to_merge:
-                self._main_config._merge(  # pylint: disable=protected-access
-                    {self._get_full_path(a): b
-                     for a, b in dictionary.items()}, do_not_pre_process=do_not_pre_process,
-                    do_not_post_process=do_not_post_process, source=source,
-                )
+                config_path_or_dictionary = self._scan_yaml_files(config_path_or_dictionary)
+
+            if config_path_or_dictionary is not None:
+                config_path_or_dictionary = {self._get_full_path(a): b for a, b in config_path_or_dictionary.items()}
+
+            self._main_config._merge(  # pylint: disable=protected-access
+                config_path_or_dictionary=config_path_or_dictionary,
+                do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process, source=source
+            )
 
     @update_state("working_on;_name")
     def _process_item_to_merge_or_add(self, item: Tuple[str, Any]) -> None:
@@ -840,7 +745,48 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         variation = None if variation_chunk is None else variation_chunk.split(":")[1].strip()
         return former_saving_time, regime, variation
 
-    @staticmethod
-    def _superficial_dict_cleanup(dictionary: dict) -> dict:
-        """ After a YAML loading operation, cleans up composed keys of Configuration items. """
-        return {(k.split(".")[0] if isinstance(v, _ConfigurationBase) else k): v for k, v in dictionary.items()}
+    def _scan_yaml_files(self, path: str) -> List[str]:
+        """ Scans a YAML file for its parameters, gathers and adds type hints and processing functions. """
+        path = self._find_path(path)
+        scanner = YAMLScanner(path)
+
+        for param, type_hint in scanner.type_hints.items():
+            if not any(state.startswith("setup") for state in self._state):
+                if type_hint != "dict":
+                    YAECS_LOGGER.warning("WARNING : type-hinting only has effect in the default config. The type hint "
+                                         f"'{type_hint}' for parameter '{param}' in file '{path}' will be ignored.")
+            else:
+                if all(method in self._assigned_as_yaml_tags for method in type_hint.split(",")):
+                    YAECS_LOGGER.warning("WARNING : registering processing functions using !type:<method_name> is "
+                                         "deprecated. It will still work until the next release, but you should switch "
+                                         f"to using !<method_name> instead (detected in tag '{type_hint}' for "
+                                         f"parameter '{param}' in file '{path}').")
+                    scanner.processing_functions[param] = type_hint.split(",")
+                else:
+                    self.add_type_hint(param, parse_type(type_hint))
+
+        for param, methods in scanner.processing_functions.items():
+            if not any(state.startswith("setup") for state in self._state):
+                YAECS_LOGGER.warning("WARNING : registering processing functions only has effect in the default config."
+                                     f" The functions {methods} for parameter '{param}' in file '{path}' will be "
+                                     "ignored.")
+            else:
+                if all(method in self._assigned_as_yaml_tags for method in methods):
+                    type_hint = None
+                    lowest_priority = min(getattr(self._assigned_as_yaml_tags[method][0], "order", 0)
+                                          for method in methods)
+                    for method in methods:
+                        function, processor_type, new_type_hint = self._assigned_as_yaml_tags[method]
+                        if self.get_variation_name() is None:
+                            self.add_processing_function_all(self._get_full_path(param),
+                                                             f"_tagged_method_{method}",
+                                                             processor_type)
+                        if type_hint is None and getattr(function, "order", 0) == lowest_priority:
+                            type_hint = new_type_hint
+                    self.add_type_hint(param, parse_type(type_hint))
+                else:
+                    raise ValueError(f"Some processing functions in {methods} for parameter '{param}' in file '{path}' "
+                                     "do not match any registered processing function. Valid processing functions "
+                                     f"are : {list(self._assigned_as_yaml_tags.keys())}.")
+
+        return scanner.params

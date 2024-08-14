@@ -1,6 +1,6 @@
 d: v
 
-f:
+f: !type:dict
   var_1:
     a_config.ts.t4.use: false
     mode: training

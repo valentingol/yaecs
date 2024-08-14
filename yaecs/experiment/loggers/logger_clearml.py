@@ -3,7 +3,6 @@ import importlib.util
 import logging
 import os
 from typing import Any, Optional, Union
-import warnings
 
 from .base_logger import Logger
 from .logger_utils import NotImportedModule, value_to_float

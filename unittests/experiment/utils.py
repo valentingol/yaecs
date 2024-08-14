@@ -8,11 +8,8 @@ Purpose : description""",
 - /home/vac/Documents/Projects/ait-yaecs/unittests/experiment/test_project_config/defaults/default.yaml
 - unittests/experiment/test_project_config/experiments/s
 - unittests/experiment/test_project_config/experiments/variations
-- a_config:
-    ts:
-      t4:
-        fr: b
-        use: true
+- a_config.ts.t4.fr: b
+  a_config.ts.t4.use: true
   mode: validation
 """,
     "config": """a: false
@@ -20,19 +17,13 @@ b: tmp/normal/test
 c: Try something
 d: v
 e: 1
-f:
-  var_1:
-    a_config:
-      ts:
-        t4:
-          use: false
+f: !type:dict
+  var_1: !type:dict
+    a_config.ts.t4.use: false
     mode: training
-  var_2:
-    a_config:
-      ts:
-        t4:
-          use: true
-          fr: b
+  var_2: !type:dict
+    a_config.ts.t4.use: true
+    a_config.ts.t4.fr: b
     mode: validation
 mode: validation
 a_config:
@@ -46,7 +37,7 @@ a_config:
       - t3
       - t5
       - t4
-      sp: {}
+      sp: !type:dict {}
   v:
     s:
     - 320
@@ -56,7 +47,7 @@ a_config:
       - t1
       - t5
       - t4
-      sp:
+      sp: !type:dict
         t1.t1m: false
         t2.t1m: false
   te:
@@ -68,7 +59,7 @@ a_config:
       - t1
       - t5
       - t4
-      sp:
+      sp: !type:dict
         t1.t1m: false
         t2.t1m: false
   ts:
@@ -99,7 +90,7 @@ v:
   vf: 5
 c_config_file: c_config.yaml
 d_config_file: unittests/experiment/test_project_config/general/bsc
-tracker_config:
+tracker_config: !type:dict
   type:
   - basic
   - clearml
