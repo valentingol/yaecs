@@ -96,7 +96,10 @@ class ConfigSettersMixin:
         :param name: full path of the param in the main config
         :param type_hint: type of the param
         """
-        self._type_hints[name] = type_hint
+        if self._are_same_sub_configs(self, self._main_config):
+            self._type_hints[name] = type_hint
+        else:
+            self._main_config.add_type_hint(self._get_full_path(name), type_hint)
 
     def set_sub_config(self, sub_config: 'Configuration') -> None:
         """

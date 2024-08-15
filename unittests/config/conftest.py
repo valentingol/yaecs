@@ -150,7 +150,7 @@ def yaml_craziest_config(tmpdir):
     with open(tmpdir / 'e_second.yaml', "w", encoding='utf-8') as fil:
         fil.write("--- !c3\n"
                   "'*.p*': 8\n"
-                  "'*p4': {b: 5}")
+                  "'*p4': !type:dict {b: 5}")
     yield str(tmpdir / 'd_first.yaml'), str(tmpdir / 'e_first.yaml')
 
 
@@ -264,7 +264,7 @@ def config_vs_dict_checks(tmpdir):
                "        key1: 0\n"
                "      key2: ['!type:dict']\n"
                "--- !config10.config11\n"
-               "config1.config7: !main_2\n"
+               "config1.config7:\n"
                "  config8:\n"
                "    param1: !type:dict\n"
                "      key1: !type:dict\n"

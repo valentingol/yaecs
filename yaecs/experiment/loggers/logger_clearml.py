@@ -3,7 +3,6 @@ import importlib.util
 import logging
 import os
 from typing import Any, Optional, Union
-import warnings
 
 from .base_logger import Logger
 from .logger_utils import NotImportedModule, value_to_float
@@ -73,7 +72,7 @@ class ClearMLLogger(Logger):
     def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
                    sub_logger: Optional[str] = None, description: Optional[str] = None) -> None:
         self._warn_function_argument("log_scalar", "description", description, None)
-        value = value_to_float(value, self.name)
+        value = value_to_float(value, self.name, name)
         if value == "":
             return
 
@@ -97,23 +96,21 @@ class ClearMLLogger(Logger):
         self._warn_function_argument("log_image", "extension", extension, "png")
         sub_logger = "logged_images" if sub_logger is None else sub_logger
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=UserWarning)
-            if isinstance(image, str):
-                self.task.logger.report_image(title=sub_logger, series=name, local_path=image, iteration=step)
-            elif isinstance(image, np.ndarray):
-                self.task.logger.report_image(title=sub_logger, series=name, image=image.astype(np.uint8),
-                                              iteration=step)
-            elif isinstance(image, Image):
-                self.task.logger.report_image(title=sub_logger, series=name, image=np.array(image, dtype=np.uint8),
-                                              iteration=step)
-            elif isinstance(image, matplotlib.figure.Figure):
-                self.task.logger.report_matplotlib(title=sub_logger, series=name, iteration=step, figure=image)
-            elif isinstance(image, plotly.graph_objects.Figure):
-                self.task.logger.report_plotly(title=sub_logger, series=name, iteration=step, figure=image)
-            else:
-                self.task.logger.report_image(title=sub_logger, series=name, image=np.array(image, dtype=np.uint8),
-                                              iteration=step)
+        if isinstance(image, str):
+            self.task.logger.report_image(title=sub_logger, series=name, local_path=image, iteration=step)
+        elif isinstance(image, np.ndarray):
+            self.task.logger.report_image(title=sub_logger, series=name, image=image.astype(np.uint8),
+                                          iteration=step)
+        elif isinstance(image, Image):
+            self.task.logger.report_image(title=sub_logger, series=name, image=np.array(image, dtype=np.uint8),
+                                          iteration=step)
+        elif isinstance(image, matplotlib.figure.Figure):
+            self.task.logger.report_matplotlib(title=sub_logger, series=name, iteration=step, figure=image)
+        elif isinstance(image, plotly.graph_objects.Figure):
+            self.task.logger.report_plotly(title=sub_logger, series=name, iteration=step, figure=image)
+        else:
+            self.task.logger.report_image(title=sub_logger, series=name, image=np.array(image, dtype=np.uint8),
+                                          iteration=step)
 
     def _get_tast_type(self):
         """ Returns the task type for the ClearML task, inferred from the experiment mode if there is one. """

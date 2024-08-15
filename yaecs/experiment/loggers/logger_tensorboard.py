@@ -44,7 +44,7 @@ class TensorBoardLogger(Logger):
 
     def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
                    sub_logger: Optional[str] = None, description: Optional[str] = None) -> None:
-        value = value_to_float(value, self.name)
+        value = value_to_float(value, self.name, name)
         if value == "":
             return
 

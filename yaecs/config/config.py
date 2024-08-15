@@ -17,11 +17,10 @@ Copyright (C) 2022  Reactive Reality
 """
 
 import logging
-import sys
 import time
 from typing import Callable, Dict, List, Optional
 
-from ..yaecs_utils import ConfigInput, ConfigDeclarator, format_str, get_config_from_argv
+from ..yaecs_utils import ConfigInput, ConfigDeclarator, format_str, get_config_from_argv, is_config_in_argv
 from .config_base import _ConfigurationBase
 
 YAECS_LOGGER = logging.getLogger(__name__)
@@ -234,7 +233,7 @@ class Configuration(_ConfigurationBase):
                                overwriting_regime=overwriting_regime,
                                do_not_merge_command_line=do_not_merge_command_line,
                                do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process,
-                               from_argv=pattern if pattern in sys.argv else "", **kwargs)
+                               from_argv=pattern if is_config_in_argv(pattern=pattern) else "", **kwargs)
 
     def create_variations(self) -> List['Configuration']:
         """

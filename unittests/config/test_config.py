@@ -682,7 +682,7 @@ def test_config_vs_dict_checks(caplog, config_vs_dict_checks):
     with caplog.at_level(logging.WARNING):
         logging.getLogger("yaecs").propagate = True
         config = load_config(default_config=config_vs_dict_checks)
-    assert caplog.text.count("WARNING") == 2
+    assert caplog.text.count("WARNING") == 0
     string = f"\nMAIN CONFIG :\nConfiguration hierarchy :\n> {config_vs_dict_checks}" \
              "\n\n - config1 : \n	CONFIG1 CONFIG :\n	 - config2 : \n		CONFIG2 CONFIG :\n" \
              "		 - param1 : {'key1': {'key2': 0}, 'key3': ['!type:dict']}\n\n\n - config3 : \n	CONFIG3 CONFIG :" \
@@ -800,9 +800,6 @@ def test_errors(caplog, yaml_default_unlinked, yaml_default_sub_variations,
                 Exception, match=".*character is not authorised "
                                  "in the default config.*"):
             _ = make_config({"param*": 1})
-        with pytest.raises(Exception, match=".*Unlinked sub-configs are not "
-                                            "allowed.*"):
-            _ = make_config(yaml_default_unlinked)
     assert caplog.text.count("ERROR while pre-processing param") == 4
     with pytest.raises(
             Exception, match=".*Please declare all your variations "

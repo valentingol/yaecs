@@ -5,7 +5,6 @@ from shutil import copyfile
 import sys
 import traceback
 from typing import Any, Optional, Union
-import warnings
 
 from mock import patch
 
@@ -86,23 +85,21 @@ class BasicLogger(Logger):
         output_path = os.path.join(image_path, f"{os.path.basename(name)}.{extension}")
 
         # Logging
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=UserWarning)
-            if isinstance(image, str):
-                if not os.path.isfile(image):
-                    raise FileNotFoundError(f"Cannot log image '{image}' : path does not exist !")
-                copyfile(image, output_path[:-len(extension)] + image.split(".")[-1])
-            elif isinstance(image, np.ndarray):
-                Image.fromarray(image.astype(np.uint8)).save(output_path)
-            elif isinstance(image, Image.Image):
-                image.save(output_path)
-            elif isinstance(image, matplotlib.figure.Figure):
-                image.savefig(output_path)
-            elif isinstance(image, plotly.graph_objs.Figure):
-                plotly.io.write_image(image, output_path)
-            else:
-                YAECS_LOGGER.warning(f"WARNING : image {name} at step {step} was not logged to sub_logger {sub_logger}"
-                                     f" : unrecognised type {type(image)}.")
+        if isinstance(image, str):
+            if not os.path.isfile(image):
+                raise FileNotFoundError(f"Cannot log image '{image}' : path does not exist !")
+            copyfile(image, output_path[:-len(extension)] + image.split(".")[-1])
+        elif isinstance(image, np.ndarray):
+            Image.fromarray(image.astype(np.uint8)).save(output_path)
+        elif isinstance(image, Image.Image):
+            image.save(output_path)
+        elif isinstance(image, matplotlib.figure.Figure):
+            image.savefig(output_path)
+        elif isinstance(image, plotly.graph_objs.Figure):
+            plotly.io.write_image(image, output_path)
+        else:
+            YAECS_LOGGER.warning(f"WARNING : image {name} at step {step} was not logged to sub_logger {sub_logger} : "
+                                 f"unrecognised type {type(image)}.")
 
 
 class BasicTrackerContext:
