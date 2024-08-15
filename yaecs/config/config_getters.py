@@ -238,11 +238,9 @@ class ConfigGettersMixin:
 
         :return: possible types for this param according to its type hint, 0 if no type hint defined
         """
-        if param_name in self._type_hints:
-            return self._type_hints[param_name]
-        if "." in param_name:
-            return self[".".join(param_name.split(".")[:-1])].get_type_hint(param_name.split(".")[-1])
-        return 0
+        if self._are_same_sub_configs(self, self._main_config):
+            return self._type_hints.get(param_name, 0)
+        return self._main_config.get_type_hint(self._get_full_path(param_name))
 
     def get_type_hints(self) -> Dict[str, TypeHint]:
         """
@@ -250,7 +248,11 @@ class ConfigGettersMixin:
 
         :return: dictionary with keys being parameter names and values being their possible types
         """
-        return self._type_hints
+        if self._are_same_sub_configs(self, self._main_config):
+            return self._type_hints
+        all_type_hints = self._main_config.get_type_hints()
+        prefix = ".".join(self._nesting_hierarchy) + "."
+        return {key[len(prefix):]: item for key, item in all_type_hints.items() if key.startswith(prefix)}
 
     def get_variation_name(self) -> str:
         """
