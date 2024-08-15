@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Un
 
 import yaml
 
-from ..yaecs_utils import (ConfigDeclarator, TypeHint,
+from ..yaecs_utils import (ConfigDeclarator, NoValue, TypeHint,
                            compare_string_pattern, compose, format_str, get_quasi_bash_sys_argv, get_order,
                            is_type_valid, parse_type, recursive_set_attribute, set_function_attribute, update_state)
 from .config_convenience import ConfigConvenienceMixin
@@ -422,8 +422,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
         # ...do not accept other protected attributes to be merged...
         if key in self._protected_attributes:
-            raise RuntimeError(f"Error : '{key}' is a protected name and cannot "
-                               "be used as a parameter name.")
+            raise RuntimeError(f"Error : '{key}' is a protected name and cannot be used as a parameter name.")
 
         # ... otherwise, process the data normally :
 
@@ -431,14 +430,14 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         if not any(state.startswith("setup") for state in self._state):
             self._merge_item(key, value)
 
-        # ... or if we are creating a config for the first time and
-        # are adding non-existing parameters to it
+        # ... or if we are creating a config for the first time and are adding non-existing parameters to it
         else:
             self._add_item(key, value)
 
     def _merge_item(self, key: str, value: Any) -> None:
-        """ Method called by _process_item_to_merge_or_add if the value should be merged and not added. This method
-        ultimately performs all merges in the config. """
+        """ Method called by _process_item_to_merge_or_add if the value should be merged and not added (ie., any time
+        after the default config has been set up). This method ultimately performs all merges in the config. """
+
         if "*" in key:
             to_merge = {}
             for param in self.get_parameter_names(deep=True):
@@ -452,131 +451,96 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     YAECS_LOGGER.info(f"Pattern parameter '{key}' will be merged into the following matched "
                                       f"parameters : {list(to_merge.keys())}.")
             self.init_from_config(to_merge)
-        elif "." in key:
-            name, new_key = key.split(".", 1)
-            try:
-                sub_config = getattr(self, "___" + name if name in self._methods else name)
-            except AttributeError as exception:
-                raise AttributeError(f"ERROR : parameter '{key}' cannot be merged : "
-                                     f"it is not in the default '{self.get_name().upper()}' "
-                                     f"config.\n{self._did_you_mean(key)}") from exception
+            return
 
-            if isinstance(sub_config, _ConfigurationBase):
-                sub_config.init_from_config({new_key: value})
+        name = key.split('.')[0]
+        attribute_name = "___" + name if name in self._methods else name
+        try:
+            old_value = getattr(self, attribute_name)
+        except AttributeError as exception:
+            raise AttributeError(f"ERROR : parameter '{key}' cannot be merged : '{name}' is not in the default "
+                                 f"'{self.get_name().upper()}' config.\n{self._did_you_mean(key)}") from exception
+
+        if "." in key:
+            if isinstance(old_value, _ConfigurationBase):
+                old_value.init_from_config({key.split('.', 1)[1]: value})
             else:
-                did_you_mean_message = self._did_you_mean(
-                    key.split('.')[0], filter_type=self.__class__, suffix=key.split('.', 1)[1])
-                raise TypeError(f"Failed to set parameter '{key}' : '{key.split('.')[0]}'"
-                                f" is not a sub-config.\n{did_you_mean_message}")
+                did_you_mean = self._did_you_mean(name, filter_type=self.__class__, suffix=key.split('.', 1)[1])
+                raise TypeError(f"Failed to set parameter '{key}' : '{name}' is not a sub-config.\n{did_you_mean}")
+
         else:
-            try:
-                old_value = getattr(self, "___" + key if key in self._methods else key)
-            except AttributeError as exception:
-                raise AttributeError(f"ERROR : parameter '{key}' cannot be merged : "
-                                     f"it is not in the default '{self.get_name().upper()}' "
-                                     f"config.\n{self._did_you_mean(key)}") from exception
             if isinstance(old_value, _ConfigurationBase):
                 if isinstance(value, _ConfigurationBase):
-                    self.unset_sub_config(value)
-                    old_value.init_from_config(value.get_dict(deep=False, pre_post_processing_values=False))
-                elif isinstance(value, dict):
-                    old_value.init_from_config(value)
-                else:
+                    value = value.get_dict(deep=False, pre_post_processing_values=False)
+                if not isinstance(value, dict):
                     raise TypeError(f"Trying to set sub-config '{old_value.get_name()}'\n"
-                                    f"with non-config element '{value}'.\n"
-                                    "This replacement cannot be performed.")
+                                    f"with non-config element '{value}'.\nThis replacement cannot be performed.")
+                old_value.init_from_config(value)
             else:
                 if isinstance(value, _ConfigurationBase):
-                    self.unset_sub_config(value)
-                    for sub_config in value.get_all_linked_sub_configs():
-                        self.unset_sub_config(sub_config)
                     value = value.get_dict(deep=True, pre_post_processing_values=False)
-                if self._verbose:
-                    YAECS_LOGGER.debug(f"Setting '{key}' : \nold : '{old_value}' \n"
-                                       f"new : '{value}'.")
-                object.__setattr__(self, "___" + key if key in self._methods else key,
-                                   self._process_parameter(key, value, "pre"))
-                if key not in self._modified_buffer:
-                    self._modified_buffer.append(key)
+                self._set_parameter(name, attribute_name, value, old_value)
 
     def _add_item(self, key: str, value: Any) -> None:
-        """ Method called by _process_item_to_merge_or_add if the value should be added and not merged. This method
-        ultimately performs all additions to the config. """
-        if self._state[0].split(";")[0] == "setup" and "*" in key:
-            raise ValueError("The '*' character is not authorised in the default "
-                             f"config ({key}).")
-        if "." in key and "*" not in key.split(".")[0]:
-            name = key.split(".")[0]
-            param_name = "___" + name if name in self._methods else name
-            try:
-                sub_config = getattr(self, param_name)
-            except AttributeError:
-                self._add_sub_config(name, param_name, {key.split(".", 1)[1]: value})
-            else:
-                if isinstance(sub_config, _ConfigurationBase):
-                    sub_config.init_from_config({key.split(".", 1)[1]: value})
-                else:
-                    did_you_mean = self._did_you_mean(
-                        key.split(".")[0], filter_type=self.__class__, suffix=key.split(".", 1)[1],
-                    )
-                    raise TypeError("Failed to set parameter "
-                                    f"'{key}' : '{key.split('.')[0]}' "
-                                    f"is not a sub-config.\n{did_you_mean}")
-        else:
-            param_name = "___" + key if key in self._methods else key
-            try:
-                if key != "config_metadata":
-                    _ = getattr(self, param_name)
-                    raise RuntimeError(f"ERROR : parameter '{key}' was set twice.")
-            except AttributeError:
-                if key in self._methods and self._verbose:
-                    YAECS_LOGGER.warning(f"WARNING : '{key}' is the name of a method in the Configuration object.\n"
-                                         f"Your parameter was initialised anyways, under the name ___{key}. You can "
-                                         f"access it via config.___{key} or config['{key}'].")
-                if isinstance(value, _ConfigurationBase):
-                    self._add_sub_config(key, param_name, {k: value[k] for k in value.get_parameter_names(False)},
-                                         value.get_type_hints())
-                else:
-                    if (self._state[0].split(";")[0] == "setup"
-                            and [i.split(";")[0] for i in self._state].count("setup") < 2):
-                        preprocessed_parameter = self._process_parameter(key, value, "pre")
-                    else:
-                        preprocessed_parameter = value
-                    object.__setattr__(self, param_name, preprocessed_parameter,)
-                    if key not in self._modified_buffer:
-                        self._modified_buffer.append(key)
+        """ Method called by _process_item_to_merge_or_add if the value should be added and not merged (ie., only while
+        setting up the default config). This method ultimately performs all additions to the config. """
+        if "*" in key:
+            raise ValueError(f"The '*' character is not authorised in the default config ({key}).")
 
-    def _add_sub_config(self, name: str, name_in_config: str, content: dict,
-                        type_hints: Optional[Dict[str, TypeHint]] = None):
+        name = key.split('.')[0]
+        attribute_name = "___" + name if name in self._methods else name
+
+        if "." in key:
+            try:
+                sub_config = getattr(self, attribute_name)
+            except AttributeError:
+                sub_config = self._add_sub_config(name, attribute_name)
+            if isinstance(sub_config, _ConfigurationBase):
+                sub_config.init_from_config({key.split(".", 1)[1]: value})
+            else:
+                did_you_mean = self._did_you_mean(name, filter_type=self.__class__, suffix=key.split(".", 1)[1])
+                raise TypeError(f"Failed to set parameter '{key}' : '{name}' is not a sub-config.\n{did_you_mean}")
+
+        else:
+            try:
+                _ = getattr(self, attribute_name)
+                raise RuntimeError(f"ERROR : parameter '{name}' was set twice.")
+            except AttributeError:
+                if isinstance(value, _ConfigurationBase):
+                    self._add_sub_config(name, attribute_name, {k: value[k] for k in value.get_parameter_names(False)})
+                else:
+                    self._set_parameter(name, attribute_name, value)
+
+    def _add_sub_config(self, name: str, attribute_name: str, content: Optional[dict] = None) -> '_ConfigurationBase':
         """ Method called by _add_item to add a sub-config to a config. First an empty config is created, then its
         values are added with its init_from_config method. """
-        # This has to be performed in two steps, otherwise the param inside the new sub-config does not get
-        # pre-processed.
-        object.__setattr__(
-            self, name_in_config,
-            self._get_instance(
-                name=name,
-                overwriting_regime=(self._main_config.config_metadata["overwriting_regime"]),
-                config_path_or_dictionary={}, state=self._state,
-                nesting_hierarchy=self._nesting_hierarchy + [name_in_config],
-                main_config=self._main_config, verbose=self._verbose
-            ),
-        )
-        # Now, outside the nested "setup" state during __init__, pre-processing is active
-        type_hints_to_transfer = []
-        prefix = self._get_full_path(name) + "."
-        for type_hint in self._main_config.get_type_hints():
-            if type_hint.startswith(prefix):
-                type_hints_to_transfer.append(type_hint)
-        for type_hint in type_hints_to_transfer:
-            self[name].add_type_hint(type_hint[len(prefix):], self._main_config.get_type_hint(type_hint))
-            self._main_config.remove_type_hint(type_hint)
-        if type_hints is not None:
-            for key, value in type_hints.items():
-                self[name].add_type_hint(key, value)
-        self[name].init_from_config(content)
-        self[name].config_metadata["config_hierarchy"] += [content]
+        object.__setattr__(self, attribute_name, self._get_instance(
+            name=name,
+            overwriting_regime=(self._main_config.config_metadata["overwriting_regime"]),
+            config_path_or_dictionary={} if content is None else content,
+            state=self._state,
+            nesting_hierarchy=self._nesting_hierarchy + [attribute_name],
+            main_config=self._main_config,
+            verbose=self._verbose
+        ))
         self.set_sub_config(self[name])
+        return self[name]
+
+    def _set_parameter(self, name: str, attribute_name: str, value: Any, old_value: Any = NoValue()) -> None:
+        """ Method called by _add_item and _merge_item to set a parameter in the config to a new value. Ultimately
+        performs the setting of all parameters in the config. """
+        if name != attribute_name and isinstance(old_value, NoValue) and self._verbose:
+            YAECS_LOGGER.warning(f"WARNING : '{name}' is the name of a method in the Configuration object.\n"
+                                 f"Your parameter was initialised anyways, under the name {attribute_name}. You can "
+                                 f"access it via config.{attribute_name} or config['{name}'].")
+        if self._verbose:
+            old_value_message = "" if isinstance(old_value, NoValue) else f"old : '{old_value}'\n"
+            YAECS_LOGGER.debug(f"Setting '{name}' : \n{old_value_message}new : '{value}'.")
+
+        preprocessed_value = self._process_parameter(name, value, "pre")
+        object.__setattr__(self, attribute_name, preprocessed_value)
+        if name not in self._modified_buffer:
+            self._modified_buffer.append(name)
 
     def _gather_command_line_dict(self, to_merge: Optional[Union[List[str], str]] = None) -> Dict[str, Any]:
         """ Method called automatically at the end of each constructor to gather all parameters from the command line
@@ -709,7 +673,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 try:
                     parameter = processor(parameter)
                 except Exception:
-                    YAECS_LOGGER.error(f"ERROR while {processing_type}-processing param '{total_name}' :")
+                    YAECS_LOGGER.error(f"ERROR while {processing_type}-processing param '{total_name}'.")
                     raise
             if processing_type == "pre" and not is_type_valid(parameter, _ConfigurationBase):
                 raise RuntimeError(f"ERROR while pre-processing param '{total_name}' : pre-processing functions that "

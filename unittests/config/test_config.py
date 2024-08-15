@@ -810,19 +810,18 @@ def test_errors(caplog, yaml_default_unlinked, yaml_default_sub_variations,
             "used as a parameter.*"):
         _ = make_config({"_nesting_hierarchy": 1})
     with pytest.raises(
-            Exception, match=".*cannot be merged : it is not in the"
+            Exception, match=".*cannot be merged : 'subconfig' is not in the"
             " default.*"):
         config = make_config({"param": 1})
         config.merge({"subconfig.param": 1})
     with pytest.raises(
-            Exception, match=".*cannot be merged : it is not in the"
+            Exception, match=".*cannot be merged : 'param2' is not in the"
             " default.*"):
         config = make_config({"param": 1})
         config.merge({"param2": 1})
     with pytest.raises(Exception, match=".*This replacement cannot be "
                        "performed.*"):
-        subconfig = make_config({"param": 1})
-        config = make_config({"subconfig": subconfig})  # don't do this at home
+        config = make_config({"subconfig.param": 1})
         config.merge({"subconfig": 1})
     with pytest.raises(Exception, match=".* was set twice.*"):
         _ = make_config({

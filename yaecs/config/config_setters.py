@@ -93,7 +93,7 @@ class ConfigSettersMixin:
         """
         Adds a type hint for a parameter to the list of type hints for automatic type checks.
 
-        :param name: full path of the param in the main config
+        :param name: path of the param in self
         :param type_hint: type of the param
         """
         if self._are_same_sub_configs(self, self._main_config):
@@ -128,8 +128,11 @@ class ConfigSettersMixin:
 
         :param param_name: param from which to remove the type hint
         """
-        if param_name in self._type_hints:
-            del self._type_hints[param_name]
+        if self._are_same_sub_configs(self, self._main_config):
+            if param_name in self._type_hints:
+                del self._type_hints[param_name]
+        else:
+            self._main_config.remove_type_hint(self._get_full_path(param_name))
 
     def save_value_before_postprocessing(self, name: str, value: Any) -> None:
         """
