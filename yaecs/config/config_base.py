@@ -273,19 +273,6 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """ Will contain post-processing function added via self.add_processing_function_all. """
         return {}
 
-    def _check_for_unlinked_sub_configs(self) -> None:
-        """ Used to raise an error when unlinked sub-configs are declared. """
-        all_configs = self.get_all_sub_configs()
-        linked_configs = self.get_all_linked_sub_configs()
-        for i in all_configs:
-            found_correspondence = False
-            for j in linked_configs:
-                if self._are_same_sub_configs(i, j):
-                    found_correspondence = True
-                    break
-            if not found_correspondence:
-                raise RuntimeError(f"Sub-config '{i.get_name()}' is unlinked. Unlinked sub-configs are not allowed.")
-
     def _find_path(self, path: str) -> str:
         """ Used to find a config from its (potentially relative) path, because it might be ambiguous relative to where
         it should be looked for. Probably very improvable. """
@@ -390,7 +377,6 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             self.set_pre_processing(not do_not_pre_process)
             self.init_from_config(config_path_or_dictionary)
             self.config_metadata["config_hierarchy"].append(config_path_or_dictionary)
-            self._check_for_unlinked_sub_configs()
             self.set_pre_processing(True)
             self._operating_creation_or_merging = False
         else:
@@ -514,7 +500,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
     def _add_sub_config(self, name: str, attribute_name: str, content: Optional[dict] = None) -> '_ConfigurationBase':
         """ Method called by _add_item to add a sub-config to a config. First an empty config is created, then its
         values are added with its init_from_config method. """
-        object.__setattr__(self, attribute_name, self._get_instance(
+        sub_config = self._get_instance(
             name=name,
             overwriting_regime=(self._main_config.config_metadata["overwriting_regime"]),
             config_path_or_dictionary={} if content is None else content,
@@ -522,9 +508,9 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             nesting_hierarchy=self._nesting_hierarchy + [attribute_name],
             main_config=self._main_config,
             verbose=self._verbose
-        ))
-        self.set_sub_config(self[name])
-        return self[name]
+        )
+        object.__setattr__(self, attribute_name, sub_config)
+        return sub_config
 
     def _set_parameter(self, name: str, attribute_name: str, value: Any, old_value: Any = NoValue()) -> None:
         """ Method called by _add_item and _merge_item to set a parameter in the config to a new value. Ultimately
@@ -596,11 +582,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """ This method is called at the end of a config creation or merging operation. It applies post-processing to
         all parameters modified by this operation. If a parameter is converted into a non-native YAML type, also keeps
         its former value in memory for saving purposes. """
-        modified = [
-            self._get_full_path(self._modified_buffer.pop(0))
-            for _ in range(len(self._modified_buffer))
-        ]
-        for subconfig in self.get_all_linked_sub_configs():
+        modified = [self._get_full_path(self._modified_buffer.pop(0)) for _ in range(len(self._modified_buffer))]
+        for subconfig in self.get_sub_configs(deep=True):
             modified_buffer = subconfig.get_modified_buffer()
             for _ in range(len(modified_buffer)):
                 modified.append(".".join(subconfig.get_nesting_hierarchy() + [modified_buffer.pop(0)]))

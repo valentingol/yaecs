@@ -83,7 +83,7 @@ class ConfigSettersMixin:
             # Add to main config
             self._main_config.add_processing_function(param_name, function_to_add, processing_type)
             # Add to current sub-configs
-            for subconfig in self.get_all_sub_configs():
+            for subconfig in self.get_sub_configs(deep=True):
                 subconfig.add_processing_function(param_name, function_to_add, processing_type)
             # Add to future sub-configs
             new_processing = {set_name: function_to_add, **current_added_processing}
@@ -100,18 +100,6 @@ class ConfigSettersMixin:
             self._type_hints[name] = type_hint
         else:
             self._main_config.add_type_hint(self._get_full_path(name), type_hint)
-
-    def set_sub_config(self, sub_config: 'Configuration') -> None:
-        """
-        Registers a new sub-config to the main config.
-
-        :param sub_config: sub-config to register
-        """
-        if self._are_same_sub_configs(self, self._main_config):
-            if all(not self._are_same_sub_configs(i, sub_config) for i in self.get_all_sub_configs()):
-                self._sub_configs_list.append(sub_config)
-        else:
-            self._main_config.set_sub_config(sub_config)
 
     def remove_value_before_postprocessing(self, name: str) -> None:
         """
@@ -170,19 +158,5 @@ class ConfigSettersMixin:
         :param value: value of the new variation name
         """
         object.__setattr__(self._main_config, "_variation_name", value)
-        for subconfig in self._main_config.get_all_linked_sub_configs():
+        for subconfig in self._main_config.get_sub_configs(deep=True):
             object.__setattr__(subconfig, "_variation_name", value)
-
-    def unset_sub_config(self, sub_config: 'Configuration') -> None:
-        """
-        Registers a new sub-config to the main config.
-
-        :param sub_config: sub-config to register
-        """
-        if self._are_same_sub_configs(self, self._main_config):
-            if not self._are_same_sub_configs(
-                    self._main_config.get(".".join(sub_config.get_nesting_hierarchy()), None), sub_config):
-                self._sub_configs_list = [c for c in self.get_all_sub_configs()
-                                          if not self._are_same_sub_configs(c, sub_config)]
-        else:
-            self._main_config.unset_sub_config(sub_config)
