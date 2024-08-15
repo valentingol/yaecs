@@ -119,8 +119,6 @@ class Configuration(_ConfigurationBase):
         self.config_metadata["config_hierarchy"] += [config_path_or_dictionary]
 
         # Checkup and post-setup operations
-        if not self._nesting_hierarchy:
-            self._check_for_unlinked_sub_configs()
         if main_config is None:
             self.set_pre_processing(True)
         self._state.pop(-1)
@@ -373,7 +371,7 @@ class Configuration(_ConfigurationBase):
         """
         object.__setattr__(self, "_variation_name", name)
         if deep:
-            for subconfig in self.get_all_sub_configs():
+            for subconfig in self.get_sub_configs(deep=True):
                 if ".".join(subconfig.get_nesting_hierarchy()).startswith(".".join(self.get_nesting_hierarchy())):
                     object.__setattr__(subconfig, "_variation_name", name)
 

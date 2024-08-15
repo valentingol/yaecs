@@ -62,30 +62,18 @@ class ConfigGettersMixin:
         except (AttributeError, TypeError):
             return default_value
 
-    def get_all_linked_sub_configs(self) -> List['Configuration']:
-        """
-        Returns the list of all sub-configs that are directly linked to the root config by a chain of other sub-configs.
-        For this to be the case, all of those sub-configs need to be contained directly in a parameter of another
-        sub-config. For example, a sub-config stored in a list that is a parameter of a sub-config is not linked.
-
-        :return: list corresponding to the linked sub-configs
-        """
-        all_linked_configs = []
-        for i in self._get_user_defined_attributes():
-            object_to_scan = getattr(self, "___" + i if i in self._methods else i)
-            if isinstance(object_to_scan, ConfigGettersMixin):
-                all_linked_configs = all_linked_configs + [object_to_scan] + object_to_scan.get_all_linked_sub_configs()
-        return all_linked_configs
-
-    def get_all_sub_configs(self) -> List['Configuration']:
+    def get_sub_configs(self, deep: bool = True) -> List['Configuration']:
         """
         Returns the list of all sub-configs, including sub-configs of other sub-configs
 
         :return: list corresponding to the sub-configs
         """
-        if self._are_same_sub_configs(self, self._main_config):
-            return list(self._sub_configs_list)
-        return self._main_config.get_all_sub_configs()
+        all_sub_configs = []
+        for i in self._get_user_defined_attributes():
+            object_to_scan = getattr(self, "___" + i if i in self._methods else i)
+            if isinstance(object_to_scan, ConfigGettersMixin):
+                all_sub_configs += [object_to_scan] + (object_to_scan.get_sub_configs(deep=True) if deep else [])
+        return all_sub_configs
 
     def get_command_line_argument(self, deep: bool = True, do_return_string: bool = False) -> Union[List[str], str]:
         """
@@ -184,11 +172,9 @@ class ConfigGettersMixin:
         complete_list = self._get_user_defined_attributes(no_sub_config=no_sub_config)
         if deep:
             order = len(self.get_nesting_hierarchy())
-            for subconfig in self.get_all_linked_sub_configs():
-                complete_list += [
-                    ".".join(subconfig.get_nesting_hierarchy()[order:] + [param])
-                    for param in subconfig.get_parameter_names(deep=False, no_sub_config=no_sub_config)
-                ]
+            for subconfig in self.get_sub_configs(deep=True):
+                complete_list += [".".join(subconfig.get_nesting_hierarchy()[order:] + [param])
+                                  for param in subconfig.get_parameter_names(deep=False, no_sub_config=no_sub_config)]
         return complete_list
 
     def get_pre_post_processing_values(self) -> Dict[str, Any]:
