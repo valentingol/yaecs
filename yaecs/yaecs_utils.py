@@ -17,6 +17,7 @@ Copyright (C) 2022  Reactive Reality
 """
 from decimal import Context
 import functools
+from functools import partial
 import io
 import logging
 import re
@@ -24,12 +25,15 @@ import sys
 from collections.abc import Mapping
 from enum import Enum
 from numbers import Real
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 YAECS_LOGGER = logging.getLogger(__name__)
 ConfigDeclarator = Union[str, dict]
 ConfigInput = Union[List[ConfigDeclarator], ConfigDeclarator]
 Hooks = Union[Dict[str, List[str]], List[str]]
+ProcessingFunction = Union[Callable[[Any], Any], str]
+ProcessingOrder = Union[Real, 'Priority']
+ProcessingFunctions = Union[ProcessingFunction, Tuple[Union[ProcessingFunction, ProcessingOrder]]]
 TypeHint = Union[type, tuple, list, dict, set, int]
 VariationDeclarator = Union[List[ConfigDeclarator], Dict[str, ConfigDeclarator]]
 YAML_EXPRESSIONS = {
@@ -50,6 +54,14 @@ YAML_EXPRESSIONS = {
                     |[-+]?\.(?:inf|Inf|INF)
                     |\.(?:nan|NaN|NAN))$''', re.X)
 }
+TYPE_HINT_MAPPING_STARTS = {"tuple_0": "(", "tuple_1": "union[", "nonetuple": "optional[",
+                            "list_0": "[", "list_1": "list[",
+                            "set_0": "d", "set_1": "dict["}
+TYPE_HINT_MAPPING_ENDS = {"tuple_0": ")", "tuple_1": "]", "nonetuple": "]",
+                          "list_0": "]", "list_1": "]",
+                          "set_0": "/d", "set_1": "]"}
+TYPE_HINT_SIMPLE_TYPES = {"none": None, "int": int, "float": float, "bool": bool, "str": str, "list": list,
+                          "dict": dict, "any": 0}
 
 
 class NoValue:
@@ -172,7 +184,7 @@ class TqdmLogger(io.StringIO):
         pass
 
 
-def assign_order(order: Union[Real, 'Priority'] = 0) -> Callable[[Callable], Callable]:
+def assign_order(order: ProcessingOrder = Priority.INDIFFERENT) -> Callable[[Callable], Callable]:
     """
     Decorator used to give an order to a processing function. If several processing functions would be called at a given
     step, they are called in increasing order.
@@ -181,7 +193,9 @@ def assign_order(order: Union[Real, 'Priority'] = 0) -> Callable[[Callable], Cal
     :return: decorated function
     """
     def decorator_order(func: Callable) -> Callable:
-        set_function_attribute(func, "order", order)
+        if not hasattr(func, "yaecs_metadata"):
+            set_function_attribute(func, "yaecs_metadata", {})
+        func.yaecs_metadata["order"] = order
         return func
 
     return decorator_order
@@ -191,8 +205,9 @@ def assign_yaml_tag(processor_tag: str, processor_type: str,
                     replacement_type_hint: str = "Any") -> Callable[[Callable], Callable]:
     """
     Decorator used to mark a function as a processor added automatically as pre or post processing function (as
-    defined by processor_type) to parameters tagged with !type:<processor_tag>. Their type hint will be replaced by
-    the type hint defined as replacement_type_hint.
+    defined by processor_type) to parameters tagged with !<processor_tag>. Their type hint will be replaced by
+    the type hint defined as replacement_type_hint if this is the first processing function to be called on the
+    parameter.
 
     :param processor_tag: tag to use to mark a param in YAML as auto-processed by this function
     :param processor_type: 'pre' or 'post', type of processing function to add
@@ -200,10 +215,98 @@ def assign_yaml_tag(processor_tag: str, processor_type: str,
     :return: decorated function
     """
     def decorator_tag_assignment(func: Callable) -> Callable:
-        func.__dict__["assigned_yaml_tag"] = (processor_tag, processor_type, replacement_type_hint)
+        if "yaecs_metadata" not in func.__dict__:
+            func.__dict__["yaecs_metadata"] = {}
+        func.__dict__["yaecs_metadata"].update({
+            "tag": processor_tag,
+            "name": func.__name__,
+            "processing_type": processor_type,
+            "input_type": replacement_type_hint,
+        })
         return func
 
     return decorator_tag_assignment
+
+
+def check_type(type_or_types: TypeHint, name: Optional[str] = None) -> Callable:
+    """
+    Returns a processing function that checks for given type. Can be used for example with the following line in a
+    parameters post-processing dict:
+    "parameter_that_should_be_int": check_type(int)
+
+    * The type can be any of None, bool, int, float, str, dict, list. The value 0 instead means no type check.
+    * Unions are denoted by tuples of types.
+    * You can specify the type of the elements of your lists by using a list of types. This list should contain
+        either one type (in which case the list is expected to only contain elements of that type) or as many types as
+        there are elements in the list (in which case each element is tested with the corresponding type)
+    * You can specify the type of the elements of your dicts by using a dict or a set of types. If you use a set, it
+        can only contain one type (in which case the dict is expected to contain only values of that type).
+        If you use a dict of types, the keys used in that dict that match the keys in the parameter will be checked
+        using the values as types.
+
+    :param type_or_types: type for which to create the function
+    :param name: name of the parameter to check
+    :return: the processing function
+    """
+    def _check_type(value: Any, type_to_check: TypeHint, original_type: TypeHint, name: str) -> Any:
+        def _wrong_type() -> None:
+            is_full = original_type == type_to_check
+            if name is None:
+                header = f"{'Value' if is_full else 'Part of value'} '{value}'"
+            else:
+                header = f"{'Parameter' if is_full else 'Part of parameter'} '{name}' (value : {value})"
+            checked_type = type(type_to_check) if isinstance(type_to_check, (list, dict, set)) else type_to_check
+            raise ValueError(f"{header} has incorrect type '{type(value)}'. Expected '{checked_type}'.")
+
+        if isinstance(type_to_check, tuple):
+            if not type_to_check:
+                raise ValueError("Undefined behaviour for empty tuples. Maybe you meant to use an empty list or dict ?")
+            fails = True
+            for to_check in type_to_check:
+                try:
+                    _check_type(value, to_check, original_type, name)
+                except ValueError:
+                    pass
+                else:
+                    fails = False
+            if fails:
+                _wrong_type()
+
+        elif isinstance(type_to_check, list):
+            if not isinstance(value, list):
+                _wrong_type()
+            if len(type_to_check) > 1:
+                if len(type_to_check) != len(value):
+                    raise ValueError("When providing a list of types, its length must be one or match the length of"
+                                     " the value.")
+                for v_to_check, t_to_check in zip(value, type_to_check):
+                    _check_type(v_to_check, t_to_check, original_type, name)
+            else:
+                types = type_to_check[0] if type_to_check else 0
+                for i in value:
+                    _check_type(i, types, original_type, name)
+
+        elif isinstance(type_to_check, dict):
+            if not isinstance(value, dict):
+                _wrong_type()
+            if not type_to_check:
+                raise ValueError("Undefined behaviour for empty dicts. Maybe you meant to use an empty list or "
+                                 "{\"type\": ...} ?")
+            if len(type_to_check) > 1:
+                raise ValueError("When providing a dict of types, its length must be 1. Maybe you meant to use a"
+                                 " tuple ?")
+            for i in value:
+                _check_type(value[i], type_to_check[list(type_to_check.keys())[0]], original_type, name)
+
+        elif type_to_check != 0 and type_to_check is not None and not isinstance(value, type_to_check):
+            if not (type_to_check is float and isinstance(value, int)):
+                _wrong_type()
+
+        elif type_to_check is None and value is not None:
+            _wrong_type()
+        return value
+
+    return partial(_check_type, type_to_check=type_or_types, original_type=type_or_types, name=name)
 
 
 def compare_string_pattern(name: str, pattern: str) -> bool:
@@ -238,16 +341,49 @@ def compose(*functions: Callable) -> Callable:
     def compose_2(function_1, function_2):
         def composed(*args, **kwargs):
             return function_2(function_1(*args, **kwargs))
-        orders = [get_order(function_1, default=None), get_order(function_2, default=None)]
-        orders = [order for order in orders if order is not None]
-        if orders:
-            set_function_attribute(composed, "order", max(orders))
-        hooks = []
+
+        new_metadata = {}
+
+        names = []
         for func in [function_1, function_2]:
-            if hasattr(func, "__name__") and func.__name__.startswith("yaecs_config_hook__"):
-                hooks += func.__name__.split("__")[1].split(",")
-        if hooks:
-            set_function_attribute(composed, "__name__", f"yaecs_config_hook__{','.join(list(set(hooks)))}__composed")
+            name = getattr(func, "__name__", "unknown_function")
+            if hasattr(func, "yaecs_metadata") and "name" in func.yaecs_metadata:
+                name = func.yaecs_metadata["name"]
+            names.append(name[len("composed__"):] if name.startswith("composed__") else name)
+        new_metadata["name"] = f"composed__{names[0]}__{names[1]}"
+        set_function_attribute(composed, "__name__", new_metadata["name"])
+
+        processing_types = []
+        for func in [function_1, function_2]:
+            if hasattr(func, "yaecs_metadata") and "processing_type" in func.yaecs_metadata:
+                processing_types.append(func.yaecs_metadata["processing_type"])
+        if processing_types:
+            if "pre" in processing_types and "post" in processing_types:
+                YAECS_LOGGER.warning(f"WARNING : composing function {names[0]} ({processing_types[0]}-processing) with "
+                                     f"function {names[1]} ({processing_types[1]}-processing). Mixing pre and post "
+                                     "processing functions is not recommended. The composed function will be tagged as "
+                                     "post-processing.")
+                new_processing_type = "post"
+            else:
+                new_processing_type = processing_types[0]
+            new_metadata["processing_type"] = new_processing_type
+
+        if hasattr(function_1, "yaecs_metadata") and "input_type" in function_1.yaecs_metadata:
+            new_metadata["input_type"] = function_1.yaecs_metadata["input_type"]
+
+        new_hooks = []
+        for func in [function_1, function_2]:
+            if hasattr(func, "yaecs_metadata") and "hooks" in func.yaecs_metadata:
+                new_hooks = list(set(new_hooks + func.yaecs_metadata["hooks"]))
+        new_metadata["hooks"] = new_hooks
+
+        new_orders = []
+        for func in [function_1, function_2]:
+            if hasattr(func, "yaecs_metadata") and "order" in func.yaecs_metadata:
+                new_orders.append(func.yaecs_metadata["order"])
+        new_metadata["order"] = max(new_orders) if new_orders else Priority.INDIFFERENT
+
+        set_function_attribute(composed, "yaecs_metadata", new_metadata)
         return composed
     return functools.reduce(compose_2, functions, lambda x: x)
 
@@ -358,8 +494,7 @@ def get_quasi_bash_sys_argv(string_to_convert: str) -> List[str]:
     return converted_list
 
 
-def get_order(func: Callable, default: Union[None, Real, 'Priority'] = Priority.INDIFFERENT
-              ) -> Union[None, Real, 'Priority']:
+def get_order(func: Callable, default: Optional[ProcessingOrder] = Priority.INDIFFERENT) -> Optional[ProcessingOrder]:
     """
     If input function has an "order" attribute, returns it. Otherwise, returns the specified "default" value.
 
@@ -367,7 +502,9 @@ def get_order(func: Callable, default: Union[None, Real, 'Priority'] = Priority.
     :param default: default value to return if no order is found
     :return: the order value
     """
-    return getattr(func, "order", default)
+    if not hasattr(func, "yaecs_metadata") or "order" not in func.yaecs_metadata:
+        return default
+    return func.yaecs_metadata["order"]
 
 
 def get_param_as_parsable_string(param: Any) -> str:
@@ -407,17 +544,11 @@ def hook(hook_name: str) -> Callable[[Callable], Callable]:
     :return: decorated function
     """
     def decorator_hook(func: Callable) -> Callable:
-        if func.__name__.startswith("yaecs_config_hook__"):
-            hooks = func.__name__.split("__")[1].split(",")
-            if hook_name in hooks:
-                hook_name_in_func_name = ",".join(hooks)
-            else:
-                hook_name_in_func_name = ",".join(hooks + [hook_name])
-            original_name = "__".join(func.__name__.split("__")[2:])
-        else:
-            hook_name_in_func_name = hook_name
-            original_name = func.__name__
-        set_function_attribute(func, "__name__", f"yaecs_config_hook__{hook_name_in_func_name}__{original_name}")
+        if not hasattr(func, "yaecs_metadata"):
+            set_function_attribute(func, "yaecs_metadata", {})
+        existing_hooks = func.yaecs_metadata["hooks"] if "hooks" in func.yaecs_metadata else []
+        existing_hooks += [hook_name] if hook_name not in existing_hooks else []
+        func.yaecs_metadata["hooks"] = existing_hooks
 
         @functools.wraps(func)
         def wrapper_hook(self, *args, **kwargs):
@@ -425,14 +556,27 @@ def hook(hook_name: str) -> Callable[[Callable], Callable]:
             self.add_currently_processed_param_as_hook(hook_name=hook_name)
             return value
 
-        for function_attribute in ["order", "assigned_yaml_tag"]:
-            if hasattr(func, function_attribute):
-                set_function_attribute(wrapper_hook, function_attribute, getattr(func, function_attribute))
+        if hasattr(func, "yaecs_metadata"):
+            set_function_attribute(wrapper_hook, "yaecs_metadata", func.yaecs_metadata)
         return wrapper_hook
-    for invalid_pattern in ["__", ","]:
-        if invalid_pattern in hook_name:
-            raise RuntimeError(f"Invalid hook name {hook_name} : '{invalid_pattern}' is not allowed in hook names.")
     return decorator_hook
+
+
+def is_dict_type_hint(type_hint_representer: str) -> bool:
+    """
+    Returns True if the type hint is a dict.
+
+    :param type_hint_representer: type hint to check
+    :return: result of the test
+    """
+    hint = type_hint_representer.lower().strip(" ")
+    if hint == "dict":
+        return True
+    for fragment, pattern in TYPE_HINT_MAPPING_STARTS.items():
+        if fragment.startswith("set") and hint.startswith(pattern):
+            if hint.endswith(TYPE_HINT_MAPPING_ENDS[fragment]):
+                return True
+    return False
 
 
 def is_type_valid(value: Any, config_class: type) -> bool:
@@ -475,13 +619,6 @@ def parse_type(string_to_process: str) -> TypeHint:
     if not string_to_process:
         raise ValueError("Invalid type hint : empty type hint.")
     string = string_to_process.lower()
-    mapping_starts = {"tuple_0": "(", "tuple_1": "union[", "nonetuple": "optional[",
-                      "list_0": "[", "list_1": "list[",
-                      "set_0": "d", "set_1": "dict["}
-    types = {"none": None, "int": int, "float": float, "bool": bool, "str": str, "list": list, "dict": dict, "any": 0}
-    mapping_ends = {"tuple_0": ")", "tuple_1": "]", "nonetuple": "]",
-                    "list_0": "]", "list_1": "]",
-                    "set_0": "/d", "set_1": "]"}
     to_return = ("root", [])
     current = []
     current_types = []
@@ -505,7 +642,7 @@ def parse_type(string_to_process: str) -> TypeHint:
     while i < len(string):
         to_find = True
         # Try to detect starts of mappings
-        for type_name, fragment in mapping_starts.items():
+        for type_name, fragment in TYPE_HINT_MAPPING_STARTS.items():
             if to_find and string[i:i+len(fragment)] == fragment:
                 if not (fragment == "d" and string[i:i+len("dict")] == "dict"):
                     to_find = False
@@ -513,7 +650,7 @@ def parse_type(string_to_process: str) -> TypeHint:
                     _enter_list(to_return, current, current_types, type_name)
                     i += len(fragment)
         # Try to detect simple types
-        for fragment, type_name in types.items():
+        for fragment, type_name in TYPE_HINT_SIMPLE_TYPES.items():
             if to_find and string[i:i+len(fragment)] == fragment:
                 to_find = False
                 _increment(to_return, current, type_name, "type")
@@ -523,7 +660,7 @@ def parse_type(string_to_process: str) -> TypeHint:
             to_find = False
             i += 1
         # Try to detect ends of mappings
-        for type_name, fragment in mapping_ends.items():
+        for type_name, fragment in TYPE_HINT_MAPPING_ENDS.items():
             if to_find and string[i:i+len(fragment)] == fragment and current_types[-1] == type_name:
                 to_find = False
                 current = current[:-1]

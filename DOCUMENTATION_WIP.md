@@ -953,7 +953,7 @@ this syntax : `key: !tag value`.
 For example, we saw earlier (TODO) that it is possible to make a parameter read another file to add it to the config
 using the `register_as_additional_config_file` preprocessing function. Back then, we added the pair
 `"*_config_file": self.register_as_additional_config_file` to our `parameters_pre_processing` dict. It would also have
-been possible to assign this function directly from the YAML file, using the `!type:additional_config_file` tag, like
+been possible to assign this function directly from the YAML file, using the `!additional_config_file` tag, like
 below :
 
 ```yaml
@@ -961,9 +961,9 @@ below :
 
 experiment_path: "logs/overfit"
 ...
-data_config_file: !type:additional_config_file data.yaml
-model_config_file: !type:additional_config_file model.yaml
-run_config_file: !type:additional_config_file run.yaml
+data_config_file: !additional_config_file data.yaml
+model_config_file: !additional_config_file model.yaml
+run_config_file: !additional_config_file run.yaml
 ```
 Such assignments can only be done in the default config.
 
