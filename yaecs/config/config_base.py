@@ -21,16 +21,16 @@ import logging
 import os
 import sys
 from collections.abc import Iterable
-from functools import partial
 from numbers import Real
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import yaml
 
-from ..yaecs_utils import (ConfigDeclarator, NoValue, TypeHint,
-                           compare_string_pattern, compose, format_str, get_quasi_bash_sys_argv, get_order,
-                           is_type_valid, parse_type, recursive_set_attribute, set_function_attribute, update_state)
+from ..yaecs_utils import (ConfigDeclarator, NoValue,
+                           check_type, compare_string_pattern, compose, format_str, get_quasi_bash_sys_argv, get_order,
+                           is_dict_type_hint, is_type_valid, parse_type, recursive_set_attribute,
+                           set_function_attribute, update_state)
 from .config_convenience import ConfigConvenienceMixin
 from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
@@ -78,8 +78,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """
 
         # PROTECTED ATTRIBUTES
-        self._assigned_as_yaml_tags = {processor[0]: (processor[3], processor[1], processor[2])
-                                       for processor in self._get_tagged_methods_info()}
+        self._assigned_as_yaml_tags = self._get_tagged_methods_info()
         self._former_saving_time = None
         self._from_argv = from_argv
         self._modified_buffer = []
@@ -132,84 +131,6 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
     def __iter__(self):
         return iter(self._get_user_defined_attributes())
-
-    def check_type(self, type_or_types: TypeHint) -> Callable:
-        """
-        Returns a processing function that checks for given type. Can be used for example with the following line in a
-        parameters post-processing dict:
-        "parameter_that_should_be_int": self.check_type(int)
-
-        * The type can be any of None, bool, int, float, str, dict, list. The value 0 instead means no type check.
-        * Unions are denoted by tuples of types.
-        * You can specify the type of the elements of your lists by using a list of types. This list should contain
-          either one type (in which case the list is expected to only contain elements of that type) or as many types as
-          there are elements in the list (in which case each element is tested with the corresponding type)
-        * You can specify the type of the elements of your dicts by using a dict or a set of types. If you use a set, it
-          can only contain one type (in which case the dict is expected to contain only values of that type).
-          If you use a dict of types, the keys used in that dict that match the keys in the parameter will be checked
-          using the values as types.
-
-        :param type_or_types: type for which to create the function
-        :return: the processing function
-        """
-        def _check_type(value: Any, type_to_check: TypeHint, original_type: TypeHint) -> Any:
-            def _wrong_type() -> None:
-                name = self.get_processed_param_name(full_path=False)
-                is_full = original_type == type_to_check
-                checked_type = type(type_to_check) if isinstance(type_to_check, (list, dict, set)) else type_to_check
-                raise ValueError(f"{'Parameter' if is_full else 'Part of parameter'} '{name}' (value : {value})\n"
-                                 f"has incorrect type '{type(value)}'. Expected '{checked_type}'.")
-
-            if isinstance(type_to_check, tuple):
-                if not type_to_check:
-                    raise ValueError("Undefined behaviour for empty tuples. Maybe you meant to use an empty list or "
-                                     "dict ?")
-                fails = True
-                for to_check in type_to_check:
-                    try:
-                        _check_type(value, to_check, original_type)
-                    except ValueError:
-                        pass
-                    else:
-                        fails = False
-                if fails:
-                    _wrong_type()
-
-            elif isinstance(type_to_check, list):
-                if not isinstance(value, list):
-                    _wrong_type()
-                if len(type_to_check) > 1:
-                    if len(type_to_check) != len(value):
-                        raise ValueError("When providing a list of types, its length must be one or match the length of"
-                                         " the value.")
-                    for v_to_check, t_to_check in zip(value, type_to_check):
-                        _check_type(v_to_check, t_to_check, original_type)
-                else:
-                    types = type_to_check[0] if type_to_check else 0
-                    for i in value:
-                        _check_type(i, types, original_type)
-
-            elif isinstance(type_to_check, dict):
-                if not isinstance(value, dict):
-                    _wrong_type()
-                if not type_to_check:
-                    raise ValueError("Undefined behaviour for empty dicts. Maybe you meant to use an empty list or "
-                                     "{\"type\": ...} ?")
-                if len(type_to_check) > 1:
-                    raise ValueError("When providing a dict of types, its length must be 1. Maybe you meant to use a"
-                                     " tuple ?")
-                for i in value:
-                    _check_type(value[i], type_to_check[list(type_to_check.keys())[0]], original_type)
-
-            elif type_to_check != 0 and type_to_check is not None and not isinstance(value, type_to_check):
-                if not (type_to_check is float and isinstance(value, int)):
-                    _wrong_type()
-
-            elif type_to_check is None and value is not None:
-                _wrong_type()
-            return value
-
-        return partial(_check_type, type_to_check=type_or_types, original_type=type_or_types)
 
     @update_state("init_from_config;_name")
     def init_from_config(self, config_path_or_dict: ConfigDeclarator) -> None:
@@ -480,7 +401,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             try:
                 sub_config = getattr(self, attribute_name)
             except AttributeError:
-                sub_config = self._add_sub_config(name, attribute_name)
+                sub_config = self._set_sub_config(name, attribute_name)
             if isinstance(sub_config, _ConfigurationBase):
                 sub_config.init_from_config({key.split(".", 1)[1]: value})
             else:
@@ -493,24 +414,9 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 raise RuntimeError(f"ERROR : parameter '{name}' was set twice.")
             except AttributeError:
                 if isinstance(value, _ConfigurationBase):
-                    self._add_sub_config(name, attribute_name, {k: value[k] for k in value.get_parameter_names(False)})
+                    self._set_sub_config(name, attribute_name, {k: value[k] for k in value.get_parameter_names(False)})
                 else:
                     self._set_parameter(name, attribute_name, value)
-
-    def _add_sub_config(self, name: str, attribute_name: str, content: Optional[dict] = None) -> '_ConfigurationBase':
-        """ Method called by _add_item to add a sub-config to a config. First an empty config is created, then its
-        values are added with its init_from_config method. """
-        sub_config = self._get_instance(
-            name=name,
-            overwriting_regime=(self._main_config.config_metadata["overwriting_regime"]),
-            config_path_or_dictionary={} if content is None else content,
-            state=self._state,
-            nesting_hierarchy=self._nesting_hierarchy + [attribute_name],
-            main_config=self._main_config,
-            verbose=self._verbose
-        )
-        object.__setattr__(self, attribute_name, sub_config)
-        return sub_config
 
     def _set_parameter(self, name: str, attribute_name: str, value: Any, old_value: Any = NoValue()) -> None:
         """ Method called by _add_item and _merge_item to set a parameter in the config to a new value. Ultimately
@@ -527,6 +433,21 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         object.__setattr__(self, attribute_name, preprocessed_value)
         if name not in self._modified_buffer:
             self._modified_buffer.append(name)
+
+    def _set_sub_config(self, name: str, attribute_name: str, content: Optional[dict] = None) -> 'Configuration':
+        """ Method called by _add_item to add a sub-config to a config. First an empty config is created, then its
+        values are added with its init_from_config method. """
+        sub_config = self._get_instance(
+            name=name,
+            overwriting_regime=(self._main_config.config_metadata["overwriting_regime"]),
+            config_path_or_dictionary={} if content is None else content,
+            state=self._state,
+            nesting_hierarchy=self._nesting_hierarchy + [attribute_name],
+            main_config=self._main_config,
+            verbose=self._verbose
+        )
+        object.__setattr__(self, attribute_name, sub_config)
+        return sub_config
 
     def _gather_command_line_dict(self, to_merge: Optional[Union[List[str], str]] = None) -> Dict[str, Any]:
         """ Method called automatically at the end of each constructor to gather all parameters from the command line
@@ -582,21 +503,21 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """ This method is called at the end of a config creation or merging operation. It applies post-processing to
         all parameters modified by this operation. If a parameter is converted into a non-native YAML type, also keeps
         its former value in memory for saving purposes. """
-        modified = [self._get_full_path(self._modified_buffer.pop(0)) for _ in range(len(self._modified_buffer))]
-        for subconfig in self.get_sub_configs(deep=True):
+        modified = [self._get_full_path(self._modified_buffer.pop(0)) for _ in range(len(self._modified_buffer))]  # TODO keep in here after refactoring
+        for subconfig in self.get_sub_configs(deep=True):  # TODO move to a unique buffer in the main config
             modified_buffer = subconfig.get_modified_buffer()
             for _ in range(len(modified_buffer)):
                 modified.append(".".join(subconfig.get_nesting_hierarchy() + [modified_buffer.pop(0)]))
         processors = [(proc if isinstance(proc, Callable)
-                       else self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]][0])
+                       else getattr(self, self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]]["name"]))
                       for proc in self._post_processing_functions.values()]
         orders = sorted(list({get_order(func) for func in processors}))
-        splits = [name.split(".")[len(self._nesting_hierarchy):] for name in modified]
+        splits = [name.split(".")[len(self._nesting_hierarchy):] for name in modified]  # TODO this won't be needed either, actually merging operations are all sent to the main config
         names = [(".".join(s), ".".join(s[:-1] + ["___" + s[-1]]) if s[-1] in self._methods else ".".join(s))
                  for s in splits]
         for order in orders:
             for name, set_name in names:
-                recursive_set_attribute(self, set_name, self._process_parameter(name, self[name], "post", order))
+                recursive_set_attribute(self, set_name, self._process_parameter(name, self[name], "post", order))  # TODO keep the recursive set here after refactoring
         post_processed = [param for param in modified if param in self._pre_postprocessing_values]
         if post_processed and self._verbose:
             YAECS_LOGGER.info(f"Performed post-processing for modified parameters {post_processed}.")
@@ -604,7 +525,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
     def _prepare_processing_functions(self, processing_type: str) -> None:
         """ Sets self._pre/post_processing_functions from the user-provided functions. """
         processing_functions = {**getattr(self, f"parameters_{processing_type}_processing")(),
-                                **getattr(self, f"_added_{processing_type}_processing")()}
+                                **getattr(self, f"_added_{processing_type}_processing")()}  # TODO keep in here after refactoring
         for key, value in processing_functions.items():
 
             if not isinstance(value, (Callable, Iterable)):
@@ -641,16 +562,17 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         processors = [proc for key, proc in getattr(self, f"_{processing_type}_processing_functions").items()
                       if compare_string_pattern(total_name, key)]
         processors = [(proc if isinstance(proc, Callable)
-                       else self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]][0]) for proc in processors]
+                       else getattr(self, self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]]["name"]))
+                      for proc in processors]
         processors = sorted([p for p in processors if order is None or get_order(p) == order], key=get_order)
         if processing_type == "pre":
-            main.remove_value_before_postprocessing(total_name)
+            main.remove_value_before_postprocessing(total_name)  # TODO keep in here after refactoring
         if main.get_master_switch(processing_type):
             old_value = None
             if processing_type == "pre":
-                self.check_type(main.get_type_hint(total_name))(parameter)
+                check_type(main.get_type_hint(total_name), total_name)(parameter)
             else:
-                old_value = copy.deepcopy(parameter)
+                old_value = copy.deepcopy(parameter)  # TODO keep in here after refactoring
             was_processed = bool(processors)
             for processor in processors:
                 try:
@@ -663,12 +585,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                                    "change the type of a param to a non-native YAML type are forbidden because they "
                                    "cannot be saved. Please use a parameter post-processing instead.")
             if processing_type == "post" and was_processed:
-                main.save_value_before_postprocessing(self._get_full_path(name), old_value)
-        elif processing_type == "pre":
-            for processor in processors:
-                if processor.__name__.startswith("yaecs_config_hook__"):
-                    for hook_name in processor.__name__.split("__")[1].split(","):
-                        self.add_currently_processed_param_as_hook(hook_name)
+                main.save_value_before_postprocessing(self._get_full_path(name), old_value)  # TODO keep in here after refactoring
         return parameter
 
     def _parse_metadata(self, metadata: str) -> Tuple[str, str]:
@@ -697,43 +614,48 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         path = self._find_path(path)
         scanner = YAMLScanner(path)
 
-        for param, type_hint in scanner.type_hints.items():
-            if not any(state.startswith("setup") for state in self._state):
-                if type_hint != "dict":
-                    YAECS_LOGGER.warning("WARNING : type-hinting only has effect in the default config. The type hint "
-                                         f"'{type_hint}' for parameter '{param}' in file '{path}' will be ignored.")
-            else:
-                if all(method in self._assigned_as_yaml_tags for method in type_hint.split(",")):
-                    YAECS_LOGGER.warning("WARNING : registering processing functions using !type:<method_name> is "
-                                         "deprecated. It will still work until the next release, but you should switch "
-                                         f"to using !<method_name> instead (detected in tag '{type_hint}' for "
-                                         f"parameter '{param}' in file '{path}').")
-                    scanner.processing_functions[param] = type_hint.split(",")
-                else:
-                    self.add_type_hint(param, parse_type(type_hint))
-
-        for param, methods in scanner.processing_functions.items():
-            if not any(state.startswith("setup") for state in self._state):
+        if not any(state.startswith("setup") for state in self._state):
+            ignored_hints = [param for param, type_hint in scanner.type_hints.items()
+                             if not is_dict_type_hint(type_hint)]
+            if ignored_hints and self._verbose:
+                YAECS_LOGGER.warning("WARNING : type-hinting only has effect in the default config (except for dict "
+                                     f"type hints). The type hints {ignored_hints} in file '{path}' will be ignored.")
+            ignored_processors = list(scanner.processing_functions.keys())
+            if ignored_processors and self._verbose:
                 YAECS_LOGGER.warning("WARNING : registering processing functions only has effect in the default config."
-                                     f" The functions {methods} for parameter '{param}' in file '{path}' will be "
-                                     "ignored.")
+                                     f" The functions {ignored_processors} in file '{path}' will be ignored.")
+        processors_in_hints = {param: type_hint.split(",") for param, type_hint in scanner.type_hints.items()
+                               if all(method in self._assigned_as_yaml_tags for method in type_hint.split(","))}
+        if processors_in_hints and self._verbose:
+            YAECS_LOGGER.warning("WARNING : registering processing functions using !type:<method_name> is deprecated. "
+                                 "It will still work until the next release, but you should switch to using "
+                                 f"!<method_name> instead (detected in tags '{processors_in_hints}' in file '{path}').")
+
+        type_hints = {param: type_hint for param, type_hint in scanner.type_hints.items()
+                      if ((any(state.startswith("setup") for state in self._state) or is_dict_type_hint(type_hint))
+                      and any(method not in self._assigned_as_yaml_tags for method in type_hint.split(",")))}
+        for param, type_hint in type_hints.items():
+            self.add_type_hint(param, parse_type(type_hint))
+
+        processors = {param: methods for param, methods in scanner.processing_functions.items()
+                      if any(state.startswith("setup") for state in self._state)
+                      and all(method in self._assigned_as_yaml_tags for method in methods)}
+        processors = {**processors, **processors_in_hints}
+        for param, methods in processors.items():
+            if all(method in self._assigned_as_yaml_tags for method in methods):
+                type_hint = None
+                lowest_priority = min(self._assigned_as_yaml_tags[method].get("order", 0) for method in methods)
+                for method in methods:
+                    if self.get_variation_name() is None:
+                        self.add_processing_function_all(self._get_full_path(param),
+                                                         f"_tagged_method_{method}",
+                                                         self._assigned_as_yaml_tags[method]["processing_type"])
+                    if type_hint is None and self._assigned_as_yaml_tags[method].get("order", 0) == lowest_priority:
+                        type_hint = self._assigned_as_yaml_tags[method]["input_type"]
+                self.add_type_hint(param, parse_type(type_hint))
             else:
-                if all(method in self._assigned_as_yaml_tags for method in methods):
-                    type_hint = None
-                    lowest_priority = min(getattr(self._assigned_as_yaml_tags[method][0], "order", 0)
-                                          for method in methods)
-                    for method in methods:
-                        function, processor_type, new_type_hint = self._assigned_as_yaml_tags[method]
-                        if self.get_variation_name() is None:
-                            self.add_processing_function_all(self._get_full_path(param),
-                                                             f"_tagged_method_{method}",
-                                                             processor_type)
-                        if type_hint is None and getattr(function, "order", 0) == lowest_priority:
-                            type_hint = new_type_hint
-                    self.add_type_hint(param, parse_type(type_hint))
-                else:
-                    raise ValueError(f"Some processing functions in {methods} for parameter '{param}' in file '{path}' "
-                                     "do not match any registered processing function. Valid processing functions "
-                                     f"are : {list(self._assigned_as_yaml_tags.keys())}.")
+                raise ValueError(f"Some processing functions in {methods} for parameter '{param}' in file '{path}' "
+                                 "do not match any registered processing function. Valid processing functions "
+                                 f"are : {list(self._assigned_as_yaml_tags.keys())}.")
 
         return scanner.params

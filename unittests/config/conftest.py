@@ -234,13 +234,13 @@ def yaml_type_check(tmpdir):
 @pytest.fixture
 def yaml_tag_assignment_check(tmpdir):
     index = len(os.listdir(tmpdir))
-    content = (f"param1: !type:add_1 0.1\n--- !subconfig1\nparam2: 3.0\n---\n"
+    content = (f"param1: !add_1 0.1\n--- !subconfig1\nparam2: 3.0\n---\n"
                f"def_second_path: '{tmpdir / f'default_second{index}.yaml'}'\n"
                "exp_second_path: null")
     with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
         fil.write(content)
     content = ("--- !subconfig2\nparam3: 20.0\nsubconfig3:\n  "
-               "param4: !type:copy 'param1'")
+               "param4: !copy_param 'param1'")
     with open(tmpdir / f'default_second{index}.yaml', "w",
               encoding='utf-8') as fil:
         fil.write(content)

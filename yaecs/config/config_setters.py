@@ -61,14 +61,15 @@ class ConfigSettersMixin:
             function
         """
         if isinstance(function_to_add, str):
-            check_function = self._assigned_as_yaml_tags[function_to_add[len("_tagged_method_"):]][0]
+            function_name = self._assigned_as_yaml_tags[function_to_add[len("_tagged_method_"):]]["name"]
+            check_function = getattr(self, function_name)
         else:
             check_function = function_to_add
-        if hasattr(check_function, "assigned_yaml_tag"):
-            if check_function.assigned_yaml_tag[1] != processing_type:
+        if hasattr(check_function, "yaecs_metadata") and "processing_type" in check_function.yaecs_metadata:
+            if check_function.yaecs_metadata["processing_type"] != processing_type:
                 name = "unknown_function" if not hasattr(check_function, "__name__") else check_function.__name__
                 YAECS_LOGGER.warning(f"WARNING : processing function {name} is recommended to use "
-                                     f"as {check_function.assigned_yaml_tag[1]}-processing function, "
+                                     f"as {check_function.yaecs_metadata['processing_type']}-processing function, "
                                      f"but was declared as {processing_type}-processing function.")
         current_added_processing_name = f"_added_{processing_type}_processing"
         current_added_processing = getattr(self, current_added_processing_name)()

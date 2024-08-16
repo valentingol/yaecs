@@ -54,11 +54,13 @@ class ConfigProcessingFunctionsMixin:
 
         return_function = partial(_check, choices=list_of_choices, config=self)
         set_function_attribute(return_function, "__name__", "check_param_in_list")
-        set_function_attribute(return_function, "order", Priority.OFTEN_FIRST)
+        set_function_attribute(return_function, "yaecs_metadata", {"name": "check_param_in_list",
+                                                                   "processing_type": "pre",
+                                                                   "order": Priority.OFTEN_FIRST})
         return return_function
 
     @assign_order(Priority.ALWAYS_LAST)  # there would most likely not be any other processing for this param
-    @assign_yaml_tag("copy", "pre", "str")
+    @assign_yaml_tag("copy_param", "pre", "str")
     def copy_param(self, path_to_copy: str) -> str:
         """
         This pre-processing function declares a param as being an exact copy of another param. Its default value must
@@ -88,7 +90,10 @@ class ConfigProcessingFunctionsMixin:
         param_name = self.get_processed_param_name(full_path=True)
         copy_fn = partial(_copy, main=main)
         set_function_attribute(copy_fn, "__name__", "_copy")
-        set_function_attribute(copy_fn, "order", Priority.OFTEN_LAST)
+        set_function_attribute(copy_fn, "yaecs_metadata", {"name": "_copy",
+                                                           "processing_type": "post",
+                                                           "input_type": "str",
+                                                           "order": Priority.OFTEN_LAST})
 
         current_processing = object.__getattribute__(main, "_added_post_processing")()
         if not any((compare_string_pattern(param_name, k) and v.__name__ == "_copy")
@@ -119,7 +124,10 @@ class ConfigProcessingFunctionsMixin:
             return param
         return_function = partial(_check, minimum_=minimum, maximum_=maximum, config=self)
         set_function_attribute(return_function, "__name__", "check_number_in_range")
-        set_function_attribute(return_function, "order", Priority.OFTEN_FIRST)
+        set_function_attribute(return_function, "yaecs_metadata", {"name": "check_number_in_range",
+                                                                   "processing_type": "pre",
+                                                                   "input_type": "(int,float,None)",
+                                                                   "order": Priority.OFTEN_FIRST})
         return return_function
 
     @assign_order(Priority.ALWAYS_LAST)  # there can never be any subsequent processing for this param
@@ -202,5 +210,8 @@ class ConfigProcessingFunctionsMixin:
                              "2 elements (param and value) or 3 elements (param, value and conversion).")
         return_function = partial(_folder_in_experiment, config=self.get_main_config(), conditions=condition_list)
         set_function_attribute(return_function, "__name__", "folder_in_experiment_if")
-        set_function_attribute(return_function, "order", Priority.OFTEN_LAST)
+        set_function_attribute(return_function, "yaecs_metadata", {"name": "folder_in_experiment_if",
+                                                                   "processing_type": "post",
+                                                                   "input_type": "str",
+                                                                   "order": Priority.OFTEN_LAST})
         return return_function

@@ -275,9 +275,15 @@ class ConfigGettersMixin:
 
     def _get_tagged_methods_info(self) -> List[Tuple[Union[str, Callable]]]:
         """ Returns a list of info on the methods which were assigned a YAML tag. """
-        all_methods = [getattr(self, name) for name in self._methods]
-        return [getattr(method, "assigned_yaml_tag") + (method,)
-                for method in all_methods if hasattr(method, "assigned_yaml_tag")]
+        to_return = {}
+        for method in [getattr(self, name) for name in self._methods]:
+            if hasattr(method, "yaecs_metadata"):
+                metadata = getattr(method, "yaecs_metadata")
+                if metadata["tag"] in self._methods and metadata["tag"] != metadata["name"]:
+                    raise ValueError(f"YAML tag '{metadata['tag']}' of method '{metadata['name']}' is ambiguous with "
+                                     "the name of another method. Please choose a different tag.")
+                to_return[metadata["tag"]] = metadata
+        return to_return
 
     def _get_user_defined_attributes(self, no_sub_config: bool = False) -> List[str]:
         """ Frequently used to get a list of the names of all the parameters that were in the user's config. """
