@@ -47,9 +47,8 @@ class ConfigHooksMixin:
 
     def add_currently_processed_param_as_hook(self, hook_name: str) -> None:
         """
-        Used within _ConfigurationBase._process_parameter to add the param currently being processed as a hook with
-        given name. Instead of using this directly, users should consider decorating their hooking function with the
-        `yaecs_utils.hook` decorator.
+        Used to add the param currently being processed as a hook with given name. Instead of using this directly, users
+        should consider decorating their hooking function with the `yaecs_utils.hook` decorator.
 
         :param hook_name: name of the hook to add.
         """
@@ -103,10 +102,10 @@ class ConfigHooksMixin:
         if isinstance(path, list):
             for individual_path in path:
                 self.init_from_config(individual_path)
-                self.set_pre_processing(True)
+                self.get_setter().set_pre_processing(True)  # might have been set to False if path was a saved file
         else:
             self.init_from_config(path)
-            self.set_pre_processing(True)
+            self.get_setter().set_pre_processing(True)  # might have been set to False if path was a saved file
         return path
 
     @hook("config_variations")

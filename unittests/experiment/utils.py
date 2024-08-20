@@ -26,6 +26,7 @@ f: !type:dict
     a_config.ts.t4.fr: b
     mode: validation
 mode: validation
+a_config_file: a_config.yaml
 a_config:
   a: true
   t:
@@ -43,7 +44,7 @@ a_config:
     - 320
     - 480
     pp:
-      p:
+      p: &id001
       - t1
       - t5
       - t4
@@ -55,10 +56,7 @@ a_config:
     - 320
     - 480
     pp:
-      p:
-      - t1
-      - t5
-      - t4
+      p: *id001
       sp: !type:dict
         t1.t1m: false
         t2.t1m: false
@@ -79,16 +77,15 @@ a_config:
     t5:
       use: true
       nm: 1
-a_config_file: a_config.yaml
+b_config_file: b_config.yaml
 b_config:
   atc: svb
-b_config_file: b_config.yaml
+c_config_file: c_config.yaml
 t:
   tf: folder
   tn: 50
 v:
   vf: 5
-c_config_file: c_config.yaml
 d_config_file: unittests/experiment/test_project_config/general/bsc
 tracker_config: !type:dict
   type:

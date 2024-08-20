@@ -19,10 +19,11 @@ Copyright (C) 2022  Reactive Reality
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
-from ..yaecs_utils import TypeHint, get_param_as_parsable_string
+from ..yaecs_utils import get_param_as_parsable_string
 
 if TYPE_CHECKING:
     from .config import Configuration
+    from .setter import Setter
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +43,6 @@ class ConfigGettersMixin:
     _reference_folder: Optional[str]
     _state: List[str]
     _sub_configs_list: List['Configuration']
-    _type_hints: Dict[str, TypeHint]
     _variation_name: str
     _was_last_saved_as: Optional[str]
 
@@ -89,8 +89,8 @@ class ConfigGettersMixin:
             if not isinstance(self[param], ConfigGettersMixin):
                 full_name = self._get_full_path(param)
                 value = get_param_as_parsable_string(
-                    self[param] if full_name not in self.get_main_config().get_pre_post_processing_values() else
-                    self.get_main_config().get_pre_post_processing_values()[full_name],
+                    self[param] if full_name not in self._main_config.get_pre_post_processing_values() else
+                    self._main_config.get_pre_post_processing_values()[full_name],
                 )
                 to_return.append(f"--{param} {value}")
 
@@ -110,7 +110,7 @@ class ConfigGettersMixin:
                 to_return[key] = self[key].get_dict(deep=True, pre_post_processing_values=pre_post_processing_values)
             else:
                 full_name = self._get_full_path(key)
-                to_return[key] = (self.get_main_config().get_pre_post_processing_values().get(full_name, self[key])
+                to_return[key] = (self._main_config.get_pre_post_processing_values().get(full_name, self[key])
                                   if pre_post_processing_values else self[key])
         return to_return
 
@@ -122,15 +122,6 @@ class ConfigGettersMixin:
         """
         return self._main_config
 
-    def get_master_switch(self, processing_type: str) -> bool:
-        """
-        Getter for either the pre- or post-processing master switch depending on processing_type
-
-        :param processing_type: can be 'pre' or 'post' : processing type to get the master switch for
-        :return: the main config
-        """
-        return self._pre_process_master_switch if processing_type == "pre" else self._post_process_master_switch
-
     def get_modified_buffer(self) -> List[str]:
         """
         Getter for the buffer of modified parameters corresponding to this config or sub-config. This gets filled during
@@ -139,7 +130,9 @@ class ConfigGettersMixin:
 
         :return: the buffer of modified elements
         """
-        return self._modified_buffer
+        if self._is_main_config():
+            return self._modified_buffer
+        return self._main_config.get_modified_buffer()
 
     def get_name(self) -> str:
         """
@@ -202,6 +195,16 @@ class ConfigGettersMixin:
             return self._get_full_path(self._get_param_name_from_state())
         return self._get_param_name_from_state()
 
+    def get_setter(self) -> 'Setter':
+        """
+        Returns the Setter object of the main config.
+
+        :return: the Setter object
+        """
+        if self._is_main_config():
+            return self._setter
+        return self._main_config.get_setter()
+
     def get_save_file(self) -> Optional[str]:
         """
         If the config was saved previously, returns the path to this save. Otherwise, returns None.
@@ -217,28 +220,6 @@ class ConfigGettersMixin:
         :return: the reference folder if it exists, None otherwise
         """
         return self._reference_folder
-
-    def get_type_hint(self, param_name) -> TypeHint:
-        """
-        Returns the type hint for this param, or 0 if it has no type hint.
-
-        :return: possible types for this param according to its type hint, 0 if no type hint defined
-        """
-        if self._are_same_sub_configs(self, self._main_config):
-            return self._type_hints.get(param_name, 0)
-        return self._main_config.get_type_hint(self._get_full_path(param_name))
-
-    def get_type_hints(self) -> Dict[str, TypeHint]:
-        """
-        Returns all the type hints for this config
-
-        :return: dictionary with keys being parameter names and values being their possible types
-        """
-        if self._are_same_sub_configs(self, self._main_config):
-            return self._type_hints
-        all_type_hints = self._main_config.get_type_hints()
-        prefix = ".".join(self._nesting_hierarchy) + "."
-        return {key[len(prefix):]: item for key, item in all_type_hints.items() if key.startswith(prefix)}
 
     def get_variation_name(self) -> str:
         """

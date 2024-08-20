@@ -25,7 +25,10 @@ import sys
 from collections.abc import Mapping
 from enum import Enum
 from numbers import Real
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from .config import Configuration
 
 YAECS_LOGGER = logging.getLogger(__name__)
 ConfigDeclarator = Union[str, dict]
@@ -328,64 +331,6 @@ def compare_string_pattern(name: str, pattern: str) -> bool:
             return False
         name = name[index + len(fragment):]
     return True
-
-
-def compose(*functions: Callable) -> Callable:
-    """
-    Returns the composition of the functions given as argument. Functions are applied from left to right, ie :
-    compose(f, g, h)(x) = h(g(f(x))).
-
-    :param functions: all functions to compose, applied from left to right
-    :return: the composed function
-    """
-    def compose_2(function_1, function_2):
-        def composed(*args, **kwargs):
-            return function_2(function_1(*args, **kwargs))
-
-        new_metadata = {}
-
-        names = []
-        for func in [function_1, function_2]:
-            name = getattr(func, "__name__", "unknown_function")
-            if hasattr(func, "yaecs_metadata") and "name" in func.yaecs_metadata:
-                name = func.yaecs_metadata["name"]
-            names.append(name[len("composed__"):] if name.startswith("composed__") else name)
-        new_metadata["name"] = f"composed__{names[0]}__{names[1]}"
-        set_function_attribute(composed, "__name__", new_metadata["name"])
-
-        processing_types = []
-        for func in [function_1, function_2]:
-            if hasattr(func, "yaecs_metadata") and "processing_type" in func.yaecs_metadata:
-                processing_types.append(func.yaecs_metadata["processing_type"])
-        if processing_types:
-            if "pre" in processing_types and "post" in processing_types:
-                YAECS_LOGGER.warning(f"WARNING : composing function {names[0]} ({processing_types[0]}-processing) with "
-                                     f"function {names[1]} ({processing_types[1]}-processing). Mixing pre and post "
-                                     "processing functions is not recommended. The composed function will be tagged as "
-                                     "post-processing.")
-                new_processing_type = "post"
-            else:
-                new_processing_type = processing_types[0]
-            new_metadata["processing_type"] = new_processing_type
-
-        if hasattr(function_1, "yaecs_metadata") and "input_type" in function_1.yaecs_metadata:
-            new_metadata["input_type"] = function_1.yaecs_metadata["input_type"]
-
-        new_hooks = []
-        for func in [function_1, function_2]:
-            if hasattr(func, "yaecs_metadata") and "hooks" in func.yaecs_metadata:
-                new_hooks = list(set(new_hooks + func.yaecs_metadata["hooks"]))
-        new_metadata["hooks"] = new_hooks
-
-        new_orders = []
-        for func in [function_1, function_2]:
-            if hasattr(func, "yaecs_metadata") and "order" in func.yaecs_metadata:
-                new_orders.append(func.yaecs_metadata["order"])
-        new_metadata["order"] = max(new_orders) if new_orders else Priority.INDIFFERENT
-
-        set_function_attribute(composed, "yaecs_metadata", new_metadata)
-        return composed
-    return functools.reduce(compose_2, functions, lambda x: x)
 
 
 def dict_apply(dictionary: dict, function: Callable) -> dict:
@@ -698,22 +643,6 @@ def parse_type(string_to_process: str) -> TypeHint:
     return _struc_to_type(to_return)
 
 
-def recursive_set_attribute(obj: Any, key: str, value: Any) -> None:
-    """
-    Recursively gets attributes of 'obj' until object.__setattr__
-    can be used to force-set parameter 'key' to value 'value'.
-
-    :param obj: object where to set the key to the value
-    :param key: attribute of the object to set recursively
-    :param value: value to set
-    """
-    if "." in key:
-        subconfig, key = key.split(".", 1)
-        recursive_set_attribute(obj[subconfig], key, value)
-    else:
-        object.__setattr__(obj, key, value)
-
-
 def set_function_attribute(func: Callable, attribute_name: str, value: Any) -> None:
     """
     Adds an attribute to a function or method object.
@@ -747,12 +676,27 @@ def update_state(state_descriptor: str) -> Callable[[Callable], Callable]:
                 # Additional information:
                 state_to_append += f";{getattr(self, i)}"
             first_arg = (args[0] if args else (kwargs[list(kwargs.keys())[0]] if kwargs else None))
-            self._state.append(  # pylint: disable=protected-access
-                state_to_append + f";arg0={first_arg}")  # first arg of function call
-            value = func(self, *args, **kwargs)
-            self._state.pop(-1)  # pylint: disable=protected-access
+            with UpdateState(state_to_append + f";arg0={first_arg}", self):
+                value = func(self, *args, **kwargs)
             return value
 
         return wrapper_update_state
 
     return decorator_update_state
+
+
+class UpdateState:
+    """
+    Context manager used to update the state of a Configuration object.
+    """
+
+    def __init__(self, state_descriptor: str, config_object: 'Configuration'):
+        self._state_descriptor = state_descriptor
+        self._config_object = config_object
+
+    def __enter__(self):
+        self._config_object._state.append(  # pylint: disable=protected-access
+            self._state_descriptor)  # first arg of function call
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._config_object._state.pop(-1)  # pylint: disable=protected-access
