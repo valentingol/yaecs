@@ -20,22 +20,19 @@ import copy
 import logging
 import os
 import sys
-from collections.abc import Iterable
-from numbers import Real
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import yaml
 
 from ..yaecs_utils import (ConfigDeclarator, NoValue,
-                           check_type, compare_string_pattern, compose, format_str, get_quasi_bash_sys_argv, get_order,
-                           is_dict_type_hint, is_type_valid, parse_type, recursive_set_attribute,
-                           set_function_attribute, update_state)
+                           compare_string_pattern, format_str, get_quasi_bash_sys_argv, is_dict_type_hint, update_state)
 from .config_convenience import ConfigConvenienceMixin
 from .config_getters import ConfigGettersMixin
 from .config_hooks import ConfigHooksMixin
 from .config_processing_functions import ConfigProcessingFunctionsMixin
 from .config_setters import ConfigSettersMixin
+from .setter import Setter
 from .yaml_scanner import YAMLScanner
 
 if TYPE_CHECKING:
@@ -50,8 +47,6 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
     including processing- and type checking-related logic, but not its constructors (see Configuration class for those,
     and its docstring for more details about the composition of the Configuration superclass). """
 
-    add_processing_function: Callable[[str, Callable, str], None]
-    add_processing_function_all: Callable[[str, Callable, str], None]
     config_metadata: dict
     parameters_pre_processing: Callable[[], Dict[str, Callable]]
     parameters_post_processing: Callable[[], Dict[str, Callable]]
@@ -78,19 +73,20 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """
 
         # PROTECTED ATTRIBUTES
-        self._assigned_as_yaml_tags = self._get_tagged_methods_info()
+        if self._is_main_config():
+            self._modified_buffer = []
+            self._setter = Setter(registered_methods=self._get_tagged_methods_info(),
+                                  do_not_post_process=do_not_post_process, do_not_pre_process=do_not_pre_process,
+                                  verbose=self._verbose)
+            for process_type in ["pre", "post"]:
+                source = f"parameters_{process_type}_processing"
+                self._setter.bulk_add_processors(processors=getattr(self, source)(),
+                                                 processing_type=process_type, source=source, container=self)
         self._former_saving_time = None
         self._from_argv = from_argv
-        self._modified_buffer = []
-        self._post_process_master_switch = not do_not_post_process
-        self._pre_process_master_switch = not do_not_pre_process
-        for process_type in ["pre", "post"]:
-            setattr(self, f"_{process_type}_processing_functions", {})
-            self._prepare_processing_functions(process_type)
         self._pre_postprocessing_values = {}
         self._reference_folder = None
         self._sub_configs_list = []
-        self._type_hints = {}
         self._was_last_saved_as = None
         super().__init__()
 
@@ -113,12 +109,10 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         elif self.config_metadata["overwriting_regime"] == "auto-save":
             self._manual_merge({key: value}, source='code')
         elif self.config_metadata["overwriting_regime"] == "locked":
-            raise RuntimeError("Overwriting params in locked configs "
-                               "is not allowed.")
+            raise RuntimeError("Overwriting params in locked configs is not allowed.")
         else:
-            raise ValueError(f"No behaviour determined for value '"
-                             f"{self.config_metadata['overwriting_regime']}' of "
-                             f"parameter 'overwriting_regime'.")
+            raise ValueError(f"No behaviour determined for value '{self.config_metadata['overwriting_regime']}' of "
+                             "parameter 'overwriting_regime'.")
 
     def __getattribute__(self, item) -> Any:
         try:
@@ -184,16 +178,6 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             self._manual_merge(to_merge, do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process,
                                source='command line')
 
-    @staticmethod
-    def _added_pre_processing():
-        """ Will contain pre-processing function added via self.add_processing_function_all. """
-        return {}
-
-    @staticmethod
-    def _added_post_processing():
-        """ Will contain post-processing function added via self.add_processing_function_all. """
-        return {}
-
     def _find_path(self, path: str) -> str:
         """ Used to find a config from its (potentially relative) path, because it might be ambiguous relative to where
         it should be looked for. Probably very improvable. """
@@ -240,7 +224,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 absolute_path = _get_path(relative_path)
                 if absolute_path is not None and absolute_path not in possibilities:
                     possibilities.append(absolute_path)
-            if self._main_config is not None and self._main_config.get_reference_folder() is not None:
+            if self._main_config.get_reference_folder() is not None:
                 relative_path = os.path.join(self._main_config.get_reference_folder(), path)
                 absolute_path = _get_path(relative_path)
                 if absolute_path is not None and absolute_path not in possibilities:
@@ -281,24 +265,24 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         self._merge(config_path_or_dictionary=config_path_or_dictionary, do_not_pre_process=do_not_pre_process,
                     do_not_post_process=do_not_post_process, source=source)
         self._post_process_modified_parameters()
-        self.set_post_processing(True)
-        if self.get_main_config().config_metadata["overwriting_regime"] == "auto-save":
-            if self.get_main_config().get_save_file() is not None:
-                self.get_main_config().save()
+        self.get_setter().set_post_processing(True)
+        if self._main_config.config_metadata["overwriting_regime"] == "auto-save":
+            if self._main_config.get_save_file() is not None:
+                self._main_config.save()
 
     @update_state("merging;_name")
     def _merge(self, config_path_or_dictionary: ConfigDeclarator, do_not_pre_process: bool = False,
                do_not_post_process: bool = False, source: str = 'config') -> None:
         """ Method handling all merging operations to call init_from_config with the proper bookkeeping. """
-        if self._main_config == self:
+        if self._is_main_config():
             object.__setattr__(self, "_operating_creation_or_merging", True)
             if self._verbose:
                 YAECS_LOGGER.info(f"Merging from {source} : {format_str(config_path_or_dictionary)}")
-            self.set_post_processing(not do_not_post_process)
-            self.set_pre_processing(not do_not_pre_process)
+            self.get_setter().set_post_processing(not do_not_post_process)
+            self.get_setter().set_pre_processing(not do_not_pre_process)
             self.init_from_config(config_path_or_dictionary)
             self.config_metadata["config_hierarchy"].append(config_path_or_dictionary)
-            self.set_pre_processing(True)
+            self.get_setter().set_pre_processing(True)
             self._operating_creation_or_merging = False
         else:
             if isinstance(config_path_or_dictionary, str):
@@ -324,7 +308,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             self._former_saving_time = former_saving_time
             self.config_metadata["overwriting_regime"] = regime
             self.set_variation_name(variation)
-            self.set_pre_processing(False)
+            self.get_setter().set_pre_processing(False)
             return
 
         # ...do not accept other protected attributes to be merged...
@@ -429,10 +413,12 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             old_value_message = "" if isinstance(old_value, NoValue) else f"old : '{old_value}'\n"
             YAECS_LOGGER.debug(f"Setting '{name}' : \n{old_value_message}new : '{value}'.")
 
-        preprocessed_value = self._process_parameter(name, value, "pre")
-        object.__setattr__(self, attribute_name, preprocessed_value)
-        if name not in self._modified_buffer:
-            self._modified_buffer.append(name)
+        full_name = self._get_full_path(name)
+        self._main_config.remove_value_before_postprocessing(full_name)
+        self.get_setter()(names={full_name: self._get_full_path(attribute_name)}, values={full_name: value},
+                          processing_type="pre", container=self)
+        if full_name not in self.get_modified_buffer():
+            self.get_modified_buffer().append(full_name)
 
     def _set_sub_config(self, name: str, attribute_name: str, content: Optional[dict] = None) -> 'Configuration':
         """ Method called by _add_item to add a sub-config to a config. First an empty config is created, then its
@@ -503,90 +489,20 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """ This method is called at the end of a config creation or merging operation. It applies post-processing to
         all parameters modified by this operation. If a parameter is converted into a non-native YAML type, also keeps
         its former value in memory for saving purposes. """
-        modified = [self._get_full_path(self._modified_buffer.pop(0)) for _ in range(len(self._modified_buffer))]  # TODO keep in here after refactoring
-        for subconfig in self.get_sub_configs(deep=True):  # TODO move to a unique buffer in the main config
-            modified_buffer = subconfig.get_modified_buffer()
-            for _ in range(len(modified_buffer)):
-                modified.append(".".join(subconfig.get_nesting_hierarchy() + [modified_buffer.pop(0)]))
-        processors = [(proc if isinstance(proc, Callable)
-                       else getattr(self, self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]]["name"]))
-                      for proc in self._post_processing_functions.values()]
-        orders = sorted(list({get_order(func) for func in processors}))
-        splits = [name.split(".")[len(self._nesting_hierarchy):] for name in modified]  # TODO this won't be needed either, actually merging operations are all sent to the main config
-        names = [(".".join(s), ".".join(s[:-1] + ["___" + s[-1]]) if s[-1] in self._methods else ".".join(s))
-                 for s in splits]
-        for order in orders:
-            for name, set_name in names:
-                recursive_set_attribute(self, set_name, self._process_parameter(name, self[name], "post", order))  # TODO keep the recursive set here after refactoring
-        post_processed = [param for param in modified if param in self._pre_postprocessing_values]
-        if post_processed and self._verbose:
-            YAECS_LOGGER.info(f"Performed post-processing for modified parameters {post_processed}.")
+        modified = [self.get_modified_buffer().pop(0) for _ in range(len(self.get_modified_buffer()))]
+        splits = [name.split(".") for name in modified if name.startswith(".".join(self._nesting_hierarchy))]
+        names = {".".join(s): ".".join(s[:-1] + ["___" + s[-1]]) if s[-1] in self._methods else ".".join(s)
+                 for s in splits}
+        values = {name: self._main_config[name] for name in names}
 
-    def _prepare_processing_functions(self, processing_type: str) -> None:
-        """ Sets self._pre/post_processing_functions from the user-provided functions. """
-        processing_functions = {**getattr(self, f"parameters_{processing_type}_processing")(),
-                                **getattr(self, f"_added_{processing_type}_processing")()}  # TODO keep in here after refactoring
-        for key, value in processing_functions.items():
-
-            if not isinstance(value, (Callable, Iterable)):
-                raise TypeError(f"Invalid {processing_type}-processing functions defined for param '{key}' : "
-                                "the function should be declared as either a function or an iterable of functions, "
-                                "optionally containing one order value.")
-
-            if isinstance(value, Iterable) and not (isinstance(value, str) and value.startswith("_tagged_method_")):
-                if any(not isinstance(element, (Callable, Real)) for element in value):
-                    raise TypeError(f"Invalid {processing_type}-processing functions defined for param '{key}' : "
-                                    "if function is declared as iterable, only functions and one order value can "
-                                    "be provided.")
-                order = [i for i in value if isinstance(i, Real)]
-                if len(order) > 1:
-                    raise ValueError(f"Ambiguous order for {processing_type}-processing functions defined for param "
-                                     f"'{key}' : multiple orders defined ({order}).")
-                processing_function = compose(*[i for i in value if isinstance(i, Callable)])
-                order = order[0] if order else get_order(processing_function)
-                set_function_attribute(processing_function, "order", order)
-
-            else:
-                processing_function = value
-
-            self.add_processing_function(key, processing_function, processing_type)
-
-    @update_state("processing;_name")
-    def _process_parameter(self, name: str, parameter: Any, processing_type: str, order: Optional[Real] = None) -> Any:
-        """ This method checks if a processing function has been defined for given name, then returns the processed
-        value when that is the case. """
-        if processing_type not in ["pre", "post"]:
-            raise ValueError(f"Unknown processing_type : '{processing_type}'. Valid types are 'pre' or 'post'.")
-        total_name = self._get_full_path(name)
-        main = self.get_main_config()
-        processors = [proc for key, proc in getattr(self, f"_{processing_type}_processing_functions").items()
-                      if compare_string_pattern(total_name, key)]
-        processors = [(proc if isinstance(proc, Callable)
-                       else getattr(self, self._assigned_as_yaml_tags[proc[len("_tagged_method_"):]]["name"]))
-                      for proc in processors]
-        processors = sorted([p for p in processors if order is None or get_order(p) == order], key=get_order)
-        if processing_type == "pre":
-            main.remove_value_before_postprocessing(total_name)  # TODO keep in here after refactoring
-        if main.get_master_switch(processing_type):
-            old_value = None
-            if processing_type == "pre":
-                check_type(main.get_type_hint(total_name), total_name)(parameter)
-            else:
-                old_value = copy.deepcopy(parameter)  # TODO keep in here after refactoring
-            was_processed = bool(processors)
-            for processor in processors:
-                try:
-                    parameter = processor(parameter)
-                except Exception:
-                    YAECS_LOGGER.error(f"ERROR while {processing_type}-processing param '{total_name}'.")
-                    raise
-            if processing_type == "pre" and not is_type_valid(parameter, _ConfigurationBase):
-                raise RuntimeError(f"ERROR while pre-processing param '{total_name}' : pre-processing functions that "
-                                   "change the type of a param to a non-native YAML type are forbidden because they "
-                                   "cannot be saved. Please use a parameter post-processing instead.")
-            if processing_type == "post" and was_processed:
-                main.save_value_before_postprocessing(self._get_full_path(name), old_value)  # TODO keep in here after refactoring
-        return parameter
+        self.get_setter()(names=names, values=values, processing_type="post", container=self)
+        for name in names:
+            try:
+                should_save = values[name] != self._main_config[name]
+            except Exception:
+                should_save = True
+            if should_save:
+                self._main_config.save_value_before_postprocessing(name, copy.deepcopy(values[name]))
 
     def _parse_metadata(self, metadata: str) -> Tuple[str, str]:
         """ Parses metadata string to get the saving time, regime and variation name if there is one. """
@@ -624,8 +540,9 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             if ignored_processors and self._verbose:
                 YAECS_LOGGER.warning("WARNING : registering processing functions only has effect in the default config."
                                      f" The functions {ignored_processors} in file '{path}' will be ignored.")
+        registered_methods = self.get_setter().registered_methods.keys()
         processors_in_hints = {param: type_hint.split(",") for param, type_hint in scanner.type_hints.items()
-                               if all(method in self._assigned_as_yaml_tags for method in type_hint.split(","))}
+                               if all(method in registered_methods for method in type_hint.split(","))}
         if processors_in_hints and self._verbose:
             YAECS_LOGGER.warning("WARNING : registering processing functions using !type:<method_name> is deprecated. "
                                  "It will still work until the next release, but you should switch to using "
@@ -633,29 +550,15 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
         type_hints = {param: type_hint for param, type_hint in scanner.type_hints.items()
                       if ((any(state.startswith("setup") for state in self._state) or is_dict_type_hint(type_hint))
-                      and any(method not in self._assigned_as_yaml_tags for method in type_hint.split(",")))}
-        for param, type_hint in type_hints.items():
-            self.add_type_hint(param, parse_type(type_hint))
+                      and any(method not in registered_methods for method in type_hint.split(",")))}
+        self.get_setter().bulk_add_type_hints({self._get_full_path(pattern): type_hint
+                                               for pattern, type_hint in type_hints.items()}, source=path)
 
         processors = {param: methods for param, methods in scanner.processing_functions.items()
                       if any(state.startswith("setup") for state in self._state)
-                      and all(method in self._assigned_as_yaml_tags for method in methods)}
+                      and all(method in registered_methods for method in methods)}
         processors = {**processors, **processors_in_hints}
-        for param, methods in processors.items():
-            if all(method in self._assigned_as_yaml_tags for method in methods):
-                type_hint = None
-                lowest_priority = min(self._assigned_as_yaml_tags[method].get("order", 0) for method in methods)
-                for method in methods:
-                    if self.get_variation_name() is None:
-                        self.add_processing_function_all(self._get_full_path(param),
-                                                         f"_tagged_method_{method}",
-                                                         self._assigned_as_yaml_tags[method]["processing_type"])
-                    if type_hint is None and self._assigned_as_yaml_tags[method].get("order", 0) == lowest_priority:
-                        type_hint = self._assigned_as_yaml_tags[method]["input_type"]
-                self.add_type_hint(param, parse_type(type_hint))
-            else:
-                raise ValueError(f"Some processing functions in {methods} for parameter '{param}' in file '{path}' "
-                                 "do not match any registered processing function. Valid processing functions "
-                                 f"are : {list(self._assigned_as_yaml_tags.keys())}.")
-
+        self.get_setter().bulk_add_processors({self._get_full_path(pattern): methods
+                                               for pattern, methods in processors.items()},
+                                              source=path, container=self)
         return scanner.params

@@ -5,8 +5,7 @@ import os
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
-from ..yaecs_utils import (Priority,
-                           assign_order, assign_yaml_tag, compare_string_pattern, set_function_attribute)
+from ..yaecs_utils import Priority, assign_order, assign_yaml_tag, set_function_attribute
 
 if TYPE_CHECKING:
     from numbers import Number
@@ -95,10 +94,8 @@ class ConfigProcessingFunctionsMixin:
                                                            "input_type": "str",
                                                            "order": Priority.OFTEN_LAST})
 
-        current_processing = object.__getattribute__(main, "_added_post_processing")()
-        if not any((compare_string_pattern(param_name, k) and v.__name__ == "_copy")
-                   for k, v in current_processing.items()):
-            main.add_processing_function_all(param_name, copy_fn, "post")
+        main.add_processing_function(param_name=param_name, function_to_add=copy_fn, processing_type="post",
+                                     source="copy_param", no_duplicates=True)
 
         return self.protected_param(path_to_copy)
 

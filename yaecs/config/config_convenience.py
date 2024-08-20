@@ -264,8 +264,8 @@ class ConfigConvenienceMixin:
         config_dump_path = file_path + file_extension
         to_dump = {
             a: (getattr(self, "___" + a if a in self._methods else a) if
-                (self._get_full_path(a) not in self.get_main_config().get_pre_post_processing_values()) else
-                self.get_main_config().get_pre_post_processing_values()[self._get_full_path(a)]
+                (self._get_full_path(a) not in self._main_config.get_pre_post_processing_values()) else
+                self._main_config.get_pre_post_processing_values()[self._get_full_path(a)]
                 ) if a != "config_metadata" else self._format_metadata()
             for a in (["config_metadata"] if save_header else []) + self._get_user_defined_attributes()
         }
@@ -349,8 +349,8 @@ class ConfigConvenienceMixin:
                 "tag:yaml.org,2002:map", {
                     a[3:] if a.startswith("___") else a: self._format_metadata() if a == "config_metadata" else
                     (b if (".".join(class_instance.get_nesting_hierarchy()
-                                    + [a]) not in self.get_main_config().get_pre_post_processing_values()) else
-                        (self.get_main_config().get_pre_post_processing_values(
+                                    + [a]) not in self._main_config.get_pre_post_processing_values()) else
+                        (self._main_config.get_pre_post_processing_values(
                         )[".".join(class_instance.get_nesting_hierarchy() + [a])]))
                     for (a, b) in class_instance.__dict__.items()
                     if a not in self._protected_attributes
@@ -367,3 +367,7 @@ class ConfigConvenienceMixin:
         dumper.add_representer(dict, dict_representer)
         dumper.add_representer(self.__class__, config_representer)
         return dumper
+
+    def _is_main_config(self) -> bool:
+        """ Returns whether the config is the main config. """
+        return not self._nesting_hierarchy

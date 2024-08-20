@@ -64,15 +64,6 @@ def yaml_experiment(tmpdir):
 
 
 @pytest.fixture
-def yaml_default_unlinked(tmpdir):
-    content = "param1: !type:dict\n  param2: 1\n  param3:\n    param4: 2"
-    with open(tmpdir / f'tmp{len(os.listdir(tmpdir))}.yaml', "w",
-              encoding='utf-8') as fil:
-        fil.write(content)
-    yield str(tmpdir / f'tmp{len(os.listdir(tmpdir))-1}.yaml')
-
-
-@pytest.fixture
 def yaml_default_preproc_default_dot_param(tmpdir):
     content = "param1.param2: 2"
     with open(tmpdir / f'tmp{len(os.listdir(tmpdir))}.yaml', "w",

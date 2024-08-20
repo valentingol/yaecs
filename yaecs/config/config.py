@@ -120,7 +120,7 @@ class Configuration(_ConfigurationBase):
 
         # Checkup and post-setup operations
         if main_config is None:
-            self.set_pre_processing(True)
+            self.get_setter().set_pre_processing(True)
         self._state.pop(-1)
         self._operating_creation_or_merging = False
 
@@ -162,7 +162,7 @@ class Configuration(_ConfigurationBase):
                 config._merge(to_merge, do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process,
                               source="command line")
         config._post_process_modified_parameters()
-        config.set_post_processing(True)
+        config.get_setter().set_post_processing(True)
         return config
 
     @classmethod

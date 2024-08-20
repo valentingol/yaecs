@@ -724,7 +724,7 @@ def test_warnings(caplog, tmp_file_name):
     assert caplog.text.count("will be ignored : it does not match any") == 1
 
 
-def test_errors(caplog, yaml_default_unlinked, yaml_default_sub_variations,
+def test_errors(caplog, yaml_default_sub_variations,
                 yaml_default_set_twice, yaml_default, yaml_type_check):
     caplog.clear()
     with caplog.at_level(logging.WARNING):
@@ -800,7 +800,7 @@ def test_errors(caplog, yaml_default_unlinked, yaml_default_sub_variations,
                 Exception, match=".*character is not authorised "
                                  "in the default config.*"):
             _ = make_config({"param*": 1})
-    assert caplog.text.count("ERROR while pre-processing param") == 4
+    assert caplog.text.count("ERROR while processing param") == 4
     with pytest.raises(
             Exception, match=".*Please declare all your variations "
             "in the main config.*"):
