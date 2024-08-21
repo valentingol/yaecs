@@ -22,6 +22,7 @@ class YAMLScanner:
         self.state: Dict[str, Any] = {
             "currently_processed_path": [],
             "last_non_scalar": 0,
+            "last_ended_mapping": -1,
             "sequence_depth": [],
         }
         with open(yaml_path, encoding='utf-8') as yaml_file:
@@ -72,8 +73,9 @@ class YAMLScanner:
         if self.state["sequence_depth"]:
             if node_type == "mapping":
                 self.state["sequence_depth"].append("mapping")
-            if mapping_added:
+            if mapping_added and len(yaml_loader.constructed_objects) != self.state["last_ended_mapping"]:
                 self.state["sequence_depth"].pop(-1)
+                self.state["last_ended_mapping"] = len(yaml_loader.constructed_objects)
         if node_type == "mapping" or mapping_added or sequence_added:
             self.state["last_non_scalar"] = len(yaml_loader.constructed_objects)
 
@@ -91,7 +93,7 @@ class YAMLScanner:
             self.update_state(yaml_loader, tag, node)
 
             if self.state["is_key_node"]:
-                return yaml_loader.default_yaml_constructors["tag:yaml.org,2002:str"](yaml_loader, node)
+                return self.resolve_node(yaml_loader, tag, node)
 
             if self.state["is_param_tag"]:
                 if self.state["resolving_recursive_param"]:
