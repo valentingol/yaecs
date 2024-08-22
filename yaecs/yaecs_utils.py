@@ -198,6 +198,8 @@ def assign_order(order: ProcessingOrder = Priority.INDIFFERENT) -> Callable[[Cal
     def decorator_order(func: Callable) -> Callable:
         if not hasattr(func, "yaecs_metadata"):
             set_function_attribute(func, "yaecs_metadata", {})
+        if "name" not in func.yaecs_metadata:
+            func.yaecs_metadata["name"] = func.__name__
         func.yaecs_metadata["order"] = order
         return func
 

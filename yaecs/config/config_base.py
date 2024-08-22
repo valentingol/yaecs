@@ -199,10 +199,10 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
         # If the path is absolute, use it...
         if os.path.isabs(path):
-            path = _get_path(path)
-            if path is not None:
-                self._reference_folder = str(Path(path).parents[0])
-                return path
+            processed_path = _get_path(path)
+            if processed_path is not None:
+                self._reference_folder = str(Path(processed_path).parents[0])
+                return processed_path
 
         # ... if not, search relatively to some reference folders.
         else:
@@ -255,7 +255,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     self._reference_folder = str(Path(absolute_path).parents[0])
                 return filtered[0]
 
-        raise FileNotFoundError(f"ERROR : path not found ({path}).")
+        raise FileNotFoundError(f"ERROR : no YAML file found at path '{path}'.")
 
     def _manual_merge(self, config_path_or_dictionary: ConfigDeclarator, do_not_pre_process: bool = False,
                       do_not_post_process: bool = False, source: str = 'config',

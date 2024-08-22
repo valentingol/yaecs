@@ -780,7 +780,7 @@ def test_errors(caplog, yaml_default_sub_variations,
             make_config({"param": 1, "var": {"a": 1}}, config_class=template())
         with pytest.raises(Exception, match="Grid parsing failed.*"):
             make_config({"param": 1, "grid": {}}, config_class=template())
-        with pytest.raises(Exception, match="ERROR : path not found .*"):
+        with pytest.raises(Exception, match="ERROR : no YAML file found at path .*"):
             template()(config_path_or_dictionary="not_found")
         with pytest.raises(Exception, match="'config_metadata' is a "
                                             "special parameter.*"):
