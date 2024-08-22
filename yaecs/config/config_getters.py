@@ -260,9 +260,13 @@ class ConfigGettersMixin:
         for method in [getattr(self, name) for name in self._methods]:
             if hasattr(method, "yaecs_metadata"):
                 metadata = getattr(method, "yaecs_metadata")
-                if metadata["tag"] in self._methods and metadata["tag"] != metadata["name"]:
+                if "tag" in metadata and metadata["tag"] in self._methods and metadata["tag"] != metadata["name"]:
                     raise ValueError(f"YAML tag '{metadata['tag']}' of method '{metadata['name']}' is ambiguous with "
                                      "the name of another method. Please choose a different tag.")
+                metadata["tag"] = metadata["tag"] if "tag" in metadata else metadata["name"]
+                if metadata["tag"] in to_return:
+                    raise ValueError(f"The name of method '{metadata['name']}' is ambiguous with the tag of method "
+                                     f"'{to_return[metadata['tag']]['name']}'. Please choose a different tag or name.")
                 to_return[metadata["tag"]] = metadata
         return to_return
 
