@@ -59,24 +59,24 @@ class YAMLScanner:
 
         self.state["is_param_tag"] = bool(yaml_loader.constructed_objects) or tag.lower() == "!:no-tag:"
         self.state["resolving_recursive_param"] = yaml_loader.DEFAULT_MAPPING_TAG == "!:no-tag:"
-        mapping_added = yaml_loader.constructed_objects and isinstance(
-            list(yaml_loader.constructed_objects.keys())[-1], yaml.MappingNode)
-        sequence_added = yaml_loader.constructed_objects and isinstance(
-            list(yaml_loader.constructed_objects.keys())[-1], yaml.SequenceNode)
+        complex_added = 0
+        for value in list(yaml_loader.constructed_objects.keys())[::-1]:
+            if isinstance(value, (yaml.MappingNode, yaml.SequenceNode)):
+                complex_added += 1
+            else:
+                break
         node_type = "scalar" if isinstance(node, yaml.ScalarNode) else "sequence" if isinstance(
             node, yaml.SequenceNode) else "mapping"
 
         if node_type == "sequence":
             self.state["sequence_depth"].append("sequence")
-        if sequence_added:
-            self.state["sequence_depth"].pop(-1)
         if self.state["sequence_depth"]:
             if node_type == "mapping":
                 self.state["sequence_depth"].append("mapping")
-            if mapping_added and len(yaml_loader.constructed_objects) != self.state["last_ended_mapping"]:
-                self.state["sequence_depth"].pop(-1)
+            if complex_added and len(yaml_loader.constructed_objects) != self.state["last_ended_mapping"]:
+                self.state["sequence_depth"] = self.state["sequence_depth"][:-complex_added]
                 self.state["last_ended_mapping"] = len(yaml_loader.constructed_objects)
-        if node_type == "mapping" or mapping_added or sequence_added:
+        if node_type == "mapping" or complex_added:
             self.state["last_non_scalar"] = len(yaml_loader.constructed_objects)
 
         key_counter = len(yaml_loader.constructed_objects) - self.state["last_non_scalar"]
