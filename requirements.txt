@@ -1,2 +1,2 @@
-pyyaml>=6.0,<7
+pyyaml>=6,<7
 mock==4.0.3
