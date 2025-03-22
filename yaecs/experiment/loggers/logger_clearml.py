@@ -101,11 +101,11 @@ class ClearMLLogger(Logger):
         elif isinstance(image, np.ndarray):
             self.task.logger.report_image(title=sub_logger, series=name, image=image.astype(np.uint8),
                                           iteration=step)
-        elif isinstance(image, Image):
+        elif isinstance(image, Image.Image):
             self.task.logger.report_image(title=sub_logger, series=name, image=np.array(image, dtype=np.uint8),
                                           iteration=step)
         elif isinstance(image, matplotlib.figure.Figure):
-            self.task.logger.report_matplotlib(title=sub_logger, series=name, iteration=step, figure=image)
+            self.task.logger.report_matplotlib_figure(title=sub_logger, series=name, iteration=step, figure=image)
         elif isinstance(image, plotly.graph_objects.Figure):
             self.task.logger.report_plotly(title=sub_logger, series=name, iteration=step, figure=image)
         else:
