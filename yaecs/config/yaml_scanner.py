@@ -42,7 +42,7 @@ class YAMLScanner:
                                 return True
                             return any(_can_be_str(t) for t in parsed_type)
                         return False
-                    if _can_be_str(parse_type(tag[len("!type:"):])):
+                    if tag == "!:no-tag:" or _can_be_str(parse_type(tag[len("!type:"):])):
                         return yaml_loader.default_yaml_constructors["tag:yaml.org,2002:str"](yaml_loader, node)
                 for key, value in YAML_EXPRESSIONS.items():
                     if value.match(node.value):
@@ -84,6 +84,9 @@ class YAMLScanner:
             self.state["is_key_node"] = False
         else:
             self.state["is_key_node"] = node_type == "scalar" and self.state["is_param_tag"] and key_counter % 2 == 0
+
+        if not self.state["is_key_node"] and not self.state["is_param_tag"]:
+            self.state["last_ended_mapping"] = -1
 
     def _get_yaml_loader(self) -> Type[yaml.FullLoader]:
         """ Used to get a custom YAML loader capable of parsing config tags. """

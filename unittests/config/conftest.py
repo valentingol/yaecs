@@ -265,3 +265,26 @@ def config_vs_dict_checks(tmpdir):
     with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
         fil.write(content)
     yield str(tmpdir / f'default{index}.yaml')
+
+
+@pytest.fixture
+def yaml_last_mapping_reset_on_new_document(tmpdir):
+    index = len(os.listdir(tmpdir))
+    content = ("--- !c_1\n"
+               "p_1_1: []\n"
+               "p_1_2: 0\n"
+               "--- !c_2\n"
+               "p_2_1: []\n"
+               "p_2_2: 0\n")
+    with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
+        fil.write(content)
+    yield str(tmpdir / f'default{index}.yaml')
+
+
+@pytest.fixture
+def yaml_empty_string_in_list(tmpdir):
+    index = len(os.listdir(tmpdir))
+    content = ('a: [""]')
+    with open(tmpdir / f'default{index}.yaml', "w", encoding='utf-8') as fil:
+        fil.write(content)
+    yield str(tmpdir / f'default{index}.yaml')

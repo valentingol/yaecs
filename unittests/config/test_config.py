@@ -846,3 +846,16 @@ def test_errors(caplog, yaml_default_sub_variations,
                 print(f"Testing for {prefix + k}")
                 c = load_config(default_config=yaml_type_check)
                 c.merge({prefix + k: v})
+
+
+def test_empty_string_in_list(yaml_empty_string_in_list):
+    config = load_config(default_config=yaml_empty_string_in_list)
+    assert config.a == [""]
+
+
+def test_last_mapping_reset_on_new_document(yaml_last_mapping_reset_on_new_document):
+    config = load_config(default_config=yaml_last_mapping_reset_on_new_document)
+    assert config.c_1.p_1_1 == []
+    assert config.c_1.p_1_2 == 0
+    assert config.c_2.p_2_1 == []
+    assert config.c_2.p_2_2 == 0
