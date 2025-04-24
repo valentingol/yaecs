@@ -495,7 +495,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                  for s in splits}
         values = {name: self._main_config[name] for name in names}
 
-        self.get_setter()(names=names, values=values, processing_type="post", container=self)
+        self.get_setter()(names=names, values=values, processing_type="post", container=self,
+                          only_set_processed_parameters=True)
         for name in names:
             try:
                 should_save = values[name] != self._main_config[name]

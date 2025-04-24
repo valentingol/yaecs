@@ -37,13 +37,16 @@ class Setter:
             "post": [],
         }
 
-    def __call__(self, names: Dict[str, str], values: Dict[str, Any], processing_type: str, container: object) -> None:
+    def __call__(self, names: Dict[str, str], values: Dict[str, Any], processing_type: str, container: object,
+                 only_set_processed_parameters: bool = False) -> None:
         """
         Processes a parameter based on the processing type.
 
         :param parameters: parameters to process with names as keys
         :param processing_type: type of processing to perform
         :param container: object containing methods to resolve processors passed as strings, and where to set the values
+        :param only_set_processed_parameters: whether to only set the parameters for which at least one processor
+        applied
         :return: processed value
         """
         if processing_type not in self.processors:
@@ -59,15 +62,17 @@ class Setter:
             processed_values = dict(values)
             for processor in processors:
                 for name, value in processed_values.items():
-                    with UpdateState(f"processing;{container.get_name()};arg0={name.split('.')[-1]}", container):
-                        processed_values[name] = processor(name, value, container=container)
-                    self._set_value(names[name], processed_values[name], container)
-                    if name not in processed:
-                        processed.append(name)
+                    if processor.applies(name):
+                        with UpdateState(f"processing;{container.get_name()};arg0={name.split('.')[-1]}", container):
+                            processed_values[name] = processor(name, value, container=container)
+                        self._set_value(names[name], processed_values[name], container)
+                        if name not in processed:
+                            processed.append(name)
 
-        for name, value in values.items():
-            if name not in processed:
-                self._set_value(names[name], value, container)
+        if not only_set_processed_parameters:
+            for name, value in values.items():
+                if name not in processed:
+                    self._set_value(names[name], value, container)
 
         if processing_type == "post" and processed and self.verbose:
             YAECS_LOGGER.info(f"Performed post-processing for modified parameters {processed}.")

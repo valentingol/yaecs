@@ -506,6 +506,35 @@ def test_post_processing(capsys, yaml_default, yaml_experiment, tmp_file_name,
     assert make_config(dico).a == 10
 
 
+def test_post_processing_modify(yaml_default, yaml_experiment):
+
+    class TestConfig(Configuration):
+        @staticmethod
+        def get_default_config_path():
+            return yaml_default
+
+        def post_processing_func1(self, param1):
+            object.__setattr__(self.get_main_config().subconfig1, "param2", 4)
+            return param1 + 1
+
+        def post_processing_func2(self, param4):
+            object.__setattr__(self.get_main_config().subconfig2, "param3", 5)
+            return param4 + "_"
+
+        def parameters_pre_processing(self):
+            return {
+                "*_path": self.register_as_additional_config_file
+            }
+
+        def parameters_post_processing(self):
+            return {
+                "param1": self.post_processing_func1,
+                "subconfig2.subconfig3.param4": self.post_processing_func2
+            }
+    config = TestConfig.load_config(yaml_experiment, do_not_merge_command_line=True)
+    check_integrity(config, p_1=1.1, p_2=4, p_3=5, p_4="string_")
+
+
 def test_save_reload(capsys, tmp_file_name, yaml_default, yaml_experiment):
     config = load_config(yaml_experiment, default_config=yaml_default)
     captured = capsys.readouterr()
