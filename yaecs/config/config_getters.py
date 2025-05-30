@@ -191,9 +191,13 @@ class ConfigGettersMixin:
         :param full_path: if True, returns the path to the param in the main config, otherwise the path to the param in
             self.
         """
+        full_path = self._get_param_name_from_state()
         if full_path:
-            return self._get_full_path(self._get_param_name_from_state())
-        return self._get_param_name_from_state()
+            return full_path
+        config_path = ".".join(self._nesting_hierarchy)
+        if not full_path.startswith(config_path):
+            raise ValueError("Attempting to get the path of a param relative to a config that it's not a sub-param of.")
+        return full_path[len(config_path)+1:]
 
     def get_setter(self) -> 'Setter':
         """

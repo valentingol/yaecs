@@ -63,7 +63,7 @@ class Setter:
             for processor in processors:
                 for name, value in processed_values.items():
                     if processor.applies(name):
-                        with UpdateState(f"processing;{container.get_name()};arg0={name.split('.')[-1]}", container):
+                        with UpdateState(f"processing;{container.get_name()};arg0={name}", container):
                             processed_values[name] = processor(name, value, container=container)
                         self._set_value(names[name], processed_values[name], container)
                         if name not in processed:
