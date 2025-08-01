@@ -19,7 +19,7 @@ Copyright (C) 2022  Reactive Reality
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
-from ..yaecs_utils import get_param_as_parsable_string
+from ..yaecs_utils import NoValue, get_param_as_parsable_string
 
 if TYPE_CHECKING:
     from .config import Configuration
@@ -49,7 +49,7 @@ class ConfigGettersMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def get(self, parameter_name: str, default_value: Any) -> Any:
+    def get(self, parameter_name: str, default_value: Any = NoValue()) -> Any:
         """
         Behaves similarly to dict.get(parameter_name, default_value)
 
@@ -59,7 +59,10 @@ class ConfigGettersMixin:
         """
         try:
             return self[parameter_name]
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError) as exception:
+            if isinstance(default_value, NoValue):
+                raise AttributeError(f"Unknown parameter of the configuration : '{parameter_name}'.\n"
+                                     f"{self._did_you_mean(parameter_name)}") from exception
             return default_value
 
     def get_sub_configs(self, deep: bool = True) -> List['Configuration']:
