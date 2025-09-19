@@ -435,7 +435,7 @@ class TimerManager:
         return matches
 
     def render(self, which_step: Union[int, str] = "last", which_timer: Union[None, str, List[str]] = None,
-               verbose: Optional[int] = None) -> str:
+               slower_than: Optional[float] = None, verbose: Optional[int] = None) -> str:
         """
         Renders a string to display some properties of the timers.
 
@@ -444,13 +444,16 @@ class TimerManager:
             'average' (average of all recorded steps) or 'total' (sum of all recorded steps)
         :param which_timer: which timers to render. Can be None (by default, means all of them), or a timer name or list
             thereof which may contain wildcards ('*')
+        :param slower_than: if not None, only renders timers whose duration is greater than this value (in seconds)
         :param verbose: verbosity level. 0 is minimal, 1 is normal, 2 is high detail. If None, uses each timer's verbose
         :return: the rendered string
         """
         rendered_string = ""
         which_step = self._process_which(which_step)
         which_timer = self.get_timer_names(timer=which_timer)
-        durations = {name: duration for name, duration in self[which_step].items() if name in which_timer}
+        durations = {name: duration for name, duration in self[which_step].items()
+                     if name in which_timer and (slower_than is None or
+                                                 (duration is not None and duration > slower_than))}
         verbose = self.verbose if verbose is None else verbose
 
         # Set header

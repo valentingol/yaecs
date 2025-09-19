@@ -161,13 +161,15 @@ class Tracker:
             params_to_log[pattern] = config.get_pre_post_processing_values().get(param_name, config[param_name])
         self.loggers.start_run(experiment_name, run_name, description, params_to_log)
 
-    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True) -> int:
+    def step(self, step: Optional[int] = None, auto_log_timers: bool = True, print_timers: bool = True,
+             print_slower_than: Optional[float] = None) -> int:
         """
         Increments the step counter.
 
         :param step: step to increment to. If None, will increment to the next step
         :param auto_log_timers: whether to automatically log the timers at the end of the step
         :param print_timers: whether to print the timers at the end of the step
+        :param print_slower_than: if provided, only prints timers whose average duration is above the given threshold
         """
         if step is not None and step < self._step:
             raise ValueError(f"Cannot go back to step {step} from step {self._step}.")
@@ -175,7 +177,7 @@ class Tracker:
             if auto_log_timers:
                 self.log_timer(name="timers/")
             if print_timers:
-                print(self.timer.render(which_step=self._step))
+                print(self.timer.render(which_step=self._step, slower_than=print_slower_than))
         self._step = (self._step + 1) if step is None else step
         return self._step
 
