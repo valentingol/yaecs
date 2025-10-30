@@ -16,9 +16,16 @@ YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class SacredLogger(Logger):
-    """ Sacred Logger. This logger logs things to a setup database. """
+    """
+    Sacred Logger. This logger logs things to a setup database.
+    Attributes list:
+        - db_name : str : name of the database where to log experiments.
+        - db_url : str : url of the database where to log experiments.
+    """
+
     def __init__(self, tracker):
         super().__init__("Sacred Logger", tracker)
+        self.possible_attributes = ["db_name", "db_url"]
         self.experiment = None
         self.db_name = self.tracker.config.get("db_name", None)
         self.db_url = self.tracker.config.get("db_url", None)

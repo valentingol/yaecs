@@ -264,7 +264,7 @@ class ConfigHooksMixin:
             "tensorboard": ["logdir"],
             "clearml": ["project_name"],
         }
-        possible_keys = list(required_keys.values()) + [["basic_logdir", "sub_loggers", "type"]]
+        possible_keys = list(required_keys.values()) + [["basic_logdir", "sub_loggers", "type", "task_kwargs"]]
         if not isinstance(tracker_config, dict):
             raise ValueError(f"{tracker_config} is not a valid tracker config : it is not a dict.")
         if "type" not in tracker_config:

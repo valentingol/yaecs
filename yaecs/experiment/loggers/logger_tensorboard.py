@@ -13,11 +13,21 @@ except ImportError:
 
 
 class TensorBoardLogger(Logger):
-    """ TensorBoard Logger. This logger logs things to a logging directory (logdir). """
+    """
+    TensorBoard Logger. This logger logs things to a logging directory (logdir).
+    Attributes list:
+        - logdir : str : path to the logging directory where to save tensorboard logs.
+        - sub_loggers : list[str] : list of sub-loggers to create within the main logdir. Each sub-logger will have
+          its own folder within the main logdir.
+    """
+
     def __init__(self, tracker):
         super().__init__("TensorBoard Logger", tracker)
+        self.possible_attributes = ["logdir", "sub_loggers"]
         self.writers = None
         self.logdir = self.tracker.config.get("logdir", None)
+        loggers = self.tracker.config.get("sub_loggers", [])
+        self.sub_loggers = [""] + (loggers if isinstance(loggers, list) else [loggers])
 
     def check_config_requirements(self) -> str:
         if self.logdir is None:
@@ -40,7 +50,7 @@ class TensorBoardLogger(Logger):
             writer_path = self.logdir.replace("%e", self.tracker.experiment.config.get_experiment_path())
         self.writers = {
             sub_logger: tensorflow.summary.create_file_writer(os.path.join(writer_path, sub_logger))
-            for sub_logger in self.tracker.sub_loggers}
+            for sub_logger in self.sub_loggers}
 
     def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
                    sub_logger: Optional[str] = None, description: Optional[str] = None) -> None:

@@ -1,14 +1,20 @@
 """ This file defines the base class for all loggers, as well as the LoggerList class to compose loggers. """
 import logging
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Union
+
+from yaecs.experiment.loggers.logger_utils import NoContext
 
 YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class Logger:
     """ Base class for all loggers. Loggers are interfaces to utilities like ClearML, Tensorboard, etc., accessed
-    by Experiment and Tracker objects communicate with those utilities. """
+    by Experiment and Tracker objects communicate with those utilities. Some loggers may be given attributes using
+    logger.set_attributes() before the experiment starts. The list of valid attributes for each logger is defined in the
+    possible_attributes class variable and explained in the corresponding class' docstring."""
+
     def __init__(self, name: str, tracker):
+        self.possible_attributes = []
         self.name = name
         self.tracker = tracker
         self.argument_warnings = set()
@@ -35,6 +41,18 @@ class Logger:
         """ Returns a modified version of the main function that should be used instead. """
         return main_function
 
+    def set_attributes(self, logger_attributes: Dict[str, Any]) -> None:
+        """ Sets the attributes of the logger according to the given dictionary. Attributes not in
+        self.possible_attributes will raise an error. """
+        if self.get_logger_object() is not None:
+            raise RuntimeError(f"Logger '{self.name}' has already been initialised; attributes can no longer be set.")
+        for attr_name, attr_value in logger_attributes.items():
+            if attr_name in self.possible_attributes:
+                setattr(self, attr_name, attr_value)
+            else:
+                raise ValueError(f"Attribute '{attr_name}' is not a valid attribute for logger '{self.name}'.\n"
+                                 f"Possible attributes are : {self.possible_attributes}.")
+
     def start_run(self, experiment_name: str, run_name: str, description: str, params: dict) -> None:
         """ Prepares the logger for the start of the run. """
         raise NotImplementedError
@@ -59,15 +77,3 @@ class Logger:
                 YAECS_LOGGER.warning(f"WARNING : in {function_name} : '{argument_name}' is not used in Logger "
                                      f"{self.name}.")
                 self.argument_warnings.add(index)
-
-
-class NoContext:
-    """ A context manager that does nothing. """
-    def __init__(self, tracker):
-        self.tracker = tracker
-
-    def __enter__(self):
-        pass
-
-    def __exit__(self, *args):
-        pass
