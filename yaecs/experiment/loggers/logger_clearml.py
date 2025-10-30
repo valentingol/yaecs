@@ -33,11 +33,19 @@ YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class ClearMLLogger(Logger):
-    """ ClearML Logger. This logger logs things to a ClearML server setup in a clearml.conf config. """
+    """
+    ClearML Logger. This logger logs things to a ClearML server setup in a clearml.conf config.
+    Attributes list:
+        - project_name : str : name of the ClearML project where to log experiments.
+        - task_kwargs : dict : additional keyword arguments to pass to clearml.Task.init().
+    """
+
     def __init__(self, tracker):
         super().__init__("ClearML Logger", tracker)
+        self.possible_attributes = ["project_name", "task_kwargs"]
         self.task = None
         self.project_name = self.tracker.config.get("project_name", None)
+        self.task_kwargs = self.tracker.config.get("task_kwargs", {})
 
     def check_config_requirements(self) -> str:
         if self.project_name is None:
@@ -65,7 +73,8 @@ class ClearMLLogger(Logger):
         self.task = clearml.Task.init(project_name=self.project_name,
                                       task_name=f"{experiment_name}/{run_name}",
                                       task_type=self._get_tast_type(),
-                                      continue_last_task=bool(os.getenv("PICKUP")))
+                                      continue_last_task=bool(os.getenv("PICKUP")),
+                                      **self.task_kwargs)
         self.task.set_comment(description)
         self.task.connect(params)
 

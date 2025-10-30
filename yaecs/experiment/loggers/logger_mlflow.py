@@ -15,9 +15,15 @@ YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class MLFlowLogger(Logger):
-    """ MLFlow Logger. This logger logs things to a MLFlow tracking_uri which can be a server or a folder. """
+    """
+    MLFlow Logger. This logger logs things to a MLFlow tracking_uri which can be a server or a folder.
+    Attributes list:
+        - tracking_uri : str : URI of the MLFlow tracking server or folder where to log experiments.
+    """
+
     def __init__(self, tracker):
         super().__init__("MLFlow Logger", tracker)
+        self.possible_attributes = ["tracking_uri"]
         self.run = None
         self.tracking_uri = self.tracker.config.get("tracking_uri", None)
 

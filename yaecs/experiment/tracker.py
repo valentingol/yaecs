@@ -39,8 +39,6 @@ class Tracker:
         """
         # General attributes
         self.config = {k: v for k, v in tracker_config.items() if k != "type"}
-        loggers = self.config.get("sub_loggers", [])
-        self.sub_loggers = [""] + (loggers if isinstance(loggers, list) else [loggers])
         self.experiment = experiment
         self.experiment_name = experiment_name
         self.run_name = run_name
@@ -148,6 +146,15 @@ class Tracker:
         else:
             run_name = self.run_name
         return exp_name, run_name
+
+    def set_logger_attributes(self, logger_attributes: Dict[str, Dict[str, Any]]) -> None:
+        """
+        Sets logger attributes. These attributes will be used when initialising or using the loggers. Check each
+        logger's documentation to see which attributes can be used.
+
+        :param logger_attributes: dictionary mapping logger names to dictionaries of attributes to add to them
+        """
+        self.loggers.set_attributes(logger_attributes)
 
     def start_run(self, description: Optional[str] = None) -> None:
         """

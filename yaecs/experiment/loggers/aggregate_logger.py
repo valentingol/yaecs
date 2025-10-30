@@ -29,19 +29,26 @@ class AggregateLogger:
             raise ValueError(f"Unknown logger(s) {absent}. Available loggers are {list(LOGGERS.keys())}.")
         # Do not track if in a pytorch-lightning spawned process.
         self.types: List[str] = [] if os.getenv('NODE_RANK') else logger_list
-        self.logger_list: Dict[Logger] = {name: LOGGERS[name](tracker) for name in logger_list}
+        self.logger_dict: Dict[Logger] = {name: LOGGERS[name](tracker) for name in logger_list}
         self.logged_artifacts = {}
 
     def __getitem__(self, item: str) -> Any:
         try:
-            return self.logger_list[item].get_logger_object()
+            return self.logger_dict[item].get_logger_object()
         except KeyError:
             return None
+
+    @property
+    def logger_list(self) -> List[Logger]:
+        """ Returns logger_dict for backwards compatibility. """
+        YAECS_LOGGER.warning("The 'logger_list' property is deprecated and will no longer be supported in future "
+                             "releases. Use 'aggregate_logger.logger_dict' instead.")
+        return self.logger_dict
 
     def check_config_requirements(self) -> None:
         """ This checks the config requirements of all loggers. """
         errors = {}
-        for name, logger in self.logger_list.items():
+        for name, logger in self.logger_dict.items():
             error = logger.check_config_requirements()
             if error != "":
                 errors[name] = error
@@ -53,7 +60,7 @@ class AggregateLogger:
     def check_install(self) -> None:
         """ This checks the installation of all loggers. """
         errors = {}
-        for name, logger in self.logger_list.items():
+        for name, logger in self.logger_dict.items():
             error = logger.check_install()
             if error != "":
                 errors[name] = error
@@ -65,12 +72,12 @@ class AggregateLogger:
     @property
     def has_loggers(self) -> bool:
         """ Returns whether the aggregate logger has loggers. """
-        return bool(self.logger_list)
+        return bool(self.logger_dict)
 
     def main_function_context(self) -> list:
         """ Returns a list of context managers that should be used around the main function of the experiment. """
         context_list = []
-        for logger in self.logger_list.values():
+        for logger in self.logger_dict.values():
             context = logger.main_function_context()
             if isinstance(context, list):
                 context_list.extend(context)
@@ -80,13 +87,27 @@ class AggregateLogger:
 
     def modify_main_function(self, main_function):
         """ Returns a modified version of the main function that should be used instead. """
-        for logger in self.logger_list.values():
+        for logger in self.logger_dict.values():
             main_function = logger.modify_main_function(main_function)
         return main_function
 
+    def set_attributes(self, logger_attributes: Dict[str, Dict[str, Any]]) -> None:
+        """
+        Sets logger attributes. These attributes will be used when initialising or using the loggers. Check each
+        logger's documentation to see which attributes can be used.
+
+        :param logger_attributes: dictionary mapping logger names to dictionaries of attributes to add to them
+        """
+        for logger_name, attributes in logger_attributes.items():
+            if logger_name in self.logger_dict:
+                self.logger_dict[logger_name].set_attributes(attributes)
+            else:
+                raise ValueError(f"Logger '{logger_name}' not found in aggregate logger. Available loggers are: "
+                                 f"{list(self.logger_dict.keys())}.")
+
     def start_run(self, experiment_name: str, run_name: str, description: str, params: dict) -> None:
         """ Prepares the logger for the start of the run. """
-        for logger in self.logger_list.values():
+        for logger in self.logger_dict.values():
             logger.start_run(experiment_name, run_name, description, params)
 
     def log_scalar(self, name: str, value: Union[float, int], step: Optional[int] = None,
@@ -136,10 +157,10 @@ class AggregateLogger:
                      except_loggers: Union[None, str, List[str]]) -> List[Logger]:
         """ Returns the loggers that should be used for the current function. """
         if only_loggers is None:
-            only_loggers = self.logger_list.keys()
+            only_loggers = self.logger_dict.keys()
         elif isinstance(only_loggers, str):
             only_loggers = [only_loggers]
-        only_loggers = [self.logger_list[name] for name in only_loggers if name in self.logger_list]
+        only_loggers = [self.logger_dict[name] for name in only_loggers if name in self.logger_dict]
         if except_loggers is None:
             except_loggers = []
         elif isinstance(except_loggers, str):

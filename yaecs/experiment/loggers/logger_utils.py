@@ -9,6 +9,18 @@ from typing import Any
 YAECS_LOGGER = logging.getLogger(__name__)
 
 
+class NoContext:
+    """ A context manager that does nothing. """
+    def __init__(self, tracker):
+        self.tracker = tracker
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *args):
+        pass
+
+
 class NotImportedModule:
     """ Class to replace a module that is not installed. When trying to access a member, raises an error. """
     def __init__(self, name: str):

@@ -32,9 +32,14 @@ YAECS_LOGGER = logging.getLogger(__name__)
 
 
 class BasicLogger(Logger):
-    """ Basic Logger. This logger logs everything needed, albeit in a very simple way. """
+    """
+    Basic Logger. This logger logs everything needed, albeit in a very simple way.
+    Attributes list: [].
+    """
+
     def __init__(self, tracker):
         super().__init__("Basic Logger", tracker)
+        self.possible_attributes = []
         self.path = None
 
     def check_config_requirements(self) -> str:
