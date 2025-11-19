@@ -47,8 +47,8 @@ class ConfigSettersMixin:
         :param source: name of the source of the function
         :param no_duplicates: if True, the function will not be added if it is already in the list of processing
         """
-        self.get_setter().add_processor(processor=function_to_add, pattern=param_name, processing_type=processing_type,
-                                        source=source, no_duplicates=no_duplicates, container=self)
+        self.get_setter().add_processor(processor=function_to_add, pattern=param_name, container=self,
+                                        processing_type=processing_type, source=source, no_duplicates=no_duplicates)
 
     def remove_value_before_postprocessing(self, name: str) -> None:
         """

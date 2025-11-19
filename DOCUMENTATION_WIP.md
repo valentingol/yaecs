@@ -1847,16 +1847,10 @@ python m.py --config path/to/experiment_config_1.yaml,path/to/experiment_config_
 When configuring an experiment, it is often very practical to just change one
 or two parameters from the command line to avoid modifying any file or creating
 new ones. The configuration system is completely intended to be used that way,
-and thus supports merging new parameter values from the command line. To merge
-the content of the command line into a config, one needs to call the
-merge_from_command_line method :
+and thus supports merging new parameter values from the command line. The content
+of the command line is always merged into your config by default.
 
-```python
-config = ProjectConfiguration.load_config("path/to/experiment_config_1.yaml")
-config.merge_from_command_line()
-```
-
-This will look in the command line for any pattern of the type
+The config will look in the command line for any pattern of the type
 `--param_name=new_value`, in other words a part of the command surrounded by
 spaces (or finished with the end of the line), started by `--`, then having
 the name of an existing parameter (also supports “.” and “*” parameter

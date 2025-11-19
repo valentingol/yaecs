@@ -726,16 +726,6 @@ def test_config_vs_dict_checks(caplog, config_vs_dict_checks):
 
 
 def test_warnings(caplog, tmp_file_name):
-    # config = ConfigForTests(config_path_or_dictionary={
-    #     "param": None, "lparam": [], "dparam": {"param2": 1}})
-    # config.merge_from_command_line("--param=1 --lparam=[1] "
-    #                                "--dparam={param2:2,param3:3}")
-    # captured = capsys.readouterr()
-    # assert captured.out.count("is None. It cannot be replaced from the") == 1
-    # assert captured.out.count("is an empty list. "
-    #                           "It cannot be replaced from the") == 1
-    # assert captured.out.count(" key. This key will be set") == 1
-    # assert config.dparam == {"param2": 2, "param3": None}
 
     caplog.clear()
     with caplog.at_level(logging.WARNING):
@@ -809,7 +799,7 @@ def test_errors(caplog, yaml_default_sub_variations,
             make_config({"param": 1, "var": {"a": 1}}, config_class=template())
         with pytest.raises(Exception, match="Grid parsing failed.*"):
             make_config({"param": 1, "grid": {}}, config_class=template())
-        with pytest.raises(Exception, match="ERROR : no YAML file found at path .*"):
+        with pytest.raises(Exception, match="No YAML file found at path .*"):
             template()(config_path_or_dictionary="not_found")
         with pytest.raises(Exception, match="'config_metadata' is a "
                                             "special parameter.*"):

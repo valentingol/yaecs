@@ -81,7 +81,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             for process_type in ["pre", "post"]:
                 source = f"parameters_{process_type}_processing"
                 self._setter.bulk_add_processors(processors=getattr(self, source)(),
-                                                 processing_type=process_type, source=source, container=self)
+                                                 container=self, processing_type=process_type, source=source)
         self._former_saving_time = None
         self._from_argv = from_argv
         self._pre_postprocessing_values = {}
@@ -157,27 +157,6 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         self._manual_merge(config_path_or_dictionary=config_path_or_dictionary, do_not_pre_process=do_not_pre_process,
                            do_not_post_process=do_not_post_process)
 
-    def merge_from_command_line(self, to_merge: Optional[Union[List[str], str]] = None,
-                                do_not_pre_process: bool = False, do_not_post_process: bool = False) -> None:
-        """
-        Formerly used to manually merge the command line arguments into the config, which is now done automatically and
-        thus should no longer be done manually. Can still be used to manually merge a string emulating command line
-        arguments.
-
-        :param to_merge: if specified, merges this string or list of strings instead of the sys.argv list of strings
-        :param do_not_pre_process: if true, pre-processing is deactivated in this initialization
-        :param do_not_post_process: if true, post-processing is deactivated in this initialization
-        """
-        if self._verbose and to_merge is None:
-            # TODO handle all warnings with a function _warn that logs and stores messages for future prints
-            YAECS_LOGGER.warning("WARNING : merge_from_command_line is now deprecated and will automatically start "
-                                 "after using any constructor.\nYou can remove the 'config.merge_from_command_line()' "
-                                 "line from your code now :) it's redundant.")
-        to_merge = self._gather_command_line_dict(to_merge)
-        if to_merge:
-            self._manual_merge(to_merge, do_not_pre_process=do_not_pre_process, do_not_post_process=do_not_post_process,
-                               source='command line')
-
     def _find_path(self, path: str) -> str:
         """ Used to find a config from its (potentially relative) path, because it might be ambiguous relative to where
         it should be looked for. Probably very improvable. """
@@ -248,14 +227,14 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 filtered = possibilities
 
             if len(filtered) > 1:
-                YAECS_LOGGER.warning(f"WARNING : Multiple matches for path {path}. '{filtered[0]}' will be used.\n"
-                                     f"All matches : {filtered}.")
+                self.warn(f"Multiple matches for path {path}. '{filtered[0]}' will be used.\nAll matches : {filtered}.",
+                          logger=YAECS_LOGGER)
             if filtered:
                 if last_is_current and filtered[0] == possibilities[-1]:
                     self._reference_folder = str(Path(absolute_path).parents[0])
                 return filtered[0]
 
-        raise FileNotFoundError(f"ERROR : no YAML file found at path '{path}'.")
+        raise FileNotFoundError(f"No YAML file found at path '{path}'.")
 
     def _manual_merge(self, config_path_or_dictionary: ConfigDeclarator, do_not_pre_process: bool = False,
                       do_not_post_process: bool = False, source: str = 'config',
@@ -336,8 +315,8 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                     to_merge[param] = value
             if self._verbose:
                 if not to_merge:
-                    YAECS_LOGGER.warning(f"WARNING : parameter '{key}' will be ignored : it does not match any existing"
-                                         " parameter.")
+                    self.warn(f"Parameter '{key}' will be ignored : it does not match any existing parameter.",
+                              logger=YAECS_LOGGER)
                 else:
                     YAECS_LOGGER.info(f"Pattern parameter '{key}' will be merged into the following matched "
                                       f"parameters : {list(to_merge.keys())}.")
@@ -349,7 +328,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         try:
             old_value = getattr(self, attribute_name)
         except AttributeError as exception:
-            raise AttributeError(f"ERROR : parameter '{key}' cannot be merged : '{name}' is not in the default "
+            raise AttributeError(f"Parameter '{key}' cannot be merged : '{name}' is not in the default "
                                  f"'{self.get_name().upper()}' config.\n{self._did_you_mean(key)}") from exception
 
         if "." in key:
@@ -395,7 +374,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         else:
             try:
                 _ = getattr(self, attribute_name)
-                raise RuntimeError(f"ERROR : parameter '{name}' was set twice.")
+                raise RuntimeError(f"Parameter '{name}' was set twice.")
             except AttributeError:
                 if isinstance(value, _ConfigurationBase):
                     self._set_sub_config(name, attribute_name, {k: value[k] for k in value.get_parameter_names(False)})
@@ -406,9 +385,9 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         """ Method called by _add_item and _merge_item to set a parameter in the config to a new value. Ultimately
         performs the setting of all parameters in the config. """
         if name != attribute_name and isinstance(old_value, NoValue) and self._verbose:
-            YAECS_LOGGER.warning(f"WARNING : '{name}' is the name of a method in the Configuration object.\n"
-                                 f"Your parameter was initialised anyways, under the name {attribute_name}. You can "
-                                 f"access it via config.{attribute_name} or config['{name}'].")
+            self.warn(f"'{name}' is the name of a method in the Configuration object.\nYour parameter was initialised "
+                      f"anyways, under the name {attribute_name}. You can access it via config.{attribute_name} or "
+                      f"config['{name}'].", logger=YAECS_LOGGER)
         if self._verbose:
             old_value_message = "" if isinstance(old_value, NoValue) else f"old : '{old_value}'\n"
             YAECS_LOGGER.debug(f"Setting '{name}' : \n{old_value_message}new : '{value}'.")
@@ -478,9 +457,9 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                 for parameter in in_param:
                     to_merge[parameter] = f"{to_merge[parameter]} {element}"
 
-        if un_matched_params and self._verbose:
-            YAECS_LOGGER.warning(f"WARNING : parameters {un_matched_params}, encountered while merging params from the "
-                                 f"command line, do not match any param in the config. They will not be merged.")
+        if un_matched_params:
+            self.warn(f"Parameters {un_matched_params} from the command line do not match any param in the config. They"
+                      " will not be merged.", logger=YAECS_LOGGER, check_verbose=True)
 
         # Infer types, then return
         return {key: yaml.safe_load("true" if val is None else val) for key, val in to_merge.items()}
@@ -517,9 +496,9 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
             time_chunk, regime_chunk, variation_chunk = metadata.split(";")
         former_saving_time = float(time_chunk.split("(")[-1].split(")")[0].strip())
         regime = regime_chunk.split(":")[1].strip()
-        if regime == "unsafe" and self._verbose:
-            YAECS_LOGGER.warning("WARNING : YOU ARE LOADING AN UNSAFE CONFIG FILE. Reproducibility with "
-                                 "corresponding experiment is not ensured.")
+        if regime == "unsafe":
+            self.warn("YOU ARE LOADING AN UNSAFE CONFIG FILE. Reproducibility with corresponding experiment is not "
+                      "ensured.", logger=YAECS_LOGGER, check_verbose=True)
         elif regime not in ["auto-save", "locked"]:
             raise ValueError("'overwriting_regime' is a special parameter. It can only be set to 'auto-save'"
                              "(default), 'locked' or 'unsafe'.")
@@ -532,22 +511,23 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         scanner = YAMLScanner(path)
 
         if not any(state.startswith("setup") for state in self._state):
-            ignored_hints = [param for param, type_hint in scanner.type_hints.items()
+            invalid_hints = [param for param, type_hint in scanner.type_hints.items()
                              if not is_dict_type_hint(type_hint)]
-            if ignored_hints and self._verbose:
-                YAECS_LOGGER.warning("WARNING : type-hinting only has effect in the default config (except for dict "
-                                     f"type hints). The type hints {ignored_hints} in file '{path}' will be ignored.")
-            ignored_processors = list(scanner.processing_functions.keys())
-            if ignored_processors and self._verbose:
-                YAECS_LOGGER.warning("WARNING : registering processing functions only has effect in the default config."
-                                     f" The functions {ignored_processors} in file '{path}' will be ignored.")
+            if invalid_hints:
+                raise ValueError(f"Invalid type-hint {invalid_hints} in file '{path}'. Type-hinting is only allowed in "
+                                 "the default config (except for dict type hints).")
+            invalid_processors = list(scanner.processing_functions.keys())
+            if invalid_processors:
+                raise ValueError(f"Invalid processing functions {invalid_processors} in file '{path}'. Registering "
+                                 "processing functions is only allowed in the default config. If your registered param "
+                                 "is a dict, you probably need to type it with '!type:dict' instead.")
         registered_methods = self.get_setter().registered_methods.keys()
         processors_in_hints = {param: type_hint.split(",") for param, type_hint in scanner.type_hints.items()
                                if all(method in registered_methods for method in type_hint.split(","))}
-        if processors_in_hints and self._verbose:
-            YAECS_LOGGER.warning("WARNING : registering processing functions using !type:<method_name> is deprecated. "
-                                 "It will still work until the next release, but you should switch to using "
-                                 f"!<method_name> instead (detected in tags '{processors_in_hints}' in file '{path}').")
+        if processors_in_hints:
+            raise ValueError("Invalid syntax for registering processing functions : !type:<method_name>. Please switch "
+                             f"to using !<method_name> instead (detected in tags '{processors_in_hints}' in file "
+                             f"'{path}').")
 
         type_hints = {param: type_hint for param, type_hint in scanner.type_hints.items()
                       if ((any(state.startswith("setup") for state in self._state) or is_dict_type_hint(type_hint))
@@ -561,5 +541,5 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         processors = {**processors, **processors_in_hints}
         self.get_setter().bulk_add_processors({self._get_full_path(pattern): methods
                                                for pattern, methods in processors.items()},
-                                              source=path, container=self)
+                                              container=self, source=path)
         return scanner.params

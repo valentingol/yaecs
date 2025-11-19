@@ -41,8 +41,8 @@ class AggregateLogger:
     @property
     def logger_list(self) -> List[Logger]:
         """ Returns logger_dict for backwards compatibility. """
-        YAECS_LOGGER.warning("The 'logger_list' property is deprecated and will no longer be supported in future "
-                             "releases. Use 'aggregate_logger.logger_dict' instead.")
+        YAECS_LOGGER.warning("WARNING : The 'logger_list' property is deprecated and will no longer be supported in "
+                             "future releases. Use 'aggregate_logger.logger_dict' instead.")
         return self.logger_dict
 
     def check_config_requirements(self) -> None:

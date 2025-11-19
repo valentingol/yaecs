@@ -45,14 +45,12 @@ from project_config import ProjectSpecific
 
 if __name__ == "__main__":
     config = ProjectSpecific.load_config()
-    config.merge_from_command_line()
     print(config.details())
 ```
 
-Then, calling `python main.py --learning_rate=0.001`, the call to
-`merge_from_command_line` would parse the command line and find the
-pre-existing parameter learning_rate, then change its value to 0.001.
-Thus, the printed result would yield:
+Then, calling `python main.py --learning_rate=0.001`, the command line will be
+parsed to find the pre-existing parameter learning_rate, then change its value
+to 0.001. Thus, the printed result would yield:
 
 ```script
 MAIN CONFIG :
