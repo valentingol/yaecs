@@ -248,8 +248,8 @@ def test_merge_from_command_line(caplog, yaml_default, yaml_experiment):
         logging.getLogger("yaecs").propagate = True
         mcl(config, "--lr=0.5 --param1=1 --subconfig1.param2=0.6")
     assert caplog.text.count("WARNING") == 2
-    assert (("WARNING : parameters ['lr'], encountered while merging params from "
-             "the command line, do not match any param in the config")
+    assert (("WARNING : Parameters ['lr'] from the command line do not match any param in the config. They will not be "
+             "merged.")
             in caplog.text)
     caplog.clear()
     check_integrity(config, 1, 0.6)
@@ -306,7 +306,10 @@ def test_method_name(caplog):
         config = make_config({"save": "test"}, do_not_merge_command_line=True)
     assert caplog.text.count("WARNING") == 2
     assert config.details() == ("\nMAIN CONFIG :\nConfiguration hierarchy :\n>"
-                                " {'save': 'test'}\n\n - save : test\n")
+                                " {'save': 'test'}\n\n - save : test\n\nWARNINGS COLLECTED\n-------------------------\n"
+                                "WARNING : 'save' is the name of a method in the Configuration object.\n"
+                                "Your parameter was initialised anyways, under the name ___save. You can access it via "
+                                "config.___save or config['save'].\n\n-------------------------\n")
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         logging.getLogger("yaecs").propagate = True
@@ -314,7 +317,10 @@ def test_method_name(caplog):
     assert caplog.text.count("WARNING") == 0
     assert config.details() == ("\nMAIN CONFIG :\nConfiguration hierarchy :\n>"
                                 " {'save': 'test'}\n> {'save': 0.1}\n\n"
-                                " - save : 0.1\n")
+                                " - save : 0.1\n\nWARNINGS COLLECTED\n-------------------------\n"
+                                "WARNING : 'save' is the name of a method in the Configuration object.\n"
+                                "Your parameter was initialised anyways, under the name ___save. You can access it via "
+                                "config.___save or config['save'].\n\n-------------------------\n")
 
 
 def test_details(yaml_default, yaml_experiment):

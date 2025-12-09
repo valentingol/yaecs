@@ -203,7 +203,7 @@ class ConfigConvenienceMixin:
             else:
                 string_to_return += format_str(str(self[attribute]), shorten) if shorten > 0 else str(self[attribute])
             string_to_return += "\n"
-        if show_warnings and self._warnings_as_string:
+        if show_warnings and self._warnings_as_string and self._is_main_config():
             string_to_return += ("\n" + "WARNINGS COLLECTED" + "\n" + "-" * 25 + "\n"
                                  + self._warnings_as_string + "\n" + "-" * 25 + "\n")
         return string_to_return
@@ -306,7 +306,8 @@ class ConfigConvenienceMixin:
         message = message if message.startswith("WARNING : ") else f"WARNING : {message}"
         if not check_verbose or self._verbose:
             logger.warning(message)
-        self._warnings_as_string += message + "\n"
+        warnings = self.get_main_config()._warnings_as_string + message + "\n"
+        object.__setattr__(self.get_main_config(), "_warnings_as_string", warnings)
 
     @staticmethod
     def _are_same_sub_configs(first: Any, second: Any) -> bool:

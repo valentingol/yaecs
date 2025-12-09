@@ -35,7 +35,7 @@ class MLFlowLogger(Logger):
 
     def check_install(self) -> str:
         if not importlib.util.find_spec("mlflow"):
-            return "Install Error : your experiment tracking config requires mlflow - currently not installed !"
+            return "Installation Error : your experiment tracking config requires mlflow - currently not installed !"
         return ""
 
     def get_logger_object(self) -> Any:

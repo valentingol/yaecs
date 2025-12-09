@@ -292,7 +292,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
 
         # ...do not accept other protected attributes to be merged...
         if key in self._protected_attributes:
-            raise RuntimeError(f"Error : '{key}' is a protected name and cannot be used as a parameter name.")
+            raise RuntimeError(f"'{key}' is a protected name and cannot be used as a parameter name.")
 
         # ... otherwise, process the data normally :
 
