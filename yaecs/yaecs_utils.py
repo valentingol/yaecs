@@ -457,8 +457,7 @@ def get_order(func: Callable, default: Optional[ProcessingOrder] = Priority.INDI
 def get_param_as_parsable_string(param: Any) -> str:
     """
     Gets given value as a string that can be parsed by the Configuration. The string is formatted so as to be either
-    used as is in a bash shell (ie., python main.py --param_name string), or with merge_from_command_line (ie.,
-    config.merge_from_command_line(f"--param_name {string}")
+    used as is in a bash shell (ie., python main.py --param_name string).
 
     :param param: parameter value to be returned as a valid string
     :raises TypeError: if the type of 'param' cannot be enforced

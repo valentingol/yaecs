@@ -44,7 +44,7 @@ class SacredLogger(Logger):
 
     def check_install(self) -> str:
         if not importlib.util.find_spec("sacred"):
-            return "Install Error : your experiment tracking config requires sacred - currently not installed !"
+            return "Installation Error : your experiment tracking config requires sacred - currently not installed !"
         return ""
 
     def modify_main_function(self, main_function):

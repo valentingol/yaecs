@@ -91,8 +91,9 @@ def new_print(*args, sep: str = " ", end: str = "", file: io.TextIOWrapper = Non
     """
     if not os.getenv('NODE_RANK'):  # do not print if in a pytorch-lightning spawned process
         if "flush" in keywords:
-            YAECS_LOGGER.warning("Because YAECS uses logging.info to log messages logged via the print function, the "
-                                 "'flush' parameter is not supported for the print function within your main.")
+            YAECS_LOGGER.warning("WARNING : Because YAECS uses logging.info to log messages logged via the print "
+                                 "function, the 'flush' parameter is not supported for the print function within your "
+                                 "main.")
         message = sep.join([str(a) for a in args]) + end.strip()
         if message.strip():
             if file is not None and file is not sys.stdout:

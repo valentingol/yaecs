@@ -290,6 +290,6 @@ class ConfigHooksMixin:
                     raise ValueError(f"Missing key in {logger}-type tracker config : '{key}'.")
         for key in tracker_config:
             if not any(key in key_list for key_list in possible_keys):
-                YAECS_LOGGER.warning(f"WARNING : Unknown key '{key}' in tracker config. It might be ignored.")
+                self.warn(f"Unknown key '{key}' in tracker config. It might be ignored.", logger=YAECS_LOGGER)
         tracker_config["type"] = logger_list
         return tracker_config

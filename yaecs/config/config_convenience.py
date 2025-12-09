@@ -153,7 +153,7 @@ class ConfigConvenienceMixin:
 
     def details(self, shorten: int = -1, show_only: Optional[Union[str, List[str]]] = None,
                 expand_only: Optional[Union[str, List[str]]] = None, no_show: Optional[Union[str, List[str]]] = None,
-                no_expand: Optional[Union[str, List[str]]] = None) -> str:
+                no_expand: Optional[Union[str, List[str]]] = None, show_warnings: bool = True) -> str:
         """
         Creates and returns a string describing all the parameters in the config and its sub-configs.
 
@@ -166,6 +166,7 @@ class ConfigConvenienceMixin:
             details.
         :param no_expand: if not None, list of names referring to sub-configs. Sub-configs in the list are not unrolled
             in the details.
+        :param show_warnings: whether to include warnings collected in the config in the details string
         :return: string containing the details
         """
         constraints = {"show_only": show_only, "expand_only": expand_only, "no_show": no_show, "no_expand": no_expand}
@@ -202,6 +203,9 @@ class ConfigConvenienceMixin:
             else:
                 string_to_return += format_str(str(self[attribute]), shorten) if shorten > 0 else str(self[attribute])
             string_to_return += "\n"
+        if show_warnings and self._warnings_as_string and self._is_main_config():
+            string_to_return += ("\n" + "WARNINGS COLLECTED" + "\n" + "-" * 25 + "\n"
+                                 + self._warnings_as_string + "\n" + "-" * 25 + "\n")
         return string_to_return
 
     def items(self, deep: bool = False, pre_post_processing_values: bool = False) -> ItemsView:
@@ -295,6 +299,15 @@ class ConfigConvenienceMixin:
         :return: the values of the config as in dict.values()
         """
         return self.get_dict(deep=deep, pre_post_processing_values=pre_post_processing_values).values()
+
+    def warn(self, message: str, logger=None, check_verbose=False) -> None:
+        """ Logs a warning message if verbosity is enabled. """
+        logger = YAECS_LOGGER if logger is None else logger
+        message = message if message.startswith("WARNING : ") else f"WARNING : {message}"
+        if not check_verbose or self._verbose:
+            logger.warning(message)
+        warnings = self.get_main_config()._warnings_as_string + message + "\n"
+        object.__setattr__(self.get_main_config(), "_warnings_as_string", warnings)
 
     @staticmethod
     def _are_same_sub_configs(first: Any, second: Any) -> bool:

@@ -170,11 +170,11 @@ def make_config(*configs: Union[ConfigDeclarator, List[ConfigDeclarator]],
         "variations_suffix": variations_suffix, "variations_prefix": variations_prefix,
         "grids_suffix": grids_suffix, "grids_prefix": grids_prefix,
     }
+    warn = False
+    if config_class is not None and any(arg is not None for arg in class_args.values()):
+        warn = True
     if config_class is None:
         config_class = get_template_class(**class_args)
-    elif any(arg is not None for arg in class_args.values()):
-        YAECS_LOGGER.warning("WARNING : The following arguments are not used if config_class is provided :\n"
-                             f"{list(class_args.keys())}.")
 
     # Get configs from argv
     configs_from_argv = get_config_from_argv(pattern=pattern, fallback={} if fallback == "{}" else fallback)
@@ -183,4 +183,10 @@ def make_config(*configs: Union[ConfigDeclarator, List[ConfigDeclarator]],
         configs_from_argv = []
         class_building_kwargs["from_argv"] = ""
 
-    return config_class.build_from_configs(*configs, *configs_from_argv, **class_building_kwargs)
+    configuration = config_class.build_from_configs(*configs, *configs_from_argv, **class_building_kwargs)
+
+    if warn:
+        configuration.warn("WARNING : The following arguments are not used if config_class is provided :\n"
+                           f"{list(class_args.keys())}.")
+
+    return configuration

@@ -248,8 +248,8 @@ def test_merge_from_command_line(caplog, yaml_default, yaml_experiment):
         logging.getLogger("yaecs").propagate = True
         mcl(config, "--lr=0.5 --param1=1 --subconfig1.param2=0.6")
     assert caplog.text.count("WARNING") == 2
-    assert (("WARNING : parameters ['lr'], encountered while merging params from "
-             "the command line, do not match any param in the config")
+    assert (("WARNING : Parameters ['lr'] from the command line do not match any param in the config. They will not be "
+             "merged.")
             in caplog.text)
     caplog.clear()
     check_integrity(config, 1, 0.6)
@@ -306,7 +306,10 @@ def test_method_name(caplog):
         config = make_config({"save": "test"}, do_not_merge_command_line=True)
     assert caplog.text.count("WARNING") == 2
     assert config.details() == ("\nMAIN CONFIG :\nConfiguration hierarchy :\n>"
-                                " {'save': 'test'}\n\n - save : test\n")
+                                " {'save': 'test'}\n\n - save : test\n\nWARNINGS COLLECTED\n-------------------------\n"
+                                "WARNING : 'save' is the name of a method in the Configuration object.\n"
+                                "Your parameter was initialised anyways, under the name ___save. You can access it via "
+                                "config.___save or config['save'].\n\n-------------------------\n")
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         logging.getLogger("yaecs").propagate = True
@@ -314,7 +317,10 @@ def test_method_name(caplog):
     assert caplog.text.count("WARNING") == 0
     assert config.details() == ("\nMAIN CONFIG :\nConfiguration hierarchy :\n>"
                                 " {'save': 'test'}\n> {'save': 0.1}\n\n"
-                                " - save : 0.1\n")
+                                " - save : 0.1\n\nWARNINGS COLLECTED\n-------------------------\n"
+                                "WARNING : 'save' is the name of a method in the Configuration object.\n"
+                                "Your parameter was initialised anyways, under the name ___save. You can access it via "
+                                "config.___save or config['save'].\n\n-------------------------\n")
 
 
 def test_details(yaml_default, yaml_experiment):
@@ -726,16 +732,6 @@ def test_config_vs_dict_checks(caplog, config_vs_dict_checks):
 
 
 def test_warnings(caplog, tmp_file_name):
-    # config = ConfigForTests(config_path_or_dictionary={
-    #     "param": None, "lparam": [], "dparam": {"param2": 1}})
-    # config.merge_from_command_line("--param=1 --lparam=[1] "
-    #                                "--dparam={param2:2,param3:3}")
-    # captured = capsys.readouterr()
-    # assert captured.out.count("is None. It cannot be replaced from the") == 1
-    # assert captured.out.count("is an empty list. "
-    #                           "It cannot be replaced from the") == 1
-    # assert captured.out.count(" key. This key will be set") == 1
-    # assert config.dparam == {"param2": 2, "param3": None}
 
     caplog.clear()
     with caplog.at_level(logging.WARNING):
@@ -809,7 +805,7 @@ def test_errors(caplog, yaml_default_sub_variations,
             make_config({"param": 1, "var": {"a": 1}}, config_class=template())
         with pytest.raises(Exception, match="Grid parsing failed.*"):
             make_config({"param": 1, "grid": {}}, config_class=template())
-        with pytest.raises(Exception, match="ERROR : no YAML file found at path .*"):
+        with pytest.raises(Exception, match="No YAML file found at path .*"):
             template()(config_path_or_dictionary="not_found")
         with pytest.raises(Exception, match="'config_metadata' is a "
                                             "special parameter.*"):

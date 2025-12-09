@@ -102,26 +102,26 @@ class Setter:
         if not no_duplicates or new_processor not in self.processors["pre"]:
             self.processors["pre"].append(new_processor)
 
-    def add_processor(self, processor: ProcessingFunctions, pattern: str, processing_type: Optional[str] = None,
-                      order: Optional[ProcessingOrder] = None, source: Optional[str] = None,
-                      no_duplicates: bool = False, container: Optional[object] = None) -> None:
+    def add_processor(self, processor: ProcessingFunctions, pattern: str, container: object,
+                      processing_type: Optional[str] = None, order: Optional[ProcessingOrder] = None,
+                      source: Optional[str] = None, no_duplicates: bool = False) -> None:
         """
         Adds a processor.
 
         :param processor: processing function
         :param pattern: pattern that the parameter name must match to be processed
+        :param container: callables passed are stored as strings if they are methods of the container
         :param processing_type: type of processing to add the processor to
         :param order: order of the processing function
         :param source: if provided, information about the source that added the processor
         :param no_duplicates: whether to check for duplicates before adding
-        :param container: if passed, callables passed are stored as strings if they are methods of the container
         """
         # Recover the processor's metadata
         metadata = None
         if isinstance(processor, str):
             if processor in self.registered_methods:
                 metadata = self.registered_methods[processor]
-            elif container is not None and processor in dir(container):
+            elif processor in dir(container):
                 candidate = getattr(container, processor)
                 if hasattr(candidate, "yaecs_metadata"):
                     metadata = candidate.yaecs_metadata
@@ -142,7 +142,7 @@ class Setter:
             processing_type = metadata["processing_type"]
 
         # If the processor is a method of the container, store it as a string
-        if container is not None and isinstance(processor, Callable):
+        if isinstance(processor, Callable):
             if hasattr(processor, "yaecs_metadata"):
                 name = processor.yaecs_metadata.get("name", getattr(processor, "__name__", "unknown_function"))
             else:
@@ -176,9 +176,9 @@ class Setter:
             if new_processor.metadata is not None and "processing_type" in new_processor.metadata:
                 advised_type = new_processor.metadata["processing_type"]
                 if advised_type != processing_type:
-                    YAECS_LOGGER.warning(f"WARNING : processor '{new_processor.name}' is recommended to use as "
-                                         f"{advised_type}-processing function, but was declared as "
-                                         f"{processing_type}-processing function.")
+                    container.warn(f"Processor '{new_processor.name}' is recommended to use as {advised_type}"
+                                   f"-processing function, but was declared as {processing_type}-processing function.",
+                                   logger=YAECS_LOGGER)
 
     def bulk_add_type_hints(self, type_hints: Dict[str, str], source: Optional[str] = None,
                             no_duplicates: bool = False) -> None:
@@ -192,17 +192,17 @@ class Setter:
         for pattern, type_hint in type_hints.items():
             self.add_type_hint(type_hint=type_hint, pattern=pattern, source=source, no_duplicates=no_duplicates)
 
-    def bulk_add_processors(self, processors: Dict[str, ProcessingFunctions], processing_type: Optional[str] = None,
-                            source: Optional[str] = None, no_duplicates: bool = False,
-                            container: Optional[object] = None) -> None:
+    def bulk_add_processors(self, processors: Dict[str, ProcessingFunctions], container: object,
+                            processing_type: Optional[str] = None, source: Optional[str] = None,
+                            no_duplicates: bool = False) -> None:
         """
         Adds multiple processors at once.
 
         :param processors: dictionary of processors to add
+        :param container: callables passed are stored as strings if they are methods of the container
         :param processing_type: type of processing to add the processors to. If None, must be inferrable from metadata
         :param source: if provided, information about the source that added the processors
         :param no_duplicates: whether to check for duplicates before adding
-        :param container: if passed, callables passed are stored as strings if they are methods of the container
         """
         for pattern, processor in processors.items():
             if not isinstance(processor, (Callable, Iterable)):
@@ -233,8 +233,8 @@ class Setter:
                 processor = [processor]
 
             for p in processor:
-                self.add_processor(processor=p, pattern=pattern, processing_type=processing_type, order=order,
-                                   source=source, no_duplicates=no_duplicates, container=container)
+                self.add_processor(processor=p, pattern=pattern, container=container, processing_type=processing_type,
+                                   order=order, source=source, no_duplicates=no_duplicates)
 
     def set_post_processing(self, value: bool = True):
         """

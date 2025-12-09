@@ -86,6 +86,7 @@ class Configuration(_ConfigurationBase):
         self._nesting_hierarchy = ([] if nesting_hierarchy is None else list(nesting_hierarchy))
         self._variation_name = (variation if main_config is None else main_config.get_variation_name())
         self._verbose = verbose
+        self._warnings_as_string = ""
         kwargs = {"do_not_pre_process": do_not_pre_process, "do_not_post_process": do_not_post_process, **kwargs}
         super().__init__(**kwargs)
         self._protected_attributes = list(self.__dict__) + ["_protected_attributes"]
@@ -271,8 +272,12 @@ class Configuration(_ConfigurationBase):
                     variations_to_use_changing.pop(index)
                 if not grid_to_add:
                     grid_to_add = [[i] for i in variations_to_use[variations_names_to_use.index(dimension)]]
+                    found = False
                     for var_name in self._configuration_variations_names:
                         if var_name[0] == dimension:
+                            if found:
+                                raise RuntimeError(f"Two variations seem to have the same name : '{dimension}'.")
+                            found = True
                             names_to_add = [var_name[0] + "_" + i for i in var_name[1]]
                 else:
                     new_grid_to_add = []
@@ -293,8 +298,12 @@ class Configuration(_ConfigurationBase):
             for variation_index, variation in enumerate(remaining_variations):
                 variations.append([variation])
                 name = variations_names_to_use_changing[var_idx]
+                found = False
                 for var_name in self._configuration_variations_names:
                     if var_name[0] == name:
+                        if found:
+                            raise RuntimeError(f"Two variations seem to have the same name : '{name}'.")
+                        found = True
                         variations_names.append(name + "_" + var_name[1][variation_index])
 
         # Creating configs

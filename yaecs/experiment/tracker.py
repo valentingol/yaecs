@@ -86,7 +86,7 @@ class Tracker:
                                                           verbose=False)
             names = [config.match_params("*" + difference[0]) for difference in default.compare(config, reduce=True)]
             if any(len(name) > 1 for name in names):
-                raise RuntimeError("ERROR : Compared parameter resolved to 2 parameter names.")
+                raise RuntimeError("Compared parameter resolved to 2 parameter names.")
             names = [name[0] for name in names]
         else:
             names = config.get_parameter_names(deep=True, no_sub_config=True)
@@ -393,7 +393,8 @@ class Tracker:
 
     def _warn_if_no_logs(self):
         if not self.loggers.has_loggers:
-            YAECS_LOGGER.warning("WARNING : no tracker configured, scalars will not be logged anywhere.")
+            message = "No tracker configured, scalars will not be logged anywhere."
             if os.getenv('NODE_RANK'):
-                YAECS_LOGGER.warning("This is because trackers are deactivated in pytorch-lightning processes.\n"
-                                     "To suppress this message, pass 'main_process_only=True'.")
+                message += "\nThis is because trackers are deactivated in pytorch-lightning processes.\n" \
+                           "To suppress this message, pass 'main_process_only=True'."
+            self.config.warn(message, logger=YAECS_LOGGER)
