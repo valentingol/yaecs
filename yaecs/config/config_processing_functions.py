@@ -149,17 +149,48 @@ class ConfigProcessingFunctionsMixin:
 
     # ----- POST-PROCESSING -----
 
+    @assign_order(Priority.ALWAYS_FIRST)  # should happen before register_as_experiment_path
+    @assign_yaml_tag("experiment_dir", "post", "Optional[str]")
+    def experiment_dir(self, dir_name: Optional[str]) -> Optional[str]:
+        """
+        Post-processing function that extends the experiment path by adding a directory to it, then the
+        corresponding folder is created.
+        Priority : ALWAYS_FIRST (-20)
+        YAML tag : experiment_dir
+
+        :param dir_name: name of the directory to add to the experiment path
+        :return: the formatted dir
+        """
+        experiment_path = self.get_main_config().get_hooks("experiment_path")
+        if len(experiment_path) == 0:
+            raise RuntimeError("Cannot use 'experiment_dir' post-processing function without having declared an "
+                               "experiment path first. Use the tag 'experiment_path' on a parameter or register the "
+                               "self.register_as_experiment_path method as a post-processing function on a parameter.")
+        if len(experiment_path) > 1:
+            raise RuntimeError("Multiple experiment paths were declared.")
+        param_path = experiment_path[0]
+        value = self.get_main_config()[param_path]
+        if os.path.isabs(value):
+            raise RuntimeError("Cannot extend the experiment path with 'experiment_dir' : the experiment path is an "
+                               "absolute path.")
+        new_value = os.path.join(value, dir_name).rstrip(os.path.sep)
+
+        config = self.get_main_config()[param_path.rsplit(".", 1)[0]] if "." in param_path else self.get_main_config()
+        name = param_path.rsplit(".", 1)[-1]
+        object.__setattr__(config, name, new_value)
+        return dir_name
+
     @assign_order(Priority.OFTEN_LAST)  # should happen after register_as_experiment_path
     @assign_yaml_tag("sub_folder", "post", "Optional[str]")
     def folder_in_experiment(self, folder: Optional[str]) -> Optional[str]:
         """
-        Returns a post-processing function that extends a path assuming it is located in the experiment path, then the
+        Post-processing function that extends a path assuming it is located in the experiment path, then the
         corresponding folder is created. Requires an experiment_folder to have been declared.
         Priority : OFTEN_LAST (10)
         YAML tag : sub_folder
 
         :param folder: path of the subfolder within the experiment folder
-        :return: checking function
+        :return: the created new path
         """
         experiment_path = self.get_main_config().get_experiment_path()
         path = os.path.join(experiment_path, folder).rstrip(os.path.sep)
