@@ -161,7 +161,7 @@ class ConfigProcessingFunctionsMixin:
         :param dir_name: name of the directory to add to the experiment path
         :return: the formatted dir
         """
-        experiment_path = self.get_main_config().get_hooks("experiment_path")
+        experiment_path = self.get_main_config().get_hook("experiment_path")
         if len(experiment_path) == 0:
             raise RuntimeError("Cannot use 'experiment_dir' post-processing function without having declared an "
                                "experiment path first. Use the tag 'experiment_path' on a parameter or register the "
