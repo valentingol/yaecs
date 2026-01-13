@@ -52,16 +52,20 @@ class Setter:
         if processing_type not in self.processors:
             raise ValueError(f"Unknown processing_type : '{processing_type}'. "
                              f"Valid types are {list(self.processors.keys())}.")
+        if processing_type == "pre" and values is None:
+            raise ValueError("Pre-processing requires values to process. Passing values=None is not allowed.")
 
         processed = []
         if processing_type in self.processes:
-            processors = [processor for processor in self.processors[processing_type] if processor.applies(values)]
+            processors = [processor for processor in self.processors[processing_type] if processor.applies(names)]
             processors.sort(key=lambda processor: processor.order)
             processors = self._resolve_type_hints(processors)
 
-            processed_values = dict(values)
+            processed_values = dict(names) if values is None else dict(values)
             for processor in processors:
                 for name, value in processed_values.items():
+                    # Get the current value in case it was modified by other processors
+                    value = container.get_main_config()[name] if (values is None and name in container) else value
                     if processor.applies(name):
                         with UpdateState(f"processing;{container.get_name()};arg0={name}", container):
                             processed_values[name] = processor(name, value, container=container)
@@ -69,7 +73,7 @@ class Setter:
                         if name not in processed:
                             processed.append(name)
 
-        if not only_set_processed_parameters:
+        if not only_set_processed_parameters and values is not None:
             for name, value in values.items():
                 if name not in processed:
                     self._set_value(names[name], value, container)

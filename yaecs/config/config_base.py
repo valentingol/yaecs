@@ -90,6 +90,15 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
         self._was_last_saved_as = None
         super().__init__()
 
+    def __contains__(self, item) -> bool:
+        try:
+            _ = self[item]
+            return True
+        except AttributeError:
+            return False
+        except TypeError:
+            return False
+
     def __getitem__(self, item) -> Any:
         if "." in item and "*" not in item:
             sub_config_name = ("___"
@@ -474,7 +483,7 @@ class _ConfigurationBase(ConfigHooksMixin, ConfigGettersMixin, ConfigSettersMixi
                  for s in splits}
         values = {name: self._main_config[name] for name in names}
 
-        self.get_setter()(names=names, values=values, processing_type="post", container=self,
+        self.get_setter()(names=names, values=None, processing_type="post", container=self,
                           only_set_processed_parameters=True)
         for name in names:
             try:
