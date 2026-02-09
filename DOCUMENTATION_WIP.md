@@ -356,8 +356,7 @@ def main(config):
 
 if __name__ == "__main__":
     # load the config
-    config = make_config("configs/overfit.yaml",
-                         default_config="configs/default.yaml")
+    config = make_config("configs/default.yaml", "configs/overfit.yaml")
     main(config)
 ```
 
@@ -494,8 +493,7 @@ it is.
 Finally, to reproduce an experiment, all you have to do is load the config you saved when running it :
 
 ```python
-reproduced_config = make_config("save_path.yaml",
-                                default_config="configs/default.yaml")
+reproduced_config = make_config("configs/default.yaml", "save_path.yaml")
 ```
 
 The saved config will be used as an experiment config and overwrite the values of the default config with the values of
@@ -571,7 +569,7 @@ simplest : `load_config`.
 
 ```python
 # import some stuff
-from config import MyProjectConfig
+from configs.project_config import ProjectSpecificConfiguration
 
 def main(config):
     # runs the project's code
@@ -579,7 +577,7 @@ def main(config):
 
 if __name__ == "__main__":
     # load the config
-    config = MyProjectConfig.load_config("configs/overfit.yaml")
+    config = ProjectSpecificConfiguration.load_config("configs/overfit.yaml")
     main(config)
 ```
 
@@ -631,7 +629,7 @@ if __name__ == "__main__":
 
 In this section, you will learn to control your config from the command line interface (CLI). There are two aspects to
 this : modifying parameters from the CLI, and choosing your experiment config file from the CLI. We saw how to do the
-latter in the previous section already with the `build_from_argv` constructor (TODO), so here we focus on the former.
+latter in section 1 with the `build_from_argv` constructor, so here we focus on the former.
 
 Let's assume you usually start your python code using something like :
 
@@ -885,6 +883,7 @@ In this third "advanced" part we will :
 2) give examples to easily configure complex elements such as dataset versions or machine-specific configs
 3) present config variations, which is useful to run sweeps over values of a parameter for example
 4) showcase a very useful complement to your config : tracking integration
+5) discuss the overwriting regime for special use cases
 
 Let us get started for this last section.
 
@@ -1091,7 +1090,50 @@ WIP
 
 WIP
 
-## How to's
+#### 5) Overwriting regime : a niche feature for special cases
+
+By design, **YAECS strongly discourages modifying config parameters after creation**. The proper way to change
+parameters is through merge operations (`config.merge()`), which maintain a clear hierarchy and ensure reproducibility.
+However, for very specific use cases, YAECS provides the **overwriting regime** parameter to control what happens if you
+attempt direct parameter assignment (e.g., `config.param = value`) after the config has been created.
+
+By default, YAECS uses the `"locked"` regime, which **prevents such modifications entirely**. This is a deliberate design
+choice to enforce good practices :
+
+```python
+config = MyProjectConfig.load_config("configs/experiment.yaml")
+config.learning_rate = 0.001  # RuntimeError: Overwriting params in locked configs is not allowed
+```
+
+This safeguard ensures that your config hierarchy remains clean and that all parameter changes are properly tracked. If
+you need to modify a parameter, use `config.merge({"learning_rate": 0.001})` instead.
+
+In rare cases where you absolutely need different behavior, two alternative regimes exist :
+
+- **`"unsafe"`** : Allows direct modification but saved config files are not updated, leading to potential
+reproducibility issues. YAECS will warn you when loading configs saved in this mode. Only use this for throwaway
+prototyping or debugging.
+
+- **`"auto-save"`** : Allows direct modification and automatically updates the saved config file. While more forgiving
+than unsafe mode, this can still lead to confusion if you modify parameters multiple times, as only the final value is
+saved.
+
+Both alternatives can be set via the `overwriting_regime` parameter in constructors :
+
+```python
+config = MyProjectConfig.load_config("configs/experiment.yaml", overwriting_regime="unsafe")
+```
+
+**We strongly recommend** sticking with the default `"locked"` regime and using merge operations for all parameter
+changes. This keeps your experiment workflow clear, reproducible, and maintainable.
+
+## III) How to's
+
+
+
+
+
+---- OLD DOCUMENT
 
 Using configurations in your project includes two main steps : creating the
 config files, then loading them in your code. You can then use your configs as you see fit.
@@ -1164,7 +1206,7 @@ should define a child of this class as follows :
 ```python
 from yaecs import Configuration
 
-class ProjectConfiguration(Configuration):
+class ProjectSpecificConfiguration(Configuration):
     @staticmethod
     def get_default_config_path():
         return "path/to/default_config.yaml"
@@ -1196,7 +1238,7 @@ You can now load your configuration. The default config will always be loaded
 first, so we do not need to mention it again :
 
 ```python
-config = ProjectConfiguration.load_config("path/to/experiment_config_1.yaml")
+config = ProjectSpecificConfiguration.load_config("path/to/experiment_config_1.yaml")
 print(config.details())
 
 # Print output :
@@ -1240,7 +1282,7 @@ The following code would allow you to do this.
 learning_rates = [0.1, 0.01, 0.001]
 
 for i in learning_rates:
-    config = ProjectConfiguration.load_config(
+    config = ProjectSpecificConfiguration.load_config(
         "path/to/experiment_config_1.yaml"
     )
     config.merge({"learning_rate": i})
@@ -1266,7 +1308,7 @@ configs. Therefore, a code equivalent to the one above would be :
 learning_rates = [0.1, 0.01, 0.001]
 
 for i in learning_rates:
-  config = ProjectConfiguration.load_config([
+  config = ProjectSpecificConfiguration.load_config([
     "path/to/experiment_config_1.yaml", {"learning_rate": i}
   ])
   run_experiment(config)
@@ -1340,7 +1382,7 @@ Reproducing an experiment is as simple as loading the config file that was
 saved when it was performed.
 
 ```python
-config = ProjectConfiguration.load_config("./exp1/lr0.1_config.yaml")
+config = ProjectSpecificConfiguration.load_config("./exp1/lr0.1_config.yaml")
 run_experiment(config)
 ```
 
@@ -1383,7 +1425,7 @@ can easily re-run the above-mentioned experiment with the new
 squeeze-and-excitation modules.
 
 ```python
-config = ProjectConfiguration.load_config("./exp1/lr0.1_config.yaml")
+config = ProjectSpecificConfiguration.load_config("./exp1/lr0.1_config.yaml")
 config.merge({"use_squeeze_excitation": True})
 run_experiment(config)
 ```
@@ -1673,7 +1715,7 @@ examples :
 search = [{"learning_rate" : i} for i in [0.1, 0.01, 0.001]]
 
 for exp_config in search:
-  config = ProjectConfiguration.load_config([
+  config = ProjectSpecificConfiguration.load_config([
     "path/to/experiment_config_1.yaml", exp_config
   ])
   run_experiment(config)
@@ -1718,7 +1760,7 @@ def parameters_pre_processing(self):
 ```
 
 ```python
-config = ProjectConfiguration.load_config("path/to/experiment_config_1.yaml")
+config = ProjectSpecificConfiguration.load_config("path/to/experiment_config_1.yaml")
 config.save(os.path.join(config.output_directory, "config.yaml"))
 
 for exp_config in config.create_variations():
@@ -1888,7 +1930,7 @@ outside a merge. For example, what happens as a result of the following code
 depends on the overwriting regime :
 
 ```python
-config = ProjectConfiguration.load_config("path/to/experiment_config_1.yaml")
+config = ProjectSpecificConfiguration.load_config("path/to/experiment_config_1.yaml")
 config.save("save.yaml")
 
 config.learning_rate = 0.2

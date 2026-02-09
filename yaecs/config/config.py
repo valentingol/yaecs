@@ -45,7 +45,7 @@ class Configuration(_ConfigurationBase):
 
     """
 
-    def __init__(self, name: str = "main", overwriting_regime: str = "auto-save",
+    def __init__(self, name: str = "main", overwriting_regime: str = "locked",
                  config_path_or_dictionary: Optional[ConfigDeclarator] = None,
                  nesting_hierarchy: Optional[List[str]] = None, state: Optional[List[str]] = None,
                  main_config: Optional['Configuration'] = None, variation: Optional[str] = None,
@@ -56,10 +56,10 @@ class Configuration(_ConfigurationBase):
         build_from_configs, build_from_argv), or the utils.make_config convenience function.
 
         :param name: name for the config or sub-config
-        :param overwriting_regime: can be "auto-save" (default, when a param is overwritten it is merged instead and the
-            config is saved automatically if it had been saved previously), "locked" (params can't be overwritten except
-            using merge explicitly) or "unsafe" (params can be freely overwritten but reproducibility
-            is not guaranteed).
+        :param overwriting_regime: can be "locked" (default, params can't be overwritten except using merge explicitly),
+            "auto-save" (when a param is overwritten it is merged instead and the config is saved automatically if it
+            had been saved previously), or "unsafe" (params can be freely overwritten but reproducibility is not
+            guaranteed).
         :param config_path_or_dictionary: path or dictionary to create the config from
         :param nesting_hierarchy: list containing the names of all the configs in the sub-config chain leading to this
             config
@@ -127,7 +127,7 @@ class Configuration(_ConfigurationBase):
 
     @classmethod
     def load_config(cls, *configs: ConfigInput, default_config_path: Optional[ConfigDeclarator] = None,
-                    overwriting_regime: str = "auto-save", do_not_merge_command_line: bool = False,
+                    overwriting_regime: str = "locked", do_not_merge_command_line: bool = False,
                     do_not_pre_process: bool = False, do_not_post_process: bool = False,
                     **kwargs) -> 'Configuration':
         """
@@ -167,7 +167,7 @@ class Configuration(_ConfigurationBase):
         return config
 
     @classmethod
-    def build_from_configs(cls, *configs: ConfigInput, overwriting_regime: str = "auto-save",
+    def build_from_configs(cls, *configs: ConfigInput, overwriting_regime: str = "locked",
                            do_not_merge_command_line: bool = False, do_not_pre_process: bool = False,
                            do_not_post_process: bool = False, **kwargs) -> 'Configuration':
         """
@@ -201,7 +201,7 @@ class Configuration(_ConfigurationBase):
 
     @classmethod
     def build_from_argv(cls, *configs: ConfigInput, fallback: Optional[ConfigInput] = None, pattern: str = "--config",
-                        default_config_path: Optional[ConfigDeclarator] = None, overwriting_regime: str = "auto-save",
+                        default_config_path: Optional[ConfigDeclarator] = None, overwriting_regime: str = "locked",
                         do_not_merge_command_line: bool = False, do_not_pre_process: bool = False,
                         do_not_post_process: bool = False, **kwargs) -> 'Configuration':
         """
@@ -384,7 +384,7 @@ class Configuration(_ConfigurationBase):
                 object.__setattr__(subconfig, "_variation_name", name)
 
     @classmethod
-    def _get_instance(cls, name: str = "main", overwriting_regime: str = "auto-save",
+    def _get_instance(cls, name: str = "main", overwriting_regime: str = "locked",
                       config_path_or_dictionary: Optional[ConfigDeclarator] = None,
                       nesting_hierarchy: Optional[List[str]] = None, state: Optional[List[str]] = None,
                       main_config: Optional['Configuration'] = None, variation: Optional[str] = None,
