@@ -159,3 +159,4 @@ yaecs/_version.py
 unittests/config/test_project_config/
 unittests/config/test_config_project.py
 tmp/
+.github/
