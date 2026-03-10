@@ -5,7 +5,7 @@ comparison_strings = {
     "comment": """[2/2] VALIDATION run in tmp/normal/test_0/f_var_2 (variation f_var_2) :
 Purpose : description""",
     "hierarchy": """config_hierarchy:
-- /home/vac/Documents/Projects/ait-yaecs/unittests/experiment/test_project_config/defaults/default.yaml
+- /home/vac/Dokumente/Projects/ait-yaecs/unittests/experiment/test_project_config/defaults/default.yaml
 - unittests/experiment/test_project_config/experiments/s
 - unittests/experiment/test_project_config/experiments/variations
 - a_config.ts.t4.fr: b
