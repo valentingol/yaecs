@@ -55,7 +55,10 @@ class ClearMLLogger(Logger):
 
     def check_install(self) -> str:
         error = ""
-        if not os.path.isfile(os.path.expanduser("~/clearml.conf")):
+        clearml_conf_path = os.path.expanduser("~/clearml.conf")
+        if os.environ.get("CLEARML_CONFIG_FILE") is not None:
+            clearml_conf_path = os.path.expanduser(os.environ.get("CLEARML_CONFIG_FILE"))
+        if not os.path.isfile(clearml_conf_path):
             error = ("Installation Error : no 'clearml.conf' file detected in your home directory. Please run 'clearml-"
                      "init' as explained in https://clear.ml/docs/latest/docs/getting_started/ds/ds_first_steps.")
         if not importlib.util.find_spec("clearml"):
